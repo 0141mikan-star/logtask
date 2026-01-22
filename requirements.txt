@@ -1,2 +1,5 @@
 streamlit
+
 supabase
+pandas
+streamlit-calendar

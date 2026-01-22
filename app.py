@@ -9,7 +9,7 @@ from streamlit_calendar import calendar
 
 # ページ設定 (カレンダーとリストを並べるため wide モード必須)
 st.set_page_config(page_title="実用版タスク管理", layout="wide")
-st.title("✅ 実用版・褒めてくれるタスク管理")
+st.title("✅ 褒めてくれるタスク管理")
 
 # 褒め言葉リスト
 PRAISE_MESSAGES = [
@@ -219,3 +219,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

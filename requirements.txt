@@ -1,5 +1,6 @@
 streamlit
-
+pip install supabase
 supabase
 pandas
 streamlit-calendar
+

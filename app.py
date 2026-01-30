@@ -6,7 +6,7 @@ import time
 from datetime import datetime, date, timedelta, timezone
 import urllib.parse
 import hashlib
-import altair as alt # グラフ描画用
+import altair as alt
 from streamlit_calendar import calendar
 
 # ページ設定
@@ -22,10 +22,9 @@ if "is_studying" not in st.session_state:
     st.session_state["is_studying"] = False
 if "start_time" not in st.session_state:
     st.session_state["start_time"] = None
-if "selected_date" not in st.session_state:
-    st.session_state["selected_date"] = None
-if "show_dialog" not in st.session_state: # ダイアログ表示制御用
-    st.session_state["show_dialog"] = False
+# カレンダーの連打防止用（前回クリックしたデータを保存しておく）
+if "last_cal_event" not in st.session_state:
+    st.session_state["last_cal_event"] = None
 
 # トースト通知表示
 if st.session_state["toast_msg"]:
@@ -235,28 +234,8 @@ def play_gacha(username, cost):
 def set_title(username, title):
     supabase.table("users").update({"current_title": title}).eq("username", username).execute()
 
-# --- 日付変換ヘルパー関数 (日付ズレ防止の要) ---
-def parse_date_correctly(date_data):
-    """
-    FullCalendarから返ってきた日付文字列を、日本時間(JST)のYYYY-MM-DDに正しく変換する
-    """
-    # 1. すでにYYYY-MM-DD形式 (dateStr) ならそのまま返す
-    if "T" not in date_data:
-        return date_data
-    
-    # 2. ISO形式 (T...Z) の場合、UTCとして解釈して9時間足す
-    try:
-        # 末尾のZを+00:00に置換してdatetimeオブジェクトにする
-        dt_utc = datetime.fromisoformat(date_data.replace("Z", "+00:00"))
-        # 日本時間に変換
-        dt_jst = dt_utc.astimezone(JST)
-        return dt_jst.strftime('%Y-%m-%d')
-    except:
-        # 万が一パースに失敗したら、単純にTの前までを使う
-        return date_data.split("T")[0]
 
-
-# --- ポップアップ詳細表示用の関数 ---
+# --- ポップアップ詳細表示 (モーダル) ---
 @st.dialog("📅 記録の詳細")
 def show_detail_dialog(target_date, df_tasks, df_logs):
     st.write(f"**{target_date}** の頑張り記録です")
@@ -291,10 +270,27 @@ def show_detail_dialog(target_date, df_tasks, df_logs):
         else:
             st.caption("なし")
 
-# --- 共通カレンダーコンポーネント (ポップアップ対応版) ---
+
+# --- 日付補正処理 ---
+def parse_correct_date(raw_date):
+    """UTCのタイムスタンプを日本時間の日付に直す"""
+    try:
+        # Tが含まれている場合（例: 2026-01-28T00:00:00Z）
+        if "T" in raw_date:
+            # UTCとして解釈して日本時間に変換
+            dt_utc = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+            dt_jst = dt_utc.astimezone(JST)
+            return dt_jst.strftime('%Y-%m-%d')
+        else:
+            # 単純な日付文字列ならそのまま返す
+            return raw_date
+    except:
+        return raw_date
+
+# --- 共通カレンダーコンポーネント (モーダル対応・ループ防止版) ---
 def render_calendar_and_details(df_tasks, df_logs, unique_key):
     st.subheader("📅 カレンダー")
-    st.caption("日付をクリックするとポップアップで詳細が見れます")
+    st.caption("日付をクリックすると詳細がポップアップします")
     
     events = []
     
@@ -318,41 +314,36 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
                 "allDay": True
             })
 
+    # カレンダー設定 (日本時間を指定してズレを防止)
     cal_options = {
         "initialView": "dayGridMonth",
         "height": 450,
-        "selectable": True, 
+        "selectable": True,
+        "timeZone": 'Asia/Tokyo', # これで日付ズレを直す！
     }
     
     cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select', 'eventClick'], key=unique_key)
     
-    if cal_data:
-        raw_date_str = None
-        callback_type = cal_data.get("callback")
+    # === 無限ループ防止ロジック ===
+    # カレンダーからデータが来ていて、かつ「前回と同じデータ」でなければ処理する
+    if cal_data and cal_data != st.session_state["last_cal_event"]:
+        st.session_state["last_cal_event"] = cal_data # 今回のデータを保存
         
-        # どの操作が行われたか判定して、生の日時文字列を取得
-        if callback_type == "dateClick":
-            info = cal_data.get("dateClick", {})
-            raw_date_str = info.get("date") # ここでISO形式(UTC)が取れることが多い
-        elif callback_type == "select":
-            info = cal_data.get("select", {})
-            raw_date_str = info.get("start")
-        elif callback_type == "eventClick":
-            info = cal_data.get("eventClick", {}).get("event", {})
-            raw_date_str = info.get("start")
-
-        # 日付が取れたら、ズレ補正をしてセット
+        raw_date_str = None
+        
+        # データ取り出し
+        if "dateClick" in cal_data:
+             raw_date_str = cal_data["dateClick"]["date"]
+        elif "select" in cal_data:
+             raw_date_str = cal_data["select"]["start"]
+        elif "eventClick" in cal_data:
+             raw_date_str = cal_data["eventClick"]["event"]["start"]
+        
+        # 日付が取れたら、補正してダイアログを開く
         if raw_date_str:
-            corrected_date = parse_date_correctly(raw_date_str)
-            st.session_state["selected_date"] = corrected_date
-            st.session_state["show_dialog"] = True # ダイアログを表示するフラグを立てる
-            st.rerun() # リロードしてダイアログを表示させる
-
-    # フラグが立っていたらポップアップを表示
-    if st.session_state.get("show_dialog") and st.session_state["selected_date"]:
-        show_detail_dialog(st.session_state["selected_date"], df_tasks, df_logs)
-        # 表示したらフラグを下ろす（次回リロード時に消えるように）
-        st.session_state["show_dialog"] = False
+            target_date = parse_correct_date(raw_date_str)
+            # ここで関数として直接呼び出す (st.rerunはしない！)
+            show_detail_dialog(target_date, df_tasks, df_logs)
 
 
 # --- メイン処理 ---

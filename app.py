@@ -88,13 +88,14 @@ def apply_font(font_type):
         .stMarkdown, .stTextInput > div > div, .stSelectbox > div > div {{
             font-family: {font_family} !important;
         }}
+        /* アイコン類はフォントを適用しない */
         .material-icons, .material-symbols-rounded, [data-testid="stExpander"] svg {{
             font-family: inherit !important;
         }}
         </style>
         """, unsafe_allow_html=True)
 
-# --- デザイン適用関数 (高画質壁紙・透明度調整対応・修正版) ---
+# --- デザイン適用関数 (壁紙・ボックス透明度 修正版) ---
 def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
     bg_url = ""
     
@@ -114,94 +115,80 @@ def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
     elif wallpaper_name == "サイバー":
         bg_url = "https://images.unsplash.com/photo-1535295972055-1c762f4483e5?auto=format&fit=crop&w=1920&q=80"
 
-    # CSS変数の準備
-    app_bg_css = ""
-    text_color_css = ""
-    
-    # 壁紙がある場合の設定
+    # --- CSSの組み立て ---
+    css = ""
+
+    # 1. 背景設定 (画像がない場合はダークグレー)
     if bg_url and wallpaper_name != "シンプル":
-        app_bg_css = f"""
-        /* 背景画像の指定 */
-        background-image: linear-gradient(rgba(0, 0, 0, {bg_opacity}), rgba(0, 0, 0, {bg_opacity})), url("{bg_url}");
-        background-attachment: fixed;
-        background-size: cover;
-        background-position: center;
-        background-color: #1E1E1E;
-        """
-        text_color_css = """
-        /* 文字色を白く、影をつける */
-        .stMarkdown, .stText, h1, h2, h3, p, span, div {
-            color: #ffffff !important;
-            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
-        }
+        css += f"""
+        .stApp {{
+            background-image: linear-gradient(rgba(0, 0, 0, {bg_opacity}), rgba(0, 0, 0, {bg_opacity})), url("{bg_url}");
+            background-attachment: fixed;
+            background-size: cover;
+            background-position: center;
+            background-color: #1E1E1E;
+        }}
         """
     else:
-        # シンプルの場合
-        app_bg_css = "background-color: #FFFFFF;" # またはデフォルトテーマ依存
-        # シンプルなら文字色はデフォルトに任せる（強制上書きしない）
-        text_color_css = ""
+        css += """
+        .stApp {
+            background-color: #1E1E1E; /* シンプルでもダークモード背景 */
+        }
+        """
 
-    # スタイル適用
-    st.markdown(f"""
-    <style>
-    .stApp {{
-        {app_bg_css}
+    # 2. 共通テキストスタイル (白文字・影付き)
+    css += """
+    .stMarkdown, .stText, h1, h2, h3, p, span, div {
+        color: #ffffff !important;
+        text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+    }
+    """
+
+    # 3. ボックス・コンテナのスタイル (ここで box_opacity を適用)
+    css += f"""
+    /* ショップのカード(border=True), Expander, フォーム, タスクリスト */
+    div[data-testid="stVerticalBlockBorderWrapper"], 
+    div[data-testid="stExpander"], 
+    div[data-testid="stForm"], 
+    .task-container-box {{
+        background-color: rgba(20, 20, 20, {box_opacity}) !important;
+        border-radius: 12px;
+        padding: 15px;
+        border: 1px solid rgba(255,255,255,0.3);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.5);
     }}
     
-    {text_color_css}
-
-    /* --- UIパーツの視認性調整 --- */
-
-    /* タブバー */
+    /* ボックス内の要素も白文字を強制 */
+    div[data-testid="stVerticalBlockBorderWrapper"] *,
+    div[data-testid="stExpander"] *,
+    div[data-testid="stForm"] *, 
+    .task-container-box * {{
+        color: #ffffff !important;
+    }}
+    
+    /* タブのデザイン */
     button[data-baseweb="tab"] {{
         background-color: rgba(20, 20, 20, {box_opacity}) !important;
         color: white !important;
         border: 1px solid rgba(255,255,255,0.2);
         border-radius: 5px 5px 0 0;
         margin-right: 4px;
-        text-shadow: none !important;
     }}
     button[aria-selected="true"] {{
         background-color: #FF4B4B !important;
         border: 1px solid #FF4B4B;
     }}
     
-    /* コンテナ・ボックスの濃さ(box_opacity) */
-    /* ショップのカード、Expander、フォーム、タイマーのタスクリスト */
-    div[data-testid="stVerticalBlockBorderWrapper"],
-    div[data-testid="stExpander"],
-    div[data-testid="stForm"],
-    .task-container-box {{
-        background-color: rgba(20, 20, 20, {box_opacity}) !important; /* スライダーの値を使用 */
-        border-radius: 12px;
-        padding: 15px;
-        border: 1px solid rgba(255,255,255,0.3);
-        box-shadow: 0 4px 6px rgba(0,0,0,0.5);
-        /* ボックス内の文字色も強制的に白にする */
-        color: #ffffff !important;
-    }}
-
-    /* コンテナ内の全てのテキスト要素の色も強制的に白にする */
-    div[data-testid="stVerticalBlockBorderWrapper"] *,
-    div[data-testid="stExpander"] *,
-    div[data-testid="stForm"] *,
-    .task-container-box * {{
-        color: #ffffff !important;
-    }}
-    
-    /* 入力ラベル */
+    /* 入力フォームのラベル */
     label {{
         color: #FFD700 !important; /* 金色 */
         font-weight: bold;
         text-shadow: none;
     }}
-    
-    /* ボタン類 */
-    button {{
-        font-weight: bold !important;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
+    """
+
+    # CSSを適用
+    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 # --- ユーザー情報取得 ---
 def get_user_data(username):
@@ -610,7 +597,6 @@ def main():
         st.divider()
         st.write("🔧 **調整**")
         
-        # スライダー設定
         bg_opacity = st.slider("壁紙の暗さ (フィルター)", 0.0, 1.0, 0.3, 0.05, help="背景を暗くして文字を見やすくします")
         box_opacity = st.slider("ボックスの背景濃度", 0.0, 1.0, 0.9, 0.05, help="ショップなどのカードの透け具合を調整します")
         
@@ -648,7 +634,7 @@ def main():
     # --- 画面レイアウト ---
     tab1, tab2, tab3, tab4 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🛒 ショップ"])
     
-    # === タブ1: ToDoリスト (カレンダー復活) ===
+    # === タブ1: ToDoリスト ===
     with tab1:
         col_t1, col_t2 = st.columns([0.6, 0.4])
         with col_t1:

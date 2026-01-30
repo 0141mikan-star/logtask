@@ -1,4 +1,3 @@
-
 import streamlit as st
 from supabase import create_client, Client
 import pandas as pd
@@ -29,7 +28,7 @@ if st.session_state["toast_msg"]:
     st.toast(st.session_state["toast_msg"], icon="🆙")
     st.session_state["toast_msg"] = None 
 
-st.title("✅ 褒めてくれるタスク管理")
+st.title("✅ 褒めてくれるタスク管理 (RPG風)")
 
 # 称号ガチャのリスト
 GACHA_TITLES = [
@@ -85,7 +84,6 @@ def apply_theme(font_type):
 # --- ユーザー情報取得 (拡張版) ---
 def get_user_data(username):
     try:
-        # xp, coins, unlocked_themes, current_title, unlocked_titles を取得
         response = supabase.table("users").select("*").eq("username", username).execute()
         if response.data:
             return response.data[0]
@@ -152,16 +150,12 @@ def get_tasks(username):
     return pd.DataFrame()
 
 def complete_tasks_bulk(task_ids, username):
-    # ステータス更新
     supabase.table("tasks").update({"status": "完了"}).in_("id", task_ids).execute()
-    
-    # 報酬計算 (XP と コイン 両方ゲット！)
     amount = len(task_ids) * 10
-    
     user_data = get_user_data(username)
     if user_data:
         new_xp = user_data.get('xp', 0) + amount
-        new_coins = user_data.get('coins', 0) + amount # コインも増やす
+        new_coins = user_data.get('coins', 0) + amount
         supabase.table("users").update({"xp": new_xp, "coins": new_coins}).eq("username", username).execute()
         return amount, new_xp, new_coins
     return 0, 0, 0
@@ -184,7 +178,6 @@ def add_study_log(username, subject, minutes, date_obj=None):
     }
     supabase.table("study_logs").insert(data).execute()
     
-    # XPとコインを付与
     amount = minutes
     user_data = get_user_data(username)
     if user_data:
@@ -199,16 +192,14 @@ def get_study_logs(username):
     df = pd.DataFrame(response.data)
     return df
 
-# --- DB操作: ショップ・ガチャ関連 (新機能) ---
+# --- DB操作: ショップ・ガチャ関連 ---
 def buy_theme(username, theme_name, cost):
     user_data = get_user_data(username)
     current_coins = user_data.get('coins', 0)
     current_themes = user_data.get('unlocked_themes', "標準")
     
     if current_coins >= cost:
-        # コイン消費
         new_coins = current_coins - cost
-        # テーマ追加
         new_themes = f"{current_themes},{theme_name}"
         supabase.table("users").update({"coins": new_coins, "unlocked_themes": new_themes}).eq("username", username).execute()
         return True, new_coins
@@ -221,16 +212,13 @@ def play_gacha(username, cost):
     
     if current_coins >= cost:
         new_coins = current_coins - cost
-        # ランダム抽選
         won_title = random.choice(GACHA_TITLES)
         
-        # 重複チェック（持ってなければ追加）
         if won_title not in current_titles.split(','):
             new_titles = f"{current_titles},{won_title}"
         else:
-            new_titles = current_titles # 既に持っていたらそのまま
+            new_titles = current_titles
             
-        # 称号を強制的にセット＆保存
         supabase.table("users").update({
             "coins": new_coins, 
             "unlocked_titles": new_titles,
@@ -281,7 +269,6 @@ def main():
     current_user = st.session_state["username"]
     user_data = get_user_data(current_user)
     
-    # データ読み込み（エラー回避用の初期値設定）
     xp = user_data.get('xp', 0) if user_data else 0
     coins = user_data.get('coins', 0) if user_data else 0
     my_themes = user_data.get('unlocked_themes', "標準").split(',') if user_data else ["標準"]
@@ -290,7 +277,7 @@ def main():
     # --- サイドバー ---
     with st.sidebar:
         st.subheader(f"👤 {current_user}")
-        st.caption(f"👑 {my_title}") # 称号表示
+        st.caption(f"👑 {my_title}")
         
         if st.button("ログアウト"):
             st.session_state["logged_in"] = False
@@ -298,7 +285,6 @@ def main():
         st.divider()
         
         st.subheader("🎨 着せ替え設定")
-        # 持っているテーマだけを選択肢にする
         selected_theme = st.selectbox("フォント選択", my_themes, index=0)
         apply_theme(selected_theme)
 
@@ -323,7 +309,6 @@ def main():
 
     st.divider()
 
-    # --- データ取得 ---
     df_tasks = get_tasks(current_user)
     df_logs = get_study_logs(current_user)
 
@@ -334,6 +319,7 @@ def main():
     with tab1:
         col_t1, col_t2 = st.columns([0.6, 0.4])
         with col_t1:
+            # ★ここも修正：clear_on_submit=Trueを追加
             with st.expander("➕ タスク追加", expanded=False):
                 with st.form("add", clear_on_submit=True):
                     name = st.text_input("タスク名")
@@ -373,7 +359,6 @@ def main():
                     st.info("タスクはありません！")
         
         with col_t2:
-            # カレンダー表示 (タスクのみ)
             events = []
             if not df_tasks.empty:
                 for _, row in df_tasks.iterrows():
@@ -415,23 +400,26 @@ def main():
 
             st.divider()
             st.subheader("✏️ 手動記録")
-            with st.expander("入力フォームを開く"):
-                with st.form("manual"):
+            with st.expander("入力フォームを開く", expanded=True):
+                # ★ここが重要！ clear_on_submit=True で入力値をリセットします
+                with st.form("manual", clear_on_submit=True):
                     m_date = st.date_input("日付", value=date.today())
                     m_subj = st.text_input("教科")
                     ch, cm = st.columns(2)
                     mh = ch.number_input("時間", 0, 24, 0)
                     mm = cm.number_input("分", 0, 59, 30)
-                    if st.form_submit_button("記録"):
+                    
+                    if st.form_submit_button("記録", type="primary"):
                         total_m = (mh * 60) + mm
                         if m_subj and total_m > 0:
                             amt, nx, nc = add_study_log(current_user, m_subj, total_m, m_date)
                             st.session_state["celebrate"] = True
                             st.session_state["toast_msg"] = f"記録完了！ +{amt}XP & Coin"
                             st.rerun()
+                        elif not m_subj:
+                            st.error("教科を入力してください")
 
         with col_s2:
-            # カレンダー (勉強ログのみ)
             logs = []
             if not df_logs.empty:
                 for _, row in df_logs.iterrows():
@@ -439,17 +427,12 @@ def main():
             if logs:
                 calendar(events=logs, options={"initialView": "dayGridMonth", "height": 400})
 
-    # === タブ3: 分析レポート (新機能！) ===
+    # === タブ3: 分析レポート ===
     with tab3:
         st.subheader("📊 学習データ分析")
-        
         if not df_logs.empty:
-            # 1. 教科ごとの割合 (円グラフ)
             st.markdown("##### 📚 教科ごとの勉強時間")
-            # データを集計
             subject_dist = df_logs.groupby('subject')['duration_minutes'].sum().reset_index()
-            
-            # Altairで円グラフ作成
             pie_chart = alt.Chart(subject_dist).mark_arc(innerRadius=50).encode(
                 theta=alt.Theta(field="duration_minutes", type="quantitative"),
                 color=alt.Color(field="subject", type="nominal"),
@@ -457,53 +440,38 @@ def main():
             ).properties(height=300)
             st.altair_chart(pie_chart, use_container_width=True)
 
-            # 2. 過去7日間の推移 (棒グラフ)
             st.divider()
             st.markdown("##### 📈 過去7日間の推移")
-            
-            # 過去7日分の日付リストを作る
             today = date.today()
             last_7_days = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(6, -1, -1)]
-            
-            # データを日別で集計
             daily_logs = df_logs.groupby('study_date')['duration_minutes'].sum().reset_index()
-            
-            # マージして、勉強してない日も0分として表示させる
             df_trend = pd.DataFrame({'study_date': last_7_days})
             df_trend = pd.merge(df_trend, daily_logs, on='study_date', how='left').fillna(0)
             
-            # 棒グラフ作成
             bar_chart = alt.Chart(df_trend).mark_bar().encode(
                 x=alt.X('study_date', title='日付'),
                 y=alt.Y('duration_minutes', title='時間(分)'),
-                color=alt.value("#4CAF50"), # 緑色
+                color=alt.value("#4CAF50"),
                 tooltip=['study_date', 'duration_minutes']
             ).properties(height=300)
             st.altair_chart(bar_chart, use_container_width=True)
-
         else:
-            st.info("勉強記録をつけると、ここにグラフが表示されます！")
+            st.info("データがありません")
 
-    # === タブ4: ショップ・ガチャ (新機能！) ===
+    # === タブ4: ショップ・ガチャ ===
     with tab4:
         col_shop, col_gacha = st.columns(2)
-        
-        # --- ショップ ---
         with col_shop:
             st.subheader("🛒 テーマショップ")
             st.write(f"所持コイン: **{coins} 💰**")
-            
-            # 商品リスト
             shop_items = [
-                {"name": "ピクセル風", "cost": 500, "desc": "レトロゲームのようなフォント"},
-                {"name": "手書き風", "cost": 800, "desc": "黒板のような可愛いフォント"}
+                {"name": "ピクセル風", "cost": 500, "desc": "レトロゲーム風"},
+                {"name": "手書き風", "cost": 800, "desc": "黒板風"}
             ]
-            
             for item in shop_items:
                 with st.container(border=True):
                     st.write(f"**{item['name']}**")
                     st.caption(item['desc'])
-                    
                     if item['name'] in my_themes:
                         st.button("✅ 購入済み", disabled=True, key=f"btn_{item['name']}")
                     else:
@@ -514,36 +482,32 @@ def main():
                                 st.session_state["toast_msg"] = f"「{item['name']}」を購入しました！"
                                 st.rerun()
                             else:
-                                st.error("コインが足りません！")
+                                st.error("コイン不足！")
 
-        # --- ガチャ ---
         with col_gacha:
             st.subheader("🎲 称号ガチャ")
             st.write("1回 **100 💰**")
-            st.info("サイドバーに表示される称号が当たるよ！")
-            
             if st.button("ガチャを回す！", type="primary"):
                 success, won_title, bal = play_gacha(current_user, 100)
                 if success:
                     st.balloons()
-                    st.success(f"🎉 **「{won_title}」** をゲットしました！")
+                    st.success(f"🎉 **「{won_title}」** ゲット！")
                     st.session_state["toast_msg"] = f"称号「{won_title}」を獲得！"
                     time.sleep(2)
                     st.rerun()
                 else:
-                    st.error("コインが足りません！")
+                    st.error("コイン不足！")
             
             st.divider()
             st.write("📂 **称号コレクション**")
             my_titles_list = user_data.get('unlocked_titles', "見習い").split(',')
-            
-            # 持っている称号を選んでセットする機能
-            selected_t = st.selectbox("称号を変更する", my_titles_list, index=my_titles_list.index(my_title) if my_title in my_titles_list else 0)
+            selected_t = st.selectbox("称号を変更", my_titles_list, index=my_titles_list.index(my_title) if my_title in my_titles_list else 0)
             if selected_t != my_title:
                 set_title(current_user, selected_t)
-                st.session_state["toast_msg"] = f"称号を「{selected_t}」に変更しました"
+                st.session_state["toast_msg"] = f"称号を変更しました"
                 st.rerun()
 
 if __name__ == "__main__":
     main()
+
 

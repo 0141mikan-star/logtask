@@ -10,7 +10,7 @@ import altair as alt
 from streamlit_calendar import calendar
 
 # ページ設定
-st.set_page_config(page_title="個人タスク管理RPG", layout="wide")
+st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide")
 
 # --- 日本時間 (JST) の定義 ---
 JST = timezone(timedelta(hours=9))
@@ -32,7 +32,8 @@ if st.session_state["toast_msg"]:
     st.toast(st.session_state["toast_msg"], icon="🆙")
     st.session_state["toast_msg"] = None 
 
-st.title("✅ 褒めてくれるタスク管理 (RPG風)")
+# ★変更: 新しいタイトル
+st.title("✅ 褒めてくれる勉強時間・タスク管理アプリ")
 
 # 称号ガチャのリスト
 GACHA_TITLES = [
@@ -478,7 +479,7 @@ def show_detail_dialog(target_date, df_tasks, df_logs, username):
         else:
             st.caption("なし")
 
-# --- カレンダーコンポーネント (修正版: シンプル化) ---
+# --- カレンダーコンポーネント (ToDoタブ用) ---
 def render_calendar_and_details(df_tasks, df_logs, unique_key, username):
     st.markdown("""
     <style>
@@ -532,13 +533,10 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key, username):
         "timeZone": 'Asia/Tokyo', 
     }
     
-    # 安定動作のため、キーの動的変更を廃止し固定キーを使用
     cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select', 'eventClick'], key=unique_key)
     
-    # 無限ループ防止のため、前回と同じデータならスキップ
-    if cal_data and cal_data != st.session_state.get("last_cal_event"):
+    if cal_data and cal_data != st.session_state["last_cal_event"]:
         st.session_state["last_cal_event"] = cal_data
-        
         raw_date_str = None
         if "dateClick" in cal_data:
              raw_date_str = cal_data["dateClick"]["date"]

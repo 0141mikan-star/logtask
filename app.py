@@ -32,7 +32,7 @@ if st.session_state["toast_msg"]:
     st.toast(st.session_state["toast_msg"], icon="🆙")
     st.session_state["toast_msg"] = None 
 
-st.title("✅ 褒めてくれる勉強時間・タスク管理アプリ ")
+st.title("✅ 褒めてくれるタスク管理 (RPG風)")
 
 # 称号ガチャのリスト
 GACHA_TITLES = [
@@ -328,27 +328,21 @@ def add_study_log(username, subject, minutes, date_obj=None):
 def get_study_logs(username):
     response = supabase.table("study_logs").select("*").eq("username", username).execute()
     df = pd.DataFrame(response.data)
-    # 直近のものから順に表示するためソート
     if not df.empty:
         if 'id' in df.columns:
             df = df.sort_values('id', ascending=False)
     return df
 
-# ★新規: 勉強ログ削除機能 (XP/コインも減算)
+# 勉強ログ削除機能
 def delete_study_log(log_id, username, duration):
     try:
-        # 1. ログを削除
         supabase.table("study_logs").delete().eq("id", log_id).execute()
-        
-        # 2. ユーザーのXP/コインを減算
         user_data = get_user_data(username)
         if user_data:
             current_xp = user_data.get('xp', 0)
             current_coins = user_data.get('coins', 0)
-            
             new_xp = max(0, current_xp - duration)
             new_coins = max(0, current_coins - duration)
-            
             supabase.table("users").update({"xp": new_xp, "coins": new_coins}).eq("username", username).execute()
             return True
     except:
@@ -431,10 +425,10 @@ def parse_correct_date(raw_date):
     except:
         return raw_date
 
-# --- 詳細ダイアログ ---
+# --- 詳細ダイアログ (削除機能追加) ---
 @st.dialog("📅 記録の詳細")
-def show_detail_dialog(target_date, df_tasks, df_logs):
-    st.write(f"**{target_date}** の頑張り記録です")
+def show_detail_dialog(target_date, df_tasks, df_logs, username):
+    st.write(f"**{target_date}** の記録")
     
     day_tasks = pd.DataFrame()
     if not df_tasks.empty:
@@ -459,20 +453,33 @@ def show_detail_dialog(target_date, df_tasks, df_logs):
         st.info("📝 **タスク**")
         if not day_tasks.empty:
             for _, row in day_tasks.iterrows():
+                cc1, cc2 = st.columns([0.8, 0.2])
                 icon = "✅" if row['status'] == '完了' else "⬜"
-                st.write(f"{icon} {row['task_name']}")
+                cc1.write(f"{icon} {row['task_name']}")
+                # タスク削除ボタン
+                if cc2.button("🗑️", key=f"del_task_cal_{row['id']}"):
+                    delete_task(row['id'])
+                    st.session_state["toast_msg"] = "タスクを削除しました"
+                    st.rerun()
         else:
             st.caption("なし")
+            
     with c2:
         st.success(f"📖 **勉強: {time_display}**")
         if not day_logs.empty:
             for _, row in day_logs.iterrows():
-                st.write(f"・{row['subject']}: {row['duration_minutes']}分")
+                cc1, cc2 = st.columns([0.8, 0.2])
+                cc1.write(f"・{row['subject']}: {row['duration_minutes']}分")
+                # ログ削除ボタン
+                if cc2.button("🗑️", key=f"del_log_cal_{row['id']}"):
+                    delete_study_log(row['id'], username, row['duration_minutes'])
+                    st.session_state["toast_msg"] = f"ログを削除 (-{row['duration_minutes']} XP/Coin)"
+                    st.rerun()
         else:
             st.caption("なし")
 
 # --- カレンダーコンポーネント (ToDoタブ用) ---
-def render_calendar_and_details(df_tasks, df_logs, unique_key):
+def render_calendar_and_details(df_tasks, df_logs, unique_key, username):
     st.markdown("""
     <style>
     .fc {
@@ -539,7 +546,7 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
         
         if raw_date_str:
             target_date = parse_correct_date(raw_date_str)
-            show_detail_dialog(target_date, df_tasks, df_logs)
+            show_detail_dialog(target_date, df_tasks, df_logs, username)
 
 # --- その日のタスクリスト (タイマーダブ用) ---
 def render_daily_task_list(df_tasks, unique_key):
@@ -777,7 +784,7 @@ def main():
                     st.info("タスクはありません！")
         
         with col_t2:
-            render_calendar_and_details(df_tasks, df_logs, "cal_todo")
+            render_calendar_and_details(df_tasks, df_logs, "cal_todo", current_user)
 
     # === タブ2: 勉強タイマー ===
     with tab2:
@@ -814,13 +821,10 @@ def main():
             st.subheader("✏️ 手動記録")
             with st.expander("入力フォームを開く", expanded=True):
                 with st.form("manual", clear_on_submit=True):
-                    # Enter送信しやすくするために順番変更: 日付・時間 -> 教科(Text)の順
                     c_date, c_time_h, c_time_m = st.columns([0.4, 0.3, 0.3])
                     m_date = c_date.date_input("日付", value=date.today())
                     mh = c_time_h.number_input("時間", 0, 24, 0)
                     mm = c_time_m.number_input("分", 0, 59, 0)
-                    
-                    # 最後にテキスト入力を持ってくることでEnter送信が可能に
                     m_subj = st.text_input("教科 (Enterで記録)", placeholder="例: 数学")
                     
                     if st.form_submit_button("記録", type="primary"):
@@ -835,11 +839,9 @@ def main():
                         elif total_m <= 0:
                             st.error("時間を入力してください")
             
-            # ★新規機能: 履歴削除リスト
             if not df_logs.empty:
                 st.markdown("---")
                 st.subheader("📖 最近の記録 (削除可能)")
-                # 直近5件を表示
                 recent_logs = df_logs.head(5)
                 for _, row in recent_logs.iterrows():
                     rc1, rc2, rc3 = st.columns([0.5, 0.3, 0.2])
@@ -869,10 +871,8 @@ def main():
 
             st.divider()
             st.markdown("##### 📈 過去7日間の推移 (教科別)")
-            
             today = date.today()
             last_7_days = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(6, -1, -1)]
-            
             df_recent = df_logs[df_logs['study_date'].isin(last_7_days)].copy()
             
             if not df_recent.empty:
@@ -882,7 +882,6 @@ def main():
                     color=alt.Color('subject', title='教科', legend=alt.Legend(orient='top')),
                     tooltip=['study_date', 'subject', 'duration_minutes']
                 ).properties(height=300)
-                
                 st.altair_chart(bar_chart, use_container_width=True)
             else:
                 st.info("過去7日間の記録はありません")
@@ -893,9 +892,7 @@ def main():
     with tab4:
         st.subheader("🏆 週間勉強時間ランキング")
         st.caption("過去7日間の合計時間を競いましょう！")
-        
         df_ranking = get_weekly_ranking()
-        
         if not df_ranking.empty:
             for index, row in df_ranking.iterrows():
                 rank = index + 1
@@ -904,18 +901,14 @@ def main():
                 elif rank == 2: medal = "🥈"
                 elif rank == 3: medal = "🥉"
                 else: medal = f"{rank}位"
-                
                 is_me = (row['username'] == current_user)
                 border_color = "#FF4B4B" if is_me else "rgba(255,255,255,0.3)"
                 bg_style = "background-color: rgba(255, 75, 75, 0.2) !important;" if is_me else ""
-                
                 display_name = row.get('nickname') if row.get('nickname') else row['username']
-                
                 total_m = row['duration_minutes']
                 h = total_m // 60
                 m = total_m % 60
                 time_str = f"{h}時間 {m}分" if h > 0 else f"{m}分"
-                
                 st.markdown(f"""
                 <div class="ranking-card" style="border: 1px solid {border_color}; {bg_style} margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
                     <div style="display:flex; align-items:center;">
@@ -934,7 +927,6 @@ def main():
     # === タブ5: ショップ・ガチャ ===
     with tab5:
         col_shop_font, col_shop_wall, col_gacha = st.columns(3)
-        
         with col_shop_font:
             st.subheader("🅰️ フォント屋")
             font_items = [
@@ -1014,4 +1006,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

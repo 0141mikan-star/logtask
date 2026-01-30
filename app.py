@@ -234,12 +234,13 @@ def set_title(username, title):
     supabase.table("users").update({"current_title": title}).eq("username", username).execute()
 
 
-# --- 共通カレンダーコンポーネント (最終修正版) ---
+# --- 共通カレンダーコンポーネント (デバッグ・イベントクリック対応版) ---
 def render_calendar_and_details(df_tasks, df_logs, unique_key):
     st.subheader("📅 カレンダー")
-    st.caption("日付をクリックすると詳細が見れます")
+    st.caption("日付やタスクをクリックすると、下に詳細が表示されます")
     
     events = []
+    
     if not df_tasks.empty:
         for _, row in df_tasks.iterrows():
             color = "#808080" if row['status'] == '完了' else "#FF4B4B" if row['priority']=="高" else "#1C83E1"
@@ -264,18 +265,18 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
     cal_options = {
         "initialView": "dayGridMonth",
         "height": 450,
-        "selectable": True, # これがないとクリックできない
+        "selectable": True, 
     }
     
-    # 【重要】callbacksに 'select' と 'dateClick' を指定
-    cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select'], key=unique_key)
+    # 【重要】callbacksに 'eventClick' を追加（これでタスクをクリックしても反応する）
+    cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select', 'eventClick'], key=unique_key)
     
-    # === デバッグ用（もし動かない時はここを開いて中身を教えてください） ===
-    # with st.expander("🛠️ デバッグ情報 (クリックしても反応しない場合はここを確認)"):
-    #     st.write(cal_data)
-    
-    # === 日付取得ロジック (大幅緩和) ===
-    # 条件を厳しくせず、「とにかく日付っぽい文字列があったら採用」する
+    # === デバッグ情報の表示 (これでクリックが反応してるか確認できます) ===
+    # もしクリックしても下の文字が変わらなければ、カレンダー自体の不具合です
+    if cal_data:
+        st.caption(f"Debug: {cal_data.get('callback', 'No Callback')} / {str(cal_data)[:50]}...")
+
+    # === 日付取得ロジック ===
     if cal_data:
         clicked_date_str = None
         
@@ -287,9 +288,14 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
         elif "startStr" in cal_data:
              clicked_date_str = cal_data["startStr"]
         
-        # パターン3: イベントクリック (eventClick) -> イベントの日付を取る
+        # パターン3: イベント(タスク)クリック (eventClick)
+        # タスクをクリックした場合、そのタスクの日付を取得する
         elif "event" in cal_data and "start" in cal_data["event"]:
              clicked_date_str = cal_data["event"]["start"].split("T")[0]
+        
+        # パターン4: 予備 (date)
+        elif "date" in cal_data:
+             clicked_date_str = cal_data["date"].split("T")[0]
 
         # 日付が取れたら更新
         if clicked_date_str:
@@ -299,10 +305,10 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
     if st.session_state["selected_date"]:
         target_date = st.session_state["selected_date"]
         
+        # 枠線付きで表示
         with st.container(border=True):
             st.markdown(f"### 📅 {target_date} の記録")
             
-            # データ抽出
             day_tasks = pd.DataFrame()
             if not df_tasks.empty:
                 day_tasks = df_tasks[df_tasks['due_date'] == target_date]

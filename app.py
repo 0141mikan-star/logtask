@@ -22,6 +22,10 @@ if "is_studying" not in st.session_state:
     st.session_state["is_studying"] = False
 if "start_time" not in st.session_state:
     st.session_state["start_time"] = None
+if "last_cal_event" not in st.session_state:
+    st.session_state["last_cal_event"] = None
+if "selected_date" not in st.session_state:
+    st.session_state["selected_date"] = None
 
 # トースト通知表示
 if st.session_state["toast_msg"]:
@@ -84,72 +88,93 @@ def apply_font(font_type):
         .stMarkdown, .stTextInput > div > div, .stSelectbox > div > div {{
             font-family: {font_family} !important;
         }}
-        /* アイコン類はフォントを適用しない */
         .material-icons, .material-symbols-rounded, [data-testid="stExpander"] svg {{
             font-family: inherit !important;
         }}
         </style>
         """, unsafe_allow_html=True)
 
-# --- デザイン適用関数 (高画質壁紙・修正版) ---
-def apply_wallpaper(wallpaper_name):
+# --- デザイン適用関数 (高画質壁紙 + 視認性強化) ---
+def apply_wallpaper(wallpaper_name, opacity=0.4):
     bg_url = ""
     
-    if wallpaper_name == "シンプル":
-        return 
-        
-    elif wallpaper_name == "草原": 
+    # 画像URL定義
+    if wallpaper_name == "草原": 
         bg_url = "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&w=1920&q=80"
-        
     elif wallpaper_name == "夕焼け":
         bg_url = "https://images.unsplash.com/photo-1472120435266-53107fd0c44a?auto=format&fit=crop&w=1920&q=80"
-        
     elif wallpaper_name == "夜空":
         bg_url = "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=1920&q=80"
-        
     elif wallpaper_name == "ダンジョン":
         bg_url = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1920&q=80"
-    
     elif wallpaper_name == "王宮":
         bg_url = "https://images.unsplash.com/photo-1544939514-aa98d908bc47?auto=format&fit=crop&w=1920&q=80"
-
     elif wallpaper_name == "図書館":
         bg_url = "https://images.unsplash.com/photo-1507842217121-9d5908f4d06a?auto=format&fit=crop&w=1920&q=80"
-
     elif wallpaper_name == "サイバー":
         bg_url = "https://images.unsplash.com/photo-1535295972055-1c762f4483e5?auto=format&fit=crop&w=1920&q=80"
 
-    if bg_url:
-        st.markdown(f"""
-        <style>
-        .stApp {{
-            /* 背景画像の指定 (黒フィルターを少し濃く調整 0.3 -> 0.4) */
-            background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("{bg_url}");
-            background-attachment: fixed;
-            background-size: cover;
-            background-position: center;
-            background-color: #1E1E1E;
-        }}
-        /* 文字色を白く、影をつけて読みやすく */
-        .stMarkdown, .stText, h1, h2, h3, p {{
-            color: #ffffff !important;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.9); /* 影を少し濃く */
-        }}
-        /* ★修正点: コンテナの背景をより不透明にして文字を保護 */
-        /* div[data-testid="stVerticalBlockBorderWrapper"] が border=True のコンテナ */
-        div[data-testid="stExpander"], div[data-testid="stForm"], .task-container, div[data-testid="stVerticalBlockBorderWrapper"] {{
-            background-color: rgba(20, 20, 20, 0.9) !important; /* 透明度を0.7 -> 0.9に変更 */
-            border-radius: 10px;
-            padding: 15px;
-            border: 1px solid rgba(255,255,255,0.3); /* 枠線も少しはっきりさせる */
-        }}
-        /* 入力フォームのラベルも見やすく */
-        label {{
-            color: #ffffff !important;
-            font-weight: bold;
-        }}
-        </style>
-        """, unsafe_allow_html=True)
+    # シンプル(画像なし)の場合のデフォルト背景色
+    if wallpaper_name == "シンプル" or not bg_url:
+        return
+
+    # CSS適用
+    st.markdown(f"""
+    <style>
+    /* 全体の背景画像と明るさ調整 */
+    .stApp {{
+        background-image: linear-gradient(rgba(0, 0, 0, {opacity}), rgba(0, 0, 0, {opacity})), url("{bg_url}");
+        background-attachment: fixed;
+        background-size: cover;
+        background-position: center;
+        background-color: #1E1E1E;
+    }}
+    
+    /* 文字色を白く、影をつけて読みやすく */
+    .stMarkdown, .stText, h1, h2, h3, p, span {{
+        color: #ffffff !important;
+        text-shadow: 1px 1px 3px rgba(0,0,0,0.9);
+    }}
+
+    /* --- 視認性改善エリア --- */
+
+    /* 1. タブバー (ToDo, タイマーなど) */
+    button[data-baseweb="tab"] {{
+        background-color: rgba(0, 0, 0, 0.6) !important; /* タブの背景を半透明の黒に */
+        color: white !important;
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 5px 5px 0 0;
+        margin-right: 4px;
+    }}
+    /* 選択中のタブ */
+    button[aria-selected="true"] {{
+        background-color: #FF4B4B !important; /* 選択中は赤 */
+        border: 1px solid #FF4B4B;
+    }}
+    
+    /* 2. 各種コンテナ・ボックス (ショップのカード、入力フォームなど) */
+    /* border=Trueのコンテナ(stVerticalBlockBorderWrapper) と Expander */
+    div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"], .task-container-box {{
+        background-color: rgba(15, 15, 15, 0.95) !important; /* ほぼ不透明な黒 */
+        border-radius: 12px;
+        padding: 15px;
+        border: 1px solid rgba(255,255,255,0.2);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+    }}
+    
+    /* 3. 入力フィールドのラベル */
+    label {{
+        color: #FFD700 !important; /* 金色で見やすく */
+        font-weight: bold;
+        text-shadow: none;
+    }}
+    
+    /* 4. Expanderの中身の文字 */
+    .streamlit-expanderContent p {{
+        color: #eee !important;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
 
 # --- ユーザー情報取得 ---
 def get_user_data(username):
@@ -318,29 +343,131 @@ def set_title(username, title):
     supabase.table("users").update({"current_title": title}).eq("username", username).execute()
 
 
-# --- その日のタスクリストを表示するコンポーネント ---
-def render_daily_task_list(df_tasks, unique_key):
-    # CSSでリストのデザインを調整（壁紙の上でも見やすく）
+# --- 日付補正処理 ---
+def parse_correct_date(raw_date):
+    try:
+        if "T" in raw_date:
+            dt_utc = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+            dt_jst = dt_utc.astimezone(JST)
+            return dt_jst.strftime('%Y-%m-%d')
+        else:
+            return raw_date
+    except:
+        return raw_date
+
+# --- 詳細ダイアログ ---
+@st.dialog("📅 記録の詳細")
+def show_detail_dialog(target_date, df_tasks, df_logs):
+    st.write(f"**{target_date}** の頑張り記録です")
+    
+    day_tasks = pd.DataFrame()
+    if not df_tasks.empty:
+        day_tasks = df_tasks[df_tasks['due_date'] == target_date]
+    
+    day_logs = pd.DataFrame()
+    total_minutes = 0
+    if not df_logs.empty:
+        day_logs = df_logs[df_logs['study_date'] == target_date]
+        if not day_logs.empty:
+            total_minutes = day_logs['duration_minutes'].sum()
+            
+    hours = total_minutes // 60
+    mins = total_minutes % 60
+    if hours > 0:
+        time_display = f"{hours}時間{mins}分"
+    else:
+        time_display = f"{mins}分"
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.info("📝 **タスク**")
+        if not day_tasks.empty:
+            for _, row in day_tasks.iterrows():
+                icon = "✅" if row['status'] == '完了' else "⬜"
+                st.write(f"{icon} {row['task_name']}")
+        else:
+            st.caption("なし")
+    with c2:
+        st.success(f"📖 **勉強: {time_display}**")
+        if not day_logs.empty:
+            for _, row in day_logs.iterrows():
+                st.write(f"・{row['subject']}: {row['duration_minutes']}分")
+        else:
+            st.caption("なし")
+
+# --- カレンダーコンポーネント (ToDoタブ用) ---
+def render_calendar_and_details(df_tasks, df_logs, unique_key):
+    # カレンダー用の白い背景スタイルを適用
     st.markdown("""
     <style>
-    .task-container-box {
-        background-color: rgba(20, 20, 20, 0.9); /* 透明度を0.9に変更 */
-        border: 1px solid rgba(255,255,255,0.3);
+    .fc {
+        background-color: rgba(255, 255, 255, 0.95) !important;
         border-radius: 10px;
-        padding: 15px;
-        margin-top: 10px;
+        padding: 10px;
+        color: #333333 !important;
     }
-    .task-date-header {
-        font-size: 1.2em;
-        font-weight: bold;
-        color: #FFD700 !important; /* 金色 */
-        margin-bottom: 10px;
-        border-bottom: 1px solid rgba(255,255,255,0.3);
-        padding-bottom: 5px;
+    .fc-theme-standard .fc-scrollgrid {
+        border-color: #ddd !important;
+    }
+    .fc-col-header-cell-cushion, .fc-daygrid-day-number {
+        color: #333333 !important;
+        text-decoration: none !important;
+        text-shadow: none !important;
+    }
+    .fc-button-primary {
+        background-color: #FF4B4B !important;
+        border-color: #FF4B4B !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
+    st.subheader("📅 カレンダー")
+    
+    events = []
+    if not df_tasks.empty:
+        for _, row in df_tasks.iterrows():
+            color = "#808080" if row['status'] == '完了' else "#FF4B4B" if row['priority']=="高" else "#1C83E1"
+            events.append({
+                "title": f"📝 {row['task_name']}",
+                "start": row['due_date'],
+                "backgroundColor": color,
+                "allDay": True
+            })
+    if not df_logs.empty:
+        for _, row in df_logs.iterrows():
+            events.append({
+                "title": f"📖 {row['subject']} ({row['duration_minutes']}m)",
+                "start": row['study_date'],
+                "backgroundColor": "#9C27B0",
+                "borderColor": "#9C27B0",
+                "allDay": True
+            })
+
+    cal_options = {
+        "initialView": "dayGridMonth",
+        "height": 450,
+        "selectable": True,
+        "timeZone": 'Asia/Tokyo', 
+    }
+    
+    cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select', 'eventClick'], key=unique_key)
+    
+    if cal_data and cal_data != st.session_state["last_cal_event"]:
+        st.session_state["last_cal_event"] = cal_data
+        raw_date_str = None
+        if "dateClick" in cal_data:
+             raw_date_str = cal_data["dateClick"]["date"]
+        elif "select" in cal_data:
+             raw_date_str = cal_data["select"]["start"]
+        elif "eventClick" in cal_data:
+             raw_date_str = cal_data["eventClick"]["event"]["start"]
+        
+        if raw_date_str:
+            target_date = parse_correct_date(raw_date_str)
+            show_detail_dialog(target_date, df_tasks, df_logs)
+
+# --- その日のタスクリスト (タイマーダブ用) ---
+def render_daily_task_list(df_tasks, unique_key):
     st.subheader("📅 今日のクエスト")
     
     c1, c2 = st.columns([0.5, 0.5])
@@ -351,8 +478,8 @@ def render_daily_task_list(df_tasks, unique_key):
     if not df_tasks.empty:
         day_tasks = df_tasks[df_tasks['due_date'] == str(target_date)]
     
-    # カスタムHTMLコンテナで表示
-    st.markdown(f'<div class="task-container-box"><div class="task-date-header">📅 {target_date} のクエスト</div>', unsafe_allow_html=True)
+    # CSSクラス .task-container-box は apply_wallpaper で定義済み
+    st.markdown(f'<div class="task-container-box"><div style="border-bottom:1px solid #555; padding-bottom:5px; margin-bottom:10px; font-weight:bold; color:#FFD700;">📅 {target_date} のクエスト</div>', unsafe_allow_html=True)
     
     if not day_tasks.empty:
         active = day_tasks[day_tasks['status'] == '未完了']
@@ -375,7 +502,6 @@ def render_daily_task_list(df_tasks, unique_key):
                     st.write(f"~~{row['task_name']}~~")
     else:
         st.info("予定はありません。休息も冒険の一部です🍵")
-        
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -455,11 +581,14 @@ def main():
         
         selected_wallpaper = st.selectbox("壁紙", my_wallpapers_list, index=w_index)
         
+        # ★追加: 壁紙の暗さ調整スライダー
+        bg_opacity = st.slider("壁紙の暗さ", 0.0, 1.0, 0.4, 0.1)
+        
         if selected_wallpaper != current_wallpaper:
             supabase.table("users").update({"current_wallpaper": selected_wallpaper}).eq("username", current_user).execute()
             st.rerun()
             
-        apply_wallpaper(selected_wallpaper)
+        apply_wallpaper(selected_wallpaper, bg_opacity)
 
 
     # --- メイン画面：ステータス ---
@@ -489,7 +618,7 @@ def main():
     # --- 画面レイアウト ---
     tab1, tab2, tab3, tab4 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🛒 ショップ"])
     
-    # === タブ1: ToDoリスト ===
+    # === タブ1: ToDoリスト (カレンダー復活) ===
     with tab1:
         col_t1, col_t2 = st.columns([0.6, 0.4])
         with col_t1:
@@ -532,9 +661,10 @@ def main():
                     st.info("タスクはありません！")
         
         with col_t2:
-            render_daily_task_list(df_tasks, "todo_tab")
+            # カレンダー復活！
+            render_calendar_and_details(df_tasks, df_logs, "cal_todo")
 
-    # === タブ2: 勉強タイマー ===
+    # === タブ2: 勉強タイマー (リスト表示) ===
     with tab2:
         col_s1, col_s2 = st.columns([0.5, 0.5])
         with col_s1:
@@ -588,7 +718,8 @@ def main():
                             st.error("時間を入力してください")
 
         with col_s2:
-            render_daily_task_list(df_tasks, "timer_tab")
+            # こちらはリストのまま
+            render_daily_task_list(df_tasks, "timer_list")
 
     # === タブ3: 分析レポート ===
     with tab3:

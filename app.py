@@ -169,8 +169,8 @@ def add_user(username, password):
             "unlocked_themes": "標準",
             "current_title": "見習い",
             "unlocked_titles": "見習い",
-            "unlocked_wallpapers": "シンプル", # 追加
-            "current_wallpaper": "シンプル"    # 追加
+            "unlocked_wallpapers": "シンプル",
+            "current_wallpaper": "シンプル"
         }
         supabase.table("users").insert(data).execute()
         return True
@@ -269,7 +269,6 @@ def buy_theme(username, theme_name, cost):
 def buy_wallpaper(username, wallpaper_name, cost):
     user_data = get_user_data(username)
     current_coins = user_data.get('coins', 0)
-    # デフォルト値を設定しておく（以前のユーザー用）
     current_wallpapers = user_data.get('unlocked_wallpapers')
     if not current_wallpapers:
         current_wallpapers = "シンプル"
@@ -307,16 +306,6 @@ def play_gacha(username, cost):
 def set_title(username, title):
     supabase.table("users").update({"current_title": title}).eq("username", username).execute()
 
-# --- 保存用の関数 (現在の設定を保存) ---
-def save_settings(username, font, wallpaper):
-    supabase.table("users").update({
-        "unlocked_themes": font, # ※注意: ここで保存しているが、実際はunlockedではなくcurrentに保存すべきだが、簡易化のためUI選択を優先
-        # 修正: 今回は「現在の設定」を保存するカラムを作っていないため、
-        # 毎回アプリ起動時に「前回の設定」を復元するならカラムが必要。
-        # 今回は「DBに保存」機能を追加しましょう。
-        "current_wallpaper": wallpaper
-    }).eq("username", username).execute()
-
 
 # --- ポップアップ詳細表示 (モーダル) ---
 @st.dialog("📅 記録の詳細")
@@ -333,6 +322,14 @@ def show_detail_dialog(target_date, df_tasks, df_logs):
         day_logs = df_logs[df_logs['study_date'] == target_date]
         if not day_logs.empty:
             total_minutes = day_logs['duration_minutes'].sum()
+            
+    # 時間・分表記への変換ロジック
+    hours = total_minutes // 60
+    mins = total_minutes % 60
+    if hours > 0:
+        time_display = f"{hours}時間{mins}分"
+    else:
+        time_display = f"{mins}分"
     
     c_det1, c_det2 = st.columns(2)
     
@@ -346,13 +343,14 @@ def show_detail_dialog(target_date, df_tasks, df_logs):
             st.caption("なし")
     
     with c_det2:
-        st.success(f"📖 **勉強時間: {total_minutes}分**")
+        st.success(f"📖 **勉強時間: {time_display}**")
         if not day_logs.empty:
             for _, row in day_logs.iterrows():
+                # 個別の記録も時間表記にする場合はここも修正できますが、
+                # 通常は短い時間が多いので「分」のままで表示しています
                 st.write(f"・{row['subject']}: {row['duration_minutes']}分")
         else:
             st.caption("なし")
-
 
 # --- 日付補正処理 ---
 def parse_correct_date(raw_date):
@@ -460,7 +458,7 @@ def main():
     my_themes = user_data.get('unlocked_themes', "標準").split(',') if user_data else ["標準"]
     my_title = user_data.get('current_title', "見習い") if user_data else "見習い"
     
-    # 壁紙情報の取得 (なければデフォルト)
+    # 壁紙情報の取得
     my_wallpapers = user_data.get('unlocked_wallpapers')
     if not my_wallpapers: 
         my_wallpapers = "シンプル"
@@ -486,7 +484,7 @@ def main():
         selected_theme = st.selectbox("フォント", my_themes, index=0)
         apply_font(selected_theme)
         
-        # 壁紙設定 (追加)
+        # 壁紙設定
         try:
             w_index = my_wallpapers_list.index(current_wallpaper)
         except:
@@ -494,7 +492,6 @@ def main():
         
         selected_wallpaper = st.selectbox("壁紙", my_wallpapers_list, index=w_index)
         
-        # 壁紙が変更されたらDBに保存
         if selected_wallpaper != current_wallpaper:
             supabase.table("users").update({"current_wallpaper": selected_wallpaper}).eq("username", current_user).execute()
             st.rerun()

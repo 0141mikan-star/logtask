@@ -93,62 +93,55 @@ def apply_font(font_type):
 
 # --- デザイン適用関数 (高画質壁紙・修正版) ---
 def apply_wallpaper(wallpaper_name):
-    # 画像URLの定義 (Unsplashなどの高画質フリー素材)
     bg_url = ""
     
     if wallpaper_name == "シンプル":
         return 
         
     elif wallpaper_name == "草原": 
-        # 爽やかな丘
         bg_url = "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&w=1920&q=80"
         
     elif wallpaper_name == "夕焼け":
-        # 鮮やかな夕暮れ
         bg_url = "https://images.unsplash.com/photo-1472120435266-53107fd0c44a?auto=format&fit=crop&w=1920&q=80"
         
     elif wallpaper_name == "夜空":
-        # ★変更: 紫と青の綺麗な銀河
         bg_url = "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=1920&q=80"
         
     elif wallpaper_name == "ダンジョン":
-        # ★変更: 松明のある石造りの通路
         bg_url = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1920&q=80"
     
     elif wallpaper_name == "王宮":
-        # ★変更: ファンタジーな城
         bg_url = "https://images.unsplash.com/photo-1544939514-aa98d908bc47?auto=format&fit=crop&w=1920&q=80"
 
     elif wallpaper_name == "図書館":
-        # 重厚な本棚
         bg_url = "https://images.unsplash.com/photo-1507842217121-9d5908f4d06a?auto=format&fit=crop&w=1920&q=80"
 
     elif wallpaper_name == "サイバー":
-        # ネオンシティ
         bg_url = "https://images.unsplash.com/photo-1535295972055-1c762f4483e5?auto=format&fit=crop&w=1920&q=80"
 
     if bg_url:
         st.markdown(f"""
         <style>
         .stApp {{
-            /* 背景画像の指定 (黒フィルターを薄く0.3に変更) */
-            background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url("{bg_url}");
+            /* 背景画像の指定 (黒フィルターを少し濃く調整 0.3 -> 0.4) */
+            background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("{bg_url}");
             background-attachment: fixed;
             background-size: cover;
             background-position: center;
-            background-color: #1E1E1E; /* 画像読み込み前の色 */
+            background-color: #1E1E1E;
         }}
         /* 文字色を白く、影をつけて読みやすく */
         .stMarkdown, .stText, h1, h2, h3, p {{
             color: #ffffff !important;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.9); /* 影を少し濃く */
         }}
-        /* コンテナの背景を半透明にして文字を保護 */
-        div[data-testid="stExpander"], div[data-testid="stForm"], .task-container {{
-            background-color: rgba(30, 30, 30, 0.7) !important;
+        /* ★修正点: コンテナの背景をより不透明にして文字を保護 */
+        /* div[data-testid="stVerticalBlockBorderWrapper"] が border=True のコンテナ */
+        div[data-testid="stExpander"], div[data-testid="stForm"], .task-container, div[data-testid="stVerticalBlockBorderWrapper"] {{
+            background-color: rgba(20, 20, 20, 0.9) !important; /* 透明度を0.7 -> 0.9に変更 */
             border-radius: 10px;
             padding: 15px;
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3); /* 枠線も少しはっきりさせる */
         }}
         /* 入力フォームのラベルも見やすく */
         label {{
@@ -331,8 +324,8 @@ def render_daily_task_list(df_tasks, unique_key):
     st.markdown("""
     <style>
     .task-container-box {
-        background-color: rgba(20, 20, 20, 0.85); /* 濃い半透明黒 */
-        border: 1px solid #444;
+        background-color: rgba(20, 20, 20, 0.9); /* 透明度を0.9に変更 */
+        border: 1px solid rgba(255,255,255,0.3);
         border-radius: 10px;
         padding: 15px;
         margin-top: 10px;
@@ -342,7 +335,7 @@ def render_daily_task_list(df_tasks, unique_key):
         font-weight: bold;
         color: #FFD700 !important; /* 金色 */
         margin-bottom: 10px;
-        border-bottom: 1px solid #555;
+        border-bottom: 1px solid rgba(255,255,255,0.3);
         padding-bottom: 5px;
     }
     </style>

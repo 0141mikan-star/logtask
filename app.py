@@ -10,7 +10,7 @@ import altair as alt
 from streamlit_calendar import calendar
 
 # ページ設定
-st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide")
+st.set_page_config(page_title="個人タスク管理RPG", layout="wide")
 
 # --- 日本時間 (JST) の定義 ---
 JST = timezone(timedelta(hours=9))
@@ -22,21 +22,17 @@ if "is_studying" not in st.session_state:
     st.session_state["is_studying"] = False
 if "start_time" not in st.session_state:
     st.session_state["start_time"] = None
+if "last_cal_event" not in st.session_state:
+    st.session_state["last_cal_event"] = None
 if "selected_date" not in st.session_state:
     st.session_state["selected_date"] = None
-
-# ★新規: カレンダーの再描画制御用ステート
-if "calendar_key_uid" not in st.session_state:
-    st.session_state["calendar_key_uid"] = 0
-if "calendar_initial_date" not in st.session_state:
-    st.session_state["calendar_initial_date"] = datetime.now(JST).strftime('%Y-%m-%d')
 
 # トースト通知表示
 if st.session_state["toast_msg"]:
     st.toast(st.session_state["toast_msg"], icon="🆙")
     st.session_state["toast_msg"] = None 
 
-st.title("✅ 褒めてくれる勉強時間・タスク管理アプリ ")
+st.title("✅ 褒めてくれるタスク管理 (RPG風)")
 
 # 称号ガチャのリスト
 GACHA_TITLES = [
@@ -482,7 +478,7 @@ def show_detail_dialog(target_date, df_tasks, df_logs, username):
         else:
             st.caption("なし")
 
-# --- カレンダーコンポーネント (ToDoタブ用・修正版) ---
+# --- カレンダーコンポーネント (修正版: シンプル化) ---
 def render_calendar_and_details(df_tasks, df_logs, unique_key, username):
     st.markdown("""
     <style>
@@ -529,62 +525,31 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key, username):
                 "allDay": True
             })
 
-    # ★修正: セッションステートのキーを使って、カレンダーを再描画できるようにする
-    cal_key = f"{unique_key}_{st.session_state['calendar_key_uid']}"
-    
-    # ★修正: 現在表示中の日付を保持するオプション
     cal_options = {
         "initialView": "dayGridMonth",
-        "initialDate": st.session_state["calendar_initial_date"], # 前回の日付を維持
         "height": 450,
         "selectable": True,
         "timeZone": 'Asia/Tokyo', 
     }
     
-    cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select', 'eventClick'], key=cal_key)
+    # 安定動作のため、キーの動的変更を廃止し固定キーを使用
+    cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select', 'eventClick'], key=unique_key)
     
-    # クリック時の処理 (重複チェックを削除し、キー更新で制御)
-    if cal_data:
-        raw_date_str = None
-        current_start = None
+    # 無限ループ防止のため、前回と同じデータならスキップ
+    if cal_data and cal_data != st.session_state.get("last_cal_event"):
+        st.session_state["last_cal_event"] = cal_data
         
-        # クリックされた日付の取得
+        raw_date_str = None
         if "dateClick" in cal_data:
              raw_date_str = cal_data["dateClick"]["date"]
-             # view情報から現在の表示月を取得して保存
-             if "view" in cal_data["dateClick"]:
-                 current_start = cal_data["dateClick"]["view"]["currentStart"]
-                 
         elif "select" in cal_data:
              raw_date_str = cal_data["select"]["start"]
-             if "view" in cal_data["select"]:
-                 current_start = cal_data["select"]["view"]["currentStart"]
-                 
         elif "eventClick" in cal_data:
              raw_date_str = cal_data["eventClick"]["event"]["start"]
-             if "view" in cal_data["eventClick"]:
-                 current_start = cal_data["eventClick"]["view"]["currentStart"]
         
-        # 処理実行
         if raw_date_str:
-            # 1. 表示月を保存 (次回リロード時に同じ月を表示するため)
-            if current_start:
-                try:
-                    # ISO形式の日付を変換
-                    dt_view = datetime.fromisoformat(current_start.replace("Z", "+00:00")).astimezone(JST)
-                    st.session_state["calendar_initial_date"] = dt_view.strftime('%Y-%m-%d')
-                except:
-                    pass
-            
-            # 2. カレンダーのキーを更新 (次回の描画でリセットされるようにする)
-            st.session_state["calendar_key_uid"] += 1
-            
-            # 3. ダイアログ表示
             target_date = parse_correct_date(raw_date_str)
             show_detail_dialog(target_date, df_tasks, df_logs, username)
-            
-            # 4. 強制リラン (カレンダーを新しいキーで再描画し、クリック状態をクリアする)
-            st.rerun()
 
 # --- その日のタスクリスト (タイマーダブ用) ---
 def render_daily_task_list(df_tasks, unique_key):
@@ -1044,4 +1009,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

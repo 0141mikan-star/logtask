@@ -22,7 +22,6 @@ if "is_studying" not in st.session_state:
     st.session_state["is_studying"] = False
 if "start_time" not in st.session_state:
     st.session_state["start_time"] = None
-# カレンダーの連打防止用（前回クリックしたデータを保存しておく）
 if "last_cal_event" not in st.session_state:
     st.session_state["last_cal_event"] = None
 
@@ -56,22 +55,32 @@ if not supabase:
     st.error("Supabaseへの接続設定が見つかりません。")
     st.stop()
 
-# --- デザイン変更用の魔法の関数 ---
-def apply_theme(font_type):
-    css = ""
+# --- デザイン適用関数 (フォント) ---
+def apply_font(font_type):
+    css_import = ""
     font_family = ""
+    
     if font_type == "ピクセル風":
         css_import = "@import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');"
         font_family = "'DotGothic16', sans-serif"
     elif font_type == "手書き風":
         css_import = "@import url('https://fonts.googleapis.com/css2?family=Yomogi&display=swap');"
         font_family = "'Yomogi', cursive"
+    elif font_type == "ポップ":
+        css_import = "@import url('https://fonts.googleapis.com/css2?family=Hachi+Maru+Pop&display=swap');"
+        font_family = "'Hachi Maru Pop', cursive"
+    elif font_type == "明朝体":
+        css_import = "@import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho&display=swap');"
+        font_family = "'Shippori Mincho', serif"
+    elif font_type == "筆文字":
+        css_import = "@import url('https://fonts.googleapis.com/css2?family=Yuji+Syuku&display=swap');"
+        font_family = "'Yuji Syuku', serif"
     
     if font_family:
-        css = f"""
+        st.markdown(f"""
         <style>
         {css_import}
-        body, p, h1, h2, h3, h4, h5, h6, input, textarea, label, button, .stTooltip {{
+        body, p, h1, h2, h3, h4, h5, h6, input, textarea, label, button, .stTooltip, .stExpander {{
             font-family: {font_family} !important;
         }}
         .stMarkdown, .stTextInput > div > div, .stSelectbox > div > div {{
@@ -81,8 +90,54 @@ def apply_theme(font_type):
             font-family: inherit !important;
         }}
         </style>
+        """, unsafe_allow_html=True)
+
+# --- デザイン適用関数 (壁紙) ---
+def apply_wallpaper(wallpaper_name):
+    # CSSの定義
+    bg_style = ""
+    
+    if wallpaper_name == "シンプル":
+        return # 何もしない(デフォルト)
+        
+    elif wallpaper_name == "草原": # 緑のグラデーション
+        bg_style = """
+        background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);
         """
-        st.markdown(css, unsafe_allow_html=True)
+        
+    elif wallpaper_name == "夕焼け": # オレンジのグラデーション
+        bg_style = """
+        background: linear-gradient(120deg, #f6d365 0%, #fda085 100%);
+        """
+        
+    elif wallpaper_name == "夜空": # 濃い青
+        bg_style = """
+        background: linear-gradient(to top, #30cfd0 0%, #330867 100%);
+        color: white; /* 文字を白くする */
+        """
+        
+    elif wallpaper_name == "ダンジョン": # ダークグレー
+        bg_style = """
+        background: linear-gradient(to right, #434343 0%, black 100%);
+        color: #e0e0e0;
+        """
+    
+    elif wallpaper_name == "王宮": # ゴールド・白
+        bg_style = """
+        background-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);
+        """
+
+    if bg_style:
+        # .stApp はStreamlitの全体コンテナのクラス名
+        st.markdown(f"""
+        <style>
+        .stApp {{
+            {bg_style}
+            background-attachment: fixed;
+            background-size: cover;
+        }}
+        </style>
+        """, unsafe_allow_html=True)
 
 # --- ユーザー情報取得 (拡張版) ---
 def get_user_data(username):
@@ -113,7 +168,9 @@ def add_user(username, password):
             "coins": 0,
             "unlocked_themes": "標準",
             "current_title": "見習い",
-            "unlocked_titles": "見習い"
+            "unlocked_titles": "見習い",
+            "unlocked_wallpapers": "シンプル", # 追加
+            "current_wallpaper": "シンプル"    # 追加
         }
         supabase.table("users").insert(data).execute()
         return True
@@ -195,7 +252,7 @@ def get_study_logs(username):
     df = pd.DataFrame(response.data)
     return df
 
-# --- DB操作: ショップ・ガチャ関連 ---
+# --- DB操作: ショップ・ガチャ関連 (フォント) ---
 def buy_theme(username, theme_name, cost):
     user_data = get_user_data(username)
     current_coins = user_data.get('coins', 0)
@@ -205,6 +262,22 @@ def buy_theme(username, theme_name, cost):
         new_coins = current_coins - cost
         new_themes = f"{current_themes},{theme_name}"
         supabase.table("users").update({"coins": new_coins, "unlocked_themes": new_themes}).eq("username", username).execute()
+        return True, new_coins
+    return False, current_coins
+
+# --- DB操作: ショップ・ガチャ関連 (壁紙) ---
+def buy_wallpaper(username, wallpaper_name, cost):
+    user_data = get_user_data(username)
+    current_coins = user_data.get('coins', 0)
+    # デフォルト値を設定しておく（以前のユーザー用）
+    current_wallpapers = user_data.get('unlocked_wallpapers')
+    if not current_wallpapers:
+        current_wallpapers = "シンプル"
+
+    if current_coins >= cost:
+        new_coins = current_coins - cost
+        new_wallpapers = f"{current_wallpapers},{wallpaper_name}"
+        supabase.table("users").update({"coins": new_coins, "unlocked_wallpapers": new_wallpapers}).eq("username", username).execute()
         return True, new_coins
     return False, current_coins
 
@@ -233,6 +306,16 @@ def play_gacha(username, cost):
 
 def set_title(username, title):
     supabase.table("users").update({"current_title": title}).eq("username", username).execute()
+
+# --- 保存用の関数 (現在の設定を保存) ---
+def save_settings(username, font, wallpaper):
+    supabase.table("users").update({
+        "unlocked_themes": font, # ※注意: ここで保存しているが、実際はunlockedではなくcurrentに保存すべきだが、簡易化のためUI選択を優先
+        # 修正: 今回は「現在の設定」を保存するカラムを作っていないため、
+        # 毎回アプリ起動時に「前回の設定」を復元するならカラムが必要。
+        # 今回は「DBに保存」機能を追加しましょう。
+        "current_wallpaper": wallpaper
+    }).eq("username", username).execute()
 
 
 # --- ポップアップ詳細表示 (モーダル) ---
@@ -273,21 +356,17 @@ def show_detail_dialog(target_date, df_tasks, df_logs):
 
 # --- 日付補正処理 ---
 def parse_correct_date(raw_date):
-    """UTCのタイムスタンプを日本時間の日付に直す"""
     try:
-        # Tが含まれている場合（例: 2026-01-28T00:00:00Z）
         if "T" in raw_date:
-            # UTCとして解釈して日本時間に変換
             dt_utc = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
             dt_jst = dt_utc.astimezone(JST)
             return dt_jst.strftime('%Y-%m-%d')
         else:
-            # 単純な日付文字列ならそのまま返す
             return raw_date
     except:
         return raw_date
 
-# --- 共通カレンダーコンポーネント (モーダル対応・ループ防止版) ---
+# --- 共通カレンダーコンポーネント ---
 def render_calendar_and_details(df_tasks, df_logs, unique_key):
     st.subheader("📅 カレンダー")
     st.caption("日付をクリックすると詳細がポップアップします")
@@ -314,24 +393,19 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
                 "allDay": True
             })
 
-    # カレンダー設定 (日本時間を指定してズレを防止)
     cal_options = {
         "initialView": "dayGridMonth",
         "height": 450,
         "selectable": True,
-        "timeZone": 'Asia/Tokyo', # これで日付ズレを直す！
+        "timeZone": 'Asia/Tokyo', 
     }
     
     cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select', 'eventClick'], key=unique_key)
     
-    # === 無限ループ防止ロジック ===
-    # カレンダーからデータが来ていて、かつ「前回と同じデータ」でなければ処理する
     if cal_data and cal_data != st.session_state["last_cal_event"]:
-        st.session_state["last_cal_event"] = cal_data # 今回のデータを保存
+        st.session_state["last_cal_event"] = cal_data
         
         raw_date_str = None
-        
-        # データ取り出し
         if "dateClick" in cal_data:
              raw_date_str = cal_data["dateClick"]["date"]
         elif "select" in cal_data:
@@ -339,10 +413,8 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
         elif "eventClick" in cal_data:
              raw_date_str = cal_data["eventClick"]["event"]["start"]
         
-        # 日付が取れたら、補正してダイアログを開く
         if raw_date_str:
             target_date = parse_correct_date(raw_date_str)
-            # ここで関数として直接呼び出す (st.rerunはしない！)
             show_detail_dialog(target_date, df_tasks, df_logs)
 
 
@@ -388,6 +460,16 @@ def main():
     my_themes = user_data.get('unlocked_themes', "標準").split(',') if user_data else ["標準"]
     my_title = user_data.get('current_title', "見習い") if user_data else "見習い"
     
+    # 壁紙情報の取得 (なければデフォルト)
+    my_wallpapers = user_data.get('unlocked_wallpapers')
+    if not my_wallpapers: 
+        my_wallpapers = "シンプル"
+    my_wallpapers_list = my_wallpapers.split(',')
+    
+    current_wallpaper = user_data.get('current_wallpaper')
+    if not current_wallpaper:
+        current_wallpaper = "シンプル"
+
     # --- サイドバー ---
     with st.sidebar:
         st.subheader(f"👤 {current_user}")
@@ -399,8 +481,26 @@ def main():
         st.divider()
         
         st.subheader("🎨 着せ替え設定")
-        selected_theme = st.selectbox("フォント選択", my_themes, index=0)
-        apply_theme(selected_theme)
+        
+        # フォント設定
+        selected_theme = st.selectbox("フォント", my_themes, index=0)
+        apply_font(selected_theme)
+        
+        # 壁紙設定 (追加)
+        try:
+            w_index = my_wallpapers_list.index(current_wallpaper)
+        except:
+            w_index = 0
+        
+        selected_wallpaper = st.selectbox("壁紙", my_wallpapers_list, index=w_index)
+        
+        # 壁紙が変更されたらDBに保存
+        if selected_wallpaper != current_wallpaper:
+            supabase.table("users").update({"current_wallpaper": selected_wallpaper}).eq("username", current_user).execute()
+            st.rerun()
+            
+        apply_wallpaper(selected_wallpaper)
+
 
     # --- メイン画面：ステータス ---
     level = (xp // 50) + 1
@@ -563,51 +663,75 @@ def main():
 
     # === タブ4: ショップ・ガチャ ===
     with tab4:
-        col_shop, col_gacha = st.columns(2)
-        with col_shop:
-            st.subheader("🛒 テーマショップ")
-            st.write(f"所持コイン: **{coins} 💰**")
-            shop_items = [
+        col_shop_font, col_shop_wall, col_gacha = st.columns(3)
+        
+        with col_shop_font:
+            st.subheader("🅰️ フォント屋")
+            font_items = [
                 {"name": "ピクセル風", "cost": 500, "desc": "レトロゲーム風"},
-                {"name": "手書き風", "cost": 800, "desc": "黒板風"}
+                {"name": "手書き風", "cost": 800, "desc": "黒板風"},
+                {"name": "ポップ", "cost": 1000, "desc": "元気な丸文字"},
+                {"name": "明朝体", "cost": 1200, "desc": "小説のような雰囲気"},
+                {"name": "筆文字", "cost": 1500, "desc": "達筆な和風"},
             ]
-            for item in shop_items:
+            for item in font_items:
                 with st.container(border=True):
                     st.write(f"**{item['name']}**")
-                    st.caption(item['desc'])
+                    st.caption(f"{item['desc']} ({item['cost']}💰)")
                     if item['name'] in my_themes:
-                        st.button("✅ 購入済み", disabled=True, key=f"btn_{item['name']}")
+                        st.button("✅ 済", disabled=True, key=f"btn_f_{item['name']}")
                     else:
-                        if st.button(f"💰 {item['cost']} で購入", key=f"buy_{item['name']}"):
+                        if st.button(f"購入", key=f"buy_f_{item['name']}"):
                             success, bal = buy_theme(current_user, item['name'], item['cost'])
                             if success:
                                 st.balloons()
-                                st.session_state["toast_msg"] = f"「{item['name']}」を購入しました！"
                                 st.rerun()
                             else:
-                                st.error("コイン不足！")
+                                st.error("コイン不足")
+
+        with col_shop_wall:
+            st.subheader("🖼️ 壁紙屋")
+            wall_items = [
+                {"name": "草原", "cost": 500, "desc": "爽やかな緑"},
+                {"name": "夕焼け", "cost": 800, "desc": "落ち着くオレンジ"},
+                {"name": "夜空", "cost": 1000, "desc": "静かな夜"},
+                {"name": "ダンジョン", "cost": 1500, "desc": "冒険の始まり"},
+                {"name": "王宮", "cost": 2000, "desc": "高貴な空間"},
+            ]
+            for item in wall_items:
+                with st.container(border=True):
+                    st.write(f"**{item['name']}**")
+                    st.caption(f"{item['desc']} ({item['cost']}💰)")
+                    if item['name'] in my_wallpapers_list:
+                        st.button("✅ 済", disabled=True, key=f"btn_w_{item['name']}")
+                    else:
+                        if st.button(f"購入", key=f"buy_w_{item['name']}"):
+                            success, bal = buy_wallpaper(current_user, item['name'], item['cost'])
+                            if success:
+                                st.balloons()
+                                st.rerun()
+                            else:
+                                st.error("コイン不足")
 
         with col_gacha:
             st.subheader("🎲 称号ガチャ")
             st.write("1回 **100 💰**")
-            if st.button("ガチャを回す！", type="primary"):
+            if st.button("回す！", type="primary"):
                 success, won_title, bal = play_gacha(current_user, 100)
                 if success:
                     st.balloons()
-                    st.success(f"🎉 **「{won_title}」** ゲット！")
-                    st.session_state["toast_msg"] = f"称号「{won_title}」を獲得！"
+                    st.success(f"🎉 **{won_title}**")
                     time.sleep(2)
                     st.rerun()
                 else:
-                    st.error("コイン不足！")
+                    st.error("コイン不足")
             
             st.divider()
-            st.write("📂 **称号コレクション**")
+            st.write("📂 **称号変更**")
             my_titles_list = user_data.get('unlocked_titles', "見習い").split(',')
-            selected_t = st.selectbox("称号を変更", my_titles_list, index=my_titles_list.index(my_title) if my_title in my_titles_list else 0)
+            selected_t = st.selectbox("称号", my_titles_list, index=my_titles_list.index(my_title) if my_title in my_titles_list else 0)
             if selected_t != my_title:
                 set_title(current_user, selected_t)
-                st.session_state["toast_msg"] = f"称号を変更しました"
                 st.rerun()
 
 if __name__ == "__main__":

@@ -94,7 +94,7 @@ def apply_font(font_type):
         </style>
         """, unsafe_allow_html=True)
 
-# --- デザイン適用関数 (壁紙・透明度調整対応) ---
+# --- デザイン適用関数 (高画質壁紙・透明度調整対応・修正版) ---
 def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
     bg_url = ""
     
@@ -114,33 +114,52 @@ def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
     elif wallpaper_name == "サイバー":
         bg_url = "https://images.unsplash.com/photo-1535295972055-1c762f4483e5?auto=format&fit=crop&w=1920&q=80"
 
-    if wallpaper_name == "シンプル" or not bg_url:
-        return
-
-    st.markdown(f"""
-    <style>
-    /* 全体の背景画像と、黒フィルターの濃さ(bg_opacity) */
-    .stApp {{
+    # CSS変数の準備
+    app_bg_css = ""
+    text_color_css = ""
+    
+    # 壁紙がある場合の設定
+    if bg_url and wallpaper_name != "シンプル":
+        app_bg_css = f"""
+        /* 背景画像の指定 */
         background-image: linear-gradient(rgba(0, 0, 0, {bg_opacity}), rgba(0, 0, 0, {bg_opacity})), url("{bg_url}");
         background-attachment: fixed;
         background-size: cover;
         background-position: center;
         background-color: #1E1E1E;
+        """
+        text_color_css = """
+        /* 文字色を白く、影をつける */
+        .stMarkdown, .stText, h1, h2, h3, p, span, div {
+            color: #ffffff !important;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+        }
+        """
+    else:
+        # シンプルの場合
+        app_bg_css = "background-color: #FFFFFF;" # またはデフォルトテーマ依存
+        # シンプルなら文字色はデフォルトに任せる（強制上書きしない）
+        text_color_css = ""
+
+    # スタイル適用
+    st.markdown(f"""
+    <style>
+    .stApp {{
+        {app_bg_css}
     }}
     
-    /* 文字色を白く */
-    .stMarkdown, .stText, h1, h2, h3, p, span {{
-        color: #ffffff !important;
-        text-shadow: 1px 1px 3px rgba(0,0,0,0.9);
-    }}
+    {text_color_css}
+
+    /* --- UIパーツの視認性調整 --- */
 
     /* タブバー */
     button[data-baseweb="tab"] {{
-        background-color: rgba(0, 0, 0, 0.6) !important;
+        background-color: rgba(20, 20, 20, {box_opacity}) !important;
         color: white !important;
         border: 1px solid rgba(255,255,255,0.2);
         border-radius: 5px 5px 0 0;
         margin-right: 4px;
+        text-shadow: none !important;
     }}
     button[aria-selected="true"] {{
         background-color: #FF4B4B !important;
@@ -153,7 +172,7 @@ def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
     div[data-testid="stExpander"],
     div[data-testid="stForm"],
     .task-container-box {{
-        background-color: rgba(20, 20, 20, {box_opacity}) !important;
+        background-color: rgba(20, 20, 20, {box_opacity}) !important; /* スライダーの値を使用 */
         border-radius: 12px;
         padding: 15px;
         border: 1px solid rgba(255,255,255,0.3);
@@ -175,6 +194,11 @@ def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
         color: #FFD700 !important; /* 金色 */
         font-weight: bold;
         text-shadow: none;
+    }}
+    
+    /* ボタン類 */
+    button {{
+        font-weight: bold !important;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -586,9 +610,9 @@ def main():
         st.divider()
         st.write("🔧 **調整**")
         
-        # ★ スライダーの名前を変更し、役割を明確化
-        bg_opacity = st.slider("壁紙の暗さ (フィルター)", 0.0, 1.0, 0.3, 0.05, help="壁紙全体にかける黒いフィルターの濃さです。値が大きいほど暗くなります。")
-        box_opacity = st.slider("ボックスの背景濃度", 0.0, 1.0, 0.9, 0.05, help="ショップのカードや入力フォームなどの背景色の濃さです。値が小さいほど透明になります。")
+        # スライダー設定
+        bg_opacity = st.slider("壁紙の暗さ (フィルター)", 0.0, 1.0, 0.3, 0.05, help="背景を暗くして文字を見やすくします")
+        box_opacity = st.slider("ボックスの背景濃度", 0.0, 1.0, 0.9, 0.05, help="ショップなどのカードの透け具合を調整します")
         
         if selected_wallpaper != current_wallpaper:
             supabase.table("users").update({"current_wallpaper": selected_wallpaper}).eq("username", current_user).execute()

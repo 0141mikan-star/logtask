@@ -10,7 +10,7 @@ from streamlit_calendar import calendar
 
 # ページ設定
 st.set_page_config(page_title="個人タスク管理", layout="wide")
-st.title("✅ 褒めてくれるタスク管理 (RPG風)")
+st.title("✅ 褒めてくれるタスク管理")
 
 # 褒め言葉リスト
 PRAISE_MESSAGES = [
@@ -39,7 +39,7 @@ if not supabase:
     st.error("Supabaseへの接続設定が見つかりません。")
     st.stop()
 
-# --- デザイン変更用の魔法の関数 (追加部分) ---
+# --- デザイン変更用の魔法の関数 ---
 def apply_theme(font_type):
     css = ""
     if font_type == "ピクセル風":
@@ -60,7 +60,7 @@ def apply_theme(font_type):
     if css:
         st.markdown(css, unsafe_allow_html=True)
 
-# --- ユーザー情報取得 (追加部分) ---
+# --- ユーザー情報取得 ---
 def get_user_xp(username):
     try:
         response = supabase.table("users").select("xp").eq("username", username).execute()
@@ -82,7 +82,6 @@ def check_hashes(password, hashed_text):
 # --- ユーザー管理関数 ---
 def add_user(username, password):
     try:
-        # xp の初期値は 0
         data = {"username": username, "password": make_hashes(password), "xp": 0}
         supabase.table("users").insert(data).execute()
         return True
@@ -122,7 +121,7 @@ def get_tasks(username):
         return df
     return pd.DataFrame()
 
-# --- ステータス更新 & XP加算 (改造部分) ---
+# --- ステータス更新 & XP加算 ---
 def update_status(task_id, is_done, username):
     status = '完了' if is_done else '未完了'
     supabase.table("tasks").update({"status": status}).eq("id", task_id).execute()
@@ -130,10 +129,11 @@ def update_status(task_id, is_done, username):
     # 完了にした時だけXPを増やす！
     if is_done:
         current_xp = get_user_xp(username)
-        new_xp = current_xp + 10
+        added_xp = 10  # 獲得経験値
+        new_xp = current_xp + added_xp
         supabase.table("users").update({"xp": new_xp}).eq("username", username).execute()
-        return new_xp # 新しいXPを返す
-    return None
+        return added_xp, new_xp # 獲得XPと新合計XPを返す
+    return 0, 0
 
 def delete_task(task_id):
     supabase.table("tasks").delete().eq("id", task_id).execute()
@@ -189,14 +189,26 @@ def main():
     # === アプリ本編 ===
     current_user = st.session_state["username"]
     
-    # --- サイドバー (着せ替え機能を追加) ---
+    # --- サイドバー (ステータス画面) ---
     with st.sidebar:
-        st.write(f"👤 {current_user}")
+        st.subheader(f"👤 {current_user}")
         
-        # 現在のXPを取得して表示
+        # XPとレベルの計算
         current_xp = get_user_xp(current_user)
-        st.metric("現在の経験値 (XP)", f"{current_xp}")
-        st.progress(min((current_xp % 100) / 100, 1.0)) # 次のレベルへのバー（簡易版）
+        # 50XPごとにレベルアップする計算
+        level = (current_xp // 50) + 1
+        # 次のレベルまでのXP
+        next_level_xp = level * 50
+        xp_needed = next_level_xp - current_xp
+        progress = 1.0 - (xp_needed / 50)
+
+        # 常時表示エリア
+        c1, c2 = st.columns(2)
+        c1.metric("Lv (レベル)", f"{level}")
+        c2.metric("XP (経験値)", f"{current_xp}")
+        
+        st.write(f"次のレベルまで: **{xp_needed} XP**")
+        st.progress(progress)
 
         st.divider()
         
@@ -207,12 +219,12 @@ def main():
         if current_xp >= 50:
             theme_options.append("ピクセル風")
         else:
-            st.caption("🔒 Lv.5 (XP 50) で「ピクセル風」解放")
+            st.caption("🔒 Lv.2 (XP 50) で「ピクセル風」解放")
             
         if current_xp >= 100:
             theme_options.append("手書き風")
         else:
-            st.caption("🔒 Lv.10 (XP 100) で「手書き風」解放")
+            st.caption("🔒 Lv.3 (XP 100) で「手書き風」解放")
             
         # セッションに保存して選択状態を維持
         if "theme" not in st.session_state:
@@ -261,13 +273,14 @@ def main():
                 
                 # チェックボックスの処理
                 if c1.checkbox("", value=is_done, key=f"c_{row['id']}") != is_done:
-                    # ステータス更新関数に username も渡すように変更！
-                    new_xp = update_status(row['id'], not is_done, current_user)
+                    # 更新処理
+                    gained_xp, total_xp = update_status(row['id'], not is_done, current_user)
                     
                     if not is_done: # 未完了→完了 になった時
                         st.session_state["celebrate"] = True
-                        if new_xp:
-                            st.toast(f"経験値ゲット！ XP: {new_xp}", icon="🆙")
+                        if gained_xp > 0:
+                            # ここで獲得XPを一時表示！
+                            st.toast(f"経験値 +{gained_xp} 獲得！ (現在: {total_xp})", icon="🆙")
                     st.rerun()
                 
                 c2.markdown(f"~~{row['task_name']}~~" if is_done else f"**{row['task_name']}**")

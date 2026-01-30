@@ -22,6 +22,8 @@ if "is_studying" not in st.session_state:
     st.session_state["is_studying"] = False
 if "start_time" not in st.session_state:
     st.session_state["start_time"] = None
+if "selected_date" not in st.session_state:
+    st.session_state["selected_date"] = None
 
 # トースト通知表示
 if st.session_state["toast_msg"]:
@@ -232,6 +234,97 @@ def set_title(username, title):
     supabase.table("users").update({"current_title": title}).eq("username", username).execute()
 
 
+# --- 共通カレンダーコンポーネント ---
+def render_calendar_and_details(df_tasks, df_logs):
+    st.subheader("📅 カレンダー")
+    
+    # イベント作成（タスクとログを統合）
+    events = []
+    
+    # 1. タスク
+    if not df_tasks.empty:
+        for _, row in df_tasks.iterrows():
+            color = "#808080" if row['status'] == '完了' else "#FF4B4B" if row['priority']=="高" else "#1C83E1"
+            events.append({
+                "title": f"📝 {row['task_name']}",
+                "start": row['due_date'],
+                "backgroundColor": color,
+                "allDay": True
+            })
+    
+    # 2. ログ
+    if not df_logs.empty:
+        for _, row in df_logs.iterrows():
+            events.append({
+                "title": f"📖 {row['subject']} ({row['duration_minutes']}m)",
+                "start": row['study_date'],
+                "backgroundColor": "#9C27B0",
+                "borderColor": "#9C27B0",
+                "allDay": True
+            })
+
+    # カレンダー表示
+    # dateClickを有効にしてクリックを検知
+    cal_options = {
+        "initialView": "dayGridMonth",
+        "height": 450,
+        "selectable": True,
+    }
+    
+    # カレンダーを描画し、イベントを受け取る
+    cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick'])
+    
+    # クリック時の処理
+    if cal_data and cal_data.get("callback") == "dateClick":
+        # クリックされた日付を取得 (例: "2026-01-30T...")
+        clicked_date_str = cal_data["date"].split("T")[0]
+        st.session_state["selected_date"] = clicked_date_str
+
+    # 詳細パネル表示
+    if st.session_state["selected_date"]:
+        target_date = st.session_state["selected_date"]
+        
+        with st.container(border=True):
+            st.markdown(f"### 📅 {target_date} の記録")
+            
+            # その日のタスクを抽出
+            day_tasks = pd.DataFrame()
+            if not df_tasks.empty:
+                day_tasks = df_tasks[df_tasks['due_date'] == target_date]
+            
+            # その日のログを抽出
+            day_logs = pd.DataFrame()
+            total_minutes = 0
+            if not df_logs.empty:
+                day_logs = df_logs[df_logs['study_date'] == target_date]
+                if not day_logs.empty:
+                    total_minutes = day_logs['duration_minutes'].sum()
+            
+            c_det1, c_det2 = st.columns(2)
+            
+            with c_det1:
+                st.write("**📝 タスク**")
+                if not day_tasks.empty:
+                    for _, row in day_tasks.iterrows():
+                        status_icon = "✅" if row['status'] == '完了' else "⬜"
+                        st.write(f"{status_icon} {row['task_name']}")
+                else:
+                    st.caption("タスクなし")
+            
+            with c_det2:
+                st.write("**📖 勉強ログ**")
+                if not day_logs.empty:
+                    for _, row in day_logs.iterrows():
+                        st.write(f"・{row['subject']}: {row['duration_minutes']}分")
+                    st.markdown(f"**合計: {total_minutes} 分**")
+                else:
+                    st.caption("勉強記録なし")
+            
+            if st.button("閉じる"):
+                st.session_state["selected_date"] = None
+                st.rerun()
+
+
 # --- メイン処理 ---
 def main():
     if "logged_in" not in st.session_state:
@@ -312,7 +405,7 @@ def main():
     df_tasks = get_tasks(current_user)
     df_logs = get_study_logs(current_user)
 
-    # --- 画面レイアウト (4つのタブ) ---
+    # --- 画面レイアウト ---
     tab1, tab2, tab3, tab4 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🛒 ショップ"])
     
     # === タブ1: ToDoリスト ===
@@ -358,13 +451,8 @@ def main():
                     st.info("タスクはありません！")
         
         with col_t2:
-            events = []
-            if not df_tasks.empty:
-                for _, row in df_tasks.iterrows():
-                    color = "#808080" if row['status'] == '完了' else "#FF4B4B" if row['priority']=="高" else "#1C83E1"
-                    events.append({"title": f"📝 {row['task_name']}", "start": row['due_date'], "backgroundColor": color, "allDay": True})
-            if events:
-                calendar(events=events, options={"initialView": "dayGridMonth", "height": 400})
+            # 共通カレンダーを表示
+            render_calendar_and_details(df_tasks, df_logs)
 
     # === タブ2: 勉強タイマー ===
     with tab2:
@@ -404,9 +492,8 @@ def main():
                     m_date = st.date_input("日付", value=date.today())
                     m_subj = st.text_input("教科")
                     ch, cm = st.columns(2)
-                    # 初期値を 0 に変更しました
                     mh = ch.number_input("時間", 0, 24, 0)
-                    mm = cm.number_input("分", 0, 59, 0) # ここを30から0に変更
+                    mm = cm.number_input("分", 0, 59, 0) # 初期値0
                     
                     if st.form_submit_button("記録", type="primary"):
                         total_m = (mh * 60) + mm
@@ -421,12 +508,8 @@ def main():
                             st.error("時間を入力してください")
 
         with col_s2:
-            logs = []
-            if not df_logs.empty:
-                for _, row in df_logs.iterrows():
-                    logs.append({"title": f"📖 {row['subject']} ({row['duration_minutes']}m)", "start": row['study_date'], "backgroundColor": "#9C27B0", "allDay": True})
-            if logs:
-                calendar(events=logs, options={"initialView": "dayGridMonth", "height": 400})
+             # 共通カレンダーを表示
+            render_calendar_and_details(df_tasks, df_logs)
 
     # === タブ3: 分析レポート ===
     with tab3:

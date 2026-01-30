@@ -18,7 +18,7 @@ if "toast_msg" not in st.session_state:
 # 画面読み込み時に、前回の操作でセットされたメッセージがあれば表示
 if st.session_state["toast_msg"]:
     st.toast(st.session_state["toast_msg"], icon="🆙")
-    st.session_state["toast_msg"] = None # 表示したら消す
+    st.session_state["toast_msg"] = None 
 
 st.title("✅ 褒めてくれるタスク管理 (RPG風)")
 
@@ -49,21 +49,28 @@ if not supabase:
     st.error("Supabaseへの接続設定が見つかりません。")
     st.stop()
 
-# --- デザイン変更用の魔法の関数 ---
+# --- 【修正】デザイン変更用の魔法の関数 ---
+# CSSの「!important」を追加して強制力を強めました
 def apply_theme(font_type):
     css = ""
     if font_type == "ピクセル風":
         css = """
         <style>
         @import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
-        html, body, [class*="css"] { font-family: 'DotGothic16', sans-serif; }
+        
+        html, body, [class*="st-"], header, footer, div, input, button, select, p, span, h1, h2, h3, h4, h5, h6 {
+            font-family: 'DotGothic16', sans-serif !important;
+        }
         </style>
         """
     elif font_type == "手書き風":
         css = """
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Yomogi&display=swap');
-        html, body, [class*="css"] { font-family: 'Yomogi', cursive; }
+        
+        html, body, [class*="st-"], header, footer, div, input, button, select, p, span, h1, h2, h3, h4, h5, h6 {
+            font-family: 'Yomogi', cursive !important;
+        }
         </style>
         """
     
@@ -136,10 +143,9 @@ def update_status(task_id, is_done, username):
     status = '完了' if is_done else '未完了'
     supabase.table("tasks").update({"status": status}).eq("id", task_id).execute()
     
-    # 完了にした時だけXPを増やす！
     if is_done:
         current_xp = get_user_xp(username)
-        added_xp = 10  # 獲得経験値
+        added_xp = 10
         new_xp = current_xp + added_xp
         supabase.table("users").update({"xp": new_xp}).eq("username", username).execute()
         return added_xp, new_xp 
@@ -207,7 +213,6 @@ def main():
             st.rerun()
         st.divider()
 
-        # XPの再取得（着せ替えロック判定用）
         current_xp = get_user_xp(current_user)
         
         st.subheader("🎨 着せ替え設定")
@@ -228,29 +233,27 @@ def main():
             
         selected_theme = st.selectbox("フォント選択", theme_options, index=theme_options.index(st.session_state.get("theme", "標準")) if st.session_state.get("theme", "標準") in theme_options else 0)
         st.session_state["theme"] = selected_theme
+        
+        # 関数呼び出し
         apply_theme(selected_theme)
 
     # --- メイン画面：ステータスダッシュボード ---
-    # XPとレベルの計算
     current_xp = get_user_xp(current_user)
     level = (current_xp // 50) + 1
     next_level_xp = level * 50
     xp_needed = next_level_xp - current_xp
     progress_val = 1.0 - (xp_needed / 50)
     
-    # 見やすいように枠線付きのコンテナで表示
     with st.container(border=True):
         col_stats1, col_stats2, col_stats3 = st.columns([1, 1, 3])
-        
         with col_stats1:
             st.metric("Lv (レベル)", f"{level}")
         with col_stats2:
             st.metric("XP (経験値)", f"{current_xp}")
         with col_stats3:
             st.write(f"次のレベルまであと **{xp_needed} XP**")
-            st.progress(max(0.0, min(1.0, progress_val))) # 0.0~1.0の範囲に収める
+            st.progress(max(0.0, min(1.0, progress_val)))
 
-    # 褒める演出（バルーン）
     if "celebrate" not in st.session_state: st.session_state["celebrate"] = False
     if st.session_state["celebrate"]:
         st.balloons()
@@ -272,7 +275,7 @@ def main():
                 if st.form_submit_button("追加", type="primary"):
                     if name:
                         add_task(current_user, name, d_date, prio)
-                        st.session_state["toast_msg"] = "タスクを追加しました！" # 通知セット
+                        st.session_state["toast_msg"] = "タスクを追加しました！"
                         time.sleep(0.5)
                         st.rerun()
 
@@ -282,15 +285,11 @@ def main():
                 c1, c2, c3 = st.columns([0.1, 0.7, 0.2])
                 is_done = row['status'] == '完了'
                 
-                # チェックボックスの処理
                 if c1.checkbox("", value=is_done, key=f"c_{row['id']}") != is_done:
-                    # 更新処理
                     gained_xp, total_xp = update_status(row['id'], not is_done, current_user)
-                    
-                    if not is_done: # 未完了→完了 になった時
-                        st.session_state["celebrate"] = True # バルーン用フラグ
+                    if not is_done: 
+                        st.session_state["celebrate"] = True 
                         if gained_xp > 0:
-                            # 次の画面で表示するためにセッションステートに入れる
                             st.session_state["toast_msg"] = f"経験値 +{gained_xp} 獲得！ (現在: {total_xp})"
                     st.rerun()
                 

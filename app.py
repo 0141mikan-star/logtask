@@ -346,11 +346,10 @@ def show_detail_dialog(target_date, df_tasks, df_logs):
         st.success(f"📖 **勉強時間: {time_display}**")
         if not day_logs.empty:
             for _, row in day_logs.iterrows():
-                # 個別の記録も時間表記にする場合はここも修正できますが、
-                # 通常は短い時間が多いので「分」のままで表示しています
                 st.write(f"・{row['subject']}: {row['duration_minutes']}分")
         else:
             st.caption("なし")
+
 
 # --- 日付補正処理 ---
 def parse_correct_date(raw_date):
@@ -400,6 +399,7 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
     
     cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select', 'eventClick'], key=unique_key)
     
+    # 無限ループ防止: 前回と同じイベントデータなら無視
     if cal_data and cal_data != st.session_state["last_cal_event"]:
         st.session_state["last_cal_event"] = cal_data
         

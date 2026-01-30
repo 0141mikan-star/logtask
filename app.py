@@ -235,13 +235,13 @@ def set_title(username, title):
 
 
 # --- 共通カレンダーコンポーネント ---
-def render_calendar_and_details(df_tasks, df_logs):
+# 修正: unique_key引数を追加して、IDの重複を防ぐ
+def render_calendar_and_details(df_tasks, df_logs, unique_key):
     st.subheader("📅 カレンダー")
     
-    # イベント作成（タスクとログを統合）
+    # イベント作成
     events = []
     
-    # 1. タスク
     if not df_tasks.empty:
         for _, row in df_tasks.iterrows():
             color = "#808080" if row['status'] == '完了' else "#FF4B4B" if row['priority']=="高" else "#1C83E1"
@@ -252,7 +252,6 @@ def render_calendar_and_details(df_tasks, df_logs):
                 "allDay": True
             })
     
-    # 2. ログ
     if not df_logs.empty:
         for _, row in df_logs.iterrows():
             events.append({
@@ -263,36 +262,29 @@ def render_calendar_and_details(df_tasks, df_logs):
                 "allDay": True
             })
 
-    # カレンダー表示
-    # dateClickを有効にしてクリックを検知
     cal_options = {
         "initialView": "dayGridMonth",
         "height": 450,
         "selectable": True,
     }
     
-    # カレンダーを描画し、イベントを受け取る
-    cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick'])
+    # 修正: key引数を指定して、Streamlitに別の部品だと認識させる
+    cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick'], key=unique_key)
     
-    # クリック時の処理
     if cal_data and cal_data.get("callback") == "dateClick":
-        # クリックされた日付を取得 (例: "2026-01-30T...")
         clicked_date_str = cal_data["date"].split("T")[0]
         st.session_state["selected_date"] = clicked_date_str
 
-    # 詳細パネル表示
     if st.session_state["selected_date"]:
         target_date = st.session_state["selected_date"]
         
         with st.container(border=True):
             st.markdown(f"### 📅 {target_date} の記録")
             
-            # その日のタスクを抽出
             day_tasks = pd.DataFrame()
             if not df_tasks.empty:
                 day_tasks = df_tasks[df_tasks['due_date'] == target_date]
             
-            # その日のログを抽出
             day_logs = pd.DataFrame()
             total_minutes = 0
             if not df_logs.empty:
@@ -320,7 +312,8 @@ def render_calendar_and_details(df_tasks, df_logs):
                 else:
                     st.caption("勉強記録なし")
             
-            if st.button("閉じる"):
+            # 修正: ボタンにもunique_keyを付与
+            if st.button("閉じる", key=f"btn_close_{unique_key}"):
                 st.session_state["selected_date"] = None
                 st.rerun()
 
@@ -451,8 +444,8 @@ def main():
                     st.info("タスクはありません！")
         
         with col_t2:
-            # 共通カレンダーを表示
-            render_calendar_and_details(df_tasks, df_logs)
+            # 修正: カレンダー呼び出し時にIDを渡す
+            render_calendar_and_details(df_tasks, df_logs, "cal_todo")
 
     # === タブ2: 勉強タイマー ===
     with tab2:
@@ -508,8 +501,8 @@ def main():
                             st.error("時間を入力してください")
 
         with col_s2:
-             # 共通カレンダーを表示
-            render_calendar_and_details(df_tasks, df_logs)
+             # 修正: こちらのカレンダーにも別のIDを渡す
+            render_calendar_and_details(df_tasks, df_logs, "cal_timer")
 
     # === タブ3: 分析レポート ===
     with tab3:

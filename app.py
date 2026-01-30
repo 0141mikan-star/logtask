@@ -234,9 +234,10 @@ def set_title(username, title):
     supabase.table("users").update({"current_title": title}).eq("username", username).execute()
 
 
-# --- 共通カレンダーコンポーネント (修正版2) ---
+# --- 共通カレンダーコンポーネント (修正完了版) ---
 def render_calendar_and_details(df_tasks, df_logs, unique_key):
     st.subheader("📅 カレンダー")
+    st.caption("日付をクリックすると詳細が見れます")
     
     events = []
     
@@ -263,24 +264,32 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
     cal_options = {
         "initialView": "dayGridMonth",
         "height": 450,
-        "selectable": True,
+        "selectable": True, # これによりクリックや選択が可能になる
     }
     
-    # カレンダー描画
-    cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick'], key=unique_key)
+    # callbacksに 'select' も追加して、範囲選択でも反応するようにする
+    cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select'], key=unique_key)
     
-    # --- 【修正箇所】 dateStr を優先して取得する ---
-    if cal_data and cal_data.get("callback") == "dateClick":
-        # 'dateStr' (YYYY-MM-DD) があればそれを使い、なければ 'date' を使う
-        clicked_date_str = cal_data.get("dateStr")
-        if not clicked_date_str and "date" in cal_data:
-            clicked_date_str = cal_data["date"].split("T")[0]
+    # --- データ取得ロジック (rerunは削除) ---
+    clicked_date_str = None
+    
+    if cal_data:
+        # パターン1: 日付クリック (dateClick) -> dateStr
+        if "dateStr" in cal_data:
+             clicked_date_str = cal_data["dateStr"]
+        # パターン2: 範囲選択 (select) -> startStr
+        elif "startStr" in cal_data:
+             clicked_date_str = cal_data["startStr"]
+        # パターン3: 予備 (date)
+        elif "date" in cal_data:
+             clicked_date_str = cal_data["date"].split("T")[0]
         
+        # 日付が取れたらステートを更新
         if clicked_date_str:
             st.session_state["selected_date"] = clicked_date_str
-            # クリック後に即座に再描画して詳細を表示させる
-            st.rerun()
+            # ここでrerun()してはいけない（表示が消える原因になるため）
 
+    # 詳細表示エリア
     if st.session_state["selected_date"]:
         target_date = st.session_state["selected_date"]
         

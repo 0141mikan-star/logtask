@@ -185,6 +185,11 @@ def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
         font-weight: bold;
         text-shadow: none;
     }}
+    
+    /* ボタン類 */
+    button {{
+        font-weight: bold !important;
+    }}
     """
 
     # CSSを適用
@@ -597,6 +602,7 @@ def main():
         st.divider()
         st.write("🔧 **調整**")
         
+        # スライダー設定
         bg_opacity = st.slider("壁紙の暗さ (フィルター)", 0.0, 1.0, 0.3, 0.05, help="背景を暗くして文字を見やすくします")
         box_opacity = st.slider("ボックスの背景濃度", 0.0, 1.0, 0.9, 0.05, help="ショップなどのカードの透け具合を調整します")
         

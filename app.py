@@ -10,7 +10,7 @@ from streamlit_calendar import calendar
 
 # ページ設定
 st.set_page_config(page_title="個人タスク管理", layout="wide")
-st.title("✅ 褒めてくれるタスク管理 (Supabase版)")
+st.title("✅ 褒めてくれるタスク管理 (RPG風)")
 
 # 褒め言葉リスト
 PRAISE_MESSAGES = [
@@ -24,7 +24,6 @@ PRAISE_MESSAGES = [
 ]
 
 # --- Supabase接続設定 ---
-# キャッシュを使って接続を高速化
 @st.cache_resource
 def init_supabase():
     try:
@@ -37,10 +36,41 @@ def init_supabase():
 supabase = init_supabase()
 
 if not supabase:
-    st.error("Supabaseへの接続設定が見つかりません。secrets.tomlを確認してください。")
+    st.error("Supabaseへの接続設定が見つかりません。")
     st.stop()
 
-# --- セキュリティ（ハッシュ化）関数 ---
+# --- デザイン変更用の魔法の関数 (追加部分) ---
+def apply_theme(font_type):
+    css = ""
+    if font_type == "ピクセル風":
+        css = """
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
+        html, body, [class*="css"] { font-family: 'DotGothic16', sans-serif; }
+        </style>
+        """
+    elif font_type == "手書き風":
+        css = """
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Yomogi&display=swap');
+        html, body, [class*="css"] { font-family: 'Yomogi', cursive; }
+        </style>
+        """
+    
+    if css:
+        st.markdown(css, unsafe_allow_html=True)
+
+# --- ユーザー情報取得 (追加部分) ---
+def get_user_xp(username):
+    try:
+        response = supabase.table("users").select("xp").eq("username", username).execute()
+        if response.data:
+            return response.data[0]["xp"]
+        return 0
+    except:
+        return 0
+
+# --- セキュリティ関数 ---
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
@@ -52,7 +82,8 @@ def check_hashes(password, hashed_text):
 # --- ユーザー管理関数 ---
 def add_user(username, password):
     try:
-        data = {"username": username, "password": make_hashes(password)}
+        # xp の初期値は 0
+        data = {"username": username, "password": make_hashes(password), "xp": 0}
         supabase.table("users").insert(data).execute()
         return True
     except Exception:
@@ -80,12 +111,10 @@ def add_task(username, task_name, due_date, priority):
     supabase.table("tasks").insert(data).execute()
 
 def get_tasks(username):
-    # 自分のタスクだけを取得
     response = supabase.table("tasks").select("*").eq("username", username).execute()
     df = pd.DataFrame(response.data)
     
     if not df.empty:
-        # 並び替え用ロジック
         df['status_rank'] = df['status'].apply(lambda x: 1 if x == '未完了' else 2)
         priority_map = {'高': 1, '中': 2, '低': 3}
         df['priority_rank'] = df['priority'].map(priority_map).fillna(3)
@@ -93,9 +122,18 @@ def get_tasks(username):
         return df
     return pd.DataFrame()
 
-def update_status(task_id, is_done):
+# --- ステータス更新 & XP加算 (改造部分) ---
+def update_status(task_id, is_done, username):
     status = '完了' if is_done else '未完了'
     supabase.table("tasks").update({"status": status}).eq("id", task_id).execute()
+    
+    # 完了にした時だけXPを増やす！
+    if is_done:
+        current_xp = get_user_xp(username)
+        new_xp = current_xp + 10
+        supabase.table("users").update({"xp": new_xp}).eq("username", username).execute()
+        return new_xp # 新しいXPを返す
+    return None
 
 def delete_task(task_id):
     supabase.table("tasks").delete().eq("id", task_id).execute()
@@ -149,13 +187,48 @@ def main():
         return
 
     # === アプリ本編 ===
+    current_user = st.session_state["username"]
+    
+    # --- サイドバー (着せ替え機能を追加) ---
     with st.sidebar:
-        st.write(f"👤 {st.session_state['username']}")
+        st.write(f"👤 {current_user}")
+        
+        # 現在のXPを取得して表示
+        current_xp = get_user_xp(current_user)
+        st.metric("現在の経験値 (XP)", f"{current_xp}")
+        st.progress(min((current_xp % 100) / 100, 1.0)) # 次のレベルへのバー（簡易版）
+
+        st.divider()
+        
+        # 着せ替えセレクター
+        st.subheader("🎨 着せ替え")
+        theme_options = ["標準"]
+        
+        if current_xp >= 50:
+            theme_options.append("ピクセル風")
+        else:
+            st.caption("🔒 Lv.5 (XP 50) で「ピクセル風」解放")
+            
+        if current_xp >= 100:
+            theme_options.append("手書き風")
+        else:
+            st.caption("🔒 Lv.10 (XP 100) で「手書き風」解放")
+            
+        # セッションに保存して選択状態を維持
+        if "theme" not in st.session_state:
+            st.session_state["theme"] = "標準"
+            
+        selected_theme = st.selectbox("フォント選択", theme_options, index=theme_options.index(st.session_state.get("theme", "標準")) if st.session_state.get("theme", "標準") in theme_options else 0)
+        st.session_state["theme"] = selected_theme
+        apply_theme(selected_theme)
+        
+        st.divider()
+
         if st.button("ログアウト"):
             st.session_state["logged_in"] = False
             st.rerun()
-        st.divider()
 
+    # 褒める演出
     if "celebrate" not in st.session_state: st.session_state["celebrate"] = False
     if st.session_state["celebrate"]:
         st.balloons()
@@ -163,7 +236,6 @@ def main():
         st.session_state["celebrate"] = False
 
     col_list, col_calendar = st.columns([0.45, 0.55], gap="large")
-    current_user = st.session_state["username"]
     df = get_tasks(current_user)
 
     with col_list:
@@ -187,9 +259,15 @@ def main():
                 c1, c2, c3 = st.columns([0.1, 0.7, 0.2])
                 is_done = row['status'] == '完了'
                 
+                # チェックボックスの処理
                 if c1.checkbox("", value=is_done, key=f"c_{row['id']}") != is_done:
-                    update_status(row['id'], not is_done)
-                    if not is_done: st.session_state["celebrate"] = True
+                    # ステータス更新関数に username も渡すように変更！
+                    new_xp = update_status(row['id'], not is_done, current_user)
+                    
+                    if not is_done: # 未完了→完了 になった時
+                        st.session_state["celebrate"] = True
+                        if new_xp:
+                            st.toast(f"経験値ゲット！ XP: {new_xp}", icon="🆙")
                     st.rerun()
                 
                 c2.markdown(f"~~{row['task_name']}~~" if is_done else f"**{row['task_name']}**")

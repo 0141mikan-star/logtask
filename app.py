@@ -7,7 +7,6 @@ from datetime import datetime, date, timedelta, timezone
 import urllib.parse
 import hashlib
 import altair as alt
-from streamlit_calendar import calendar
 
 # ページ設定
 st.set_page_config(page_title="個人タスク管理RPG", layout="wide")
@@ -22,8 +21,6 @@ if "is_studying" not in st.session_state:
     st.session_state["is_studying"] = False
 if "start_time" not in st.session_state:
     st.session_state["start_time"] = None
-if "last_cal_event" not in st.session_state:
-    st.session_state["last_cal_event"] = None
 
 # トースト通知表示
 if st.session_state["toast_msg"]:
@@ -86,6 +83,7 @@ def apply_font(font_type):
         .stMarkdown, .stTextInput > div > div, .stSelectbox > div > div {{
             font-family: {font_family} !important;
         }}
+        /* アイコン類はフォントを適用しない */
         .material-icons, .material-symbols-rounded, [data-testid="stExpander"] svg {{
             font-family: inherit !important;
         }}
@@ -98,25 +96,20 @@ def apply_wallpaper(wallpaper_name):
     
     if wallpaper_name == "シンプル":
         return 
-        
     elif wallpaper_name == "草原":
         bg_style = "background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);"
-        
     elif wallpaper_name == "夕焼け":
         bg_style = "background: linear-gradient(120deg, #f6d365 0%, #fda085 100%);"
-        
     elif wallpaper_name == "夜空":
         bg_style = """
         background: linear-gradient(to top, #30cfd0 0%, #330867 100%);
-        color: white; /* これが原因でカレンダーが見えなくなっていた */
+        color: white; 
         """
-        
     elif wallpaper_name == "ダンジョン":
         bg_style = """
         background: linear-gradient(to right, #434343 0%, black 100%);
         color: #e0e0e0;
         """
-    
     elif wallpaper_name == "王宮":
         bg_style = "background-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);"
 
@@ -128,10 +121,15 @@ def apply_wallpaper(wallpaper_name):
             background-attachment: fixed;
             background-size: cover;
         }}
+        /* リストなどの文字が見えなくならないように背景色をつける */
+        div[data-testid="stExpander"] {{
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }}
         </style>
         """, unsafe_allow_html=True)
 
-# --- ユーザー情報取得 (拡張版) ---
+# --- ユーザー情報取得 ---
 def get_user_data(username):
     try:
         response = supabase.table("users").select("*").eq("username", username).execute()
@@ -298,135 +296,50 @@ def set_title(username, title):
     supabase.table("users").update({"current_title": title}).eq("username", username).execute()
 
 
-# --- ポップアップ詳細表示 (モーダル) ---
-@st.dialog("📅 記録の詳細")
-def show_detail_dialog(target_date, df_tasks, df_logs):
-    st.write(f"**{target_date}** の頑張り記録です")
+# --- 【新機能】その日のタスクリストを表示するコンポーネント ---
+def render_daily_task_list(df_tasks, unique_key):
+    st.subheader("📅 今日のクエスト")
     
+    # 日付選択 (デフォルトは今日)
+    c1, c2 = st.columns([0.5, 0.5])
+    with c1:
+        target_date = st.date_input("日付を確認", value=date.today(), key=f"date_{unique_key}")
+    
+    # 選択された日付のタスクを抽出
     day_tasks = pd.DataFrame()
     if not df_tasks.empty:
-        day_tasks = df_tasks[df_tasks['due_date'] == target_date]
+        # 文字列型で比較
+        day_tasks = df_tasks[df_tasks['due_date'] == str(target_date)]
     
-    day_logs = pd.DataFrame()
-    total_minutes = 0
-    if not df_logs.empty:
-        day_logs = df_logs[df_logs['study_date'] == target_date]
-        if not day_logs.empty:
-            total_minutes = day_logs['duration_minutes'].sum()
-            
-    hours = total_minutes // 60
-    mins = total_minutes % 60
-    if hours > 0:
-        time_display = f"{hours}時間{mins}分"
-    else:
-        time_display = f"{mins}分"
-    
-    c_det1, c_det2 = st.columns(2)
-    
-    with c_det1:
-        st.info("📝 **タスク**")
+    # 表示エリア
+    with st.container(border=True):
+        st.write(f"**{target_date}** にやるべきこと")
+        
         if not day_tasks.empty:
-            for _, row in day_tasks.iterrows():
-                status_icon = "✅" if row['status'] == '完了' else "⬜"
-                st.write(f"{status_icon} {row['task_name']}")
+            # 未完了と完了に分ける
+            active = day_tasks[day_tasks['status'] == '未完了']
+            completed = day_tasks[day_tasks['status'] == '完了']
+            
+            if not active.empty:
+                for _, row in active.iterrows():
+                    # 優先度アイコン
+                    prio = row['priority']
+                    icon = "🔥" if prio == "高" else "⚠️" if prio == "中" else "🟢"
+                    
+                    st.info(f"{icon} **{row['task_name']}**")
+            else:
+                if not completed.empty:
+                    st.success("🎉 この日のタスクは全て完了しました！")
+                else:
+                    st.caption("タスクはありません")
+            
+            # 完了済みタスク（折りたたみ）
+            if not completed.empty:
+                with st.expander("✅ 完了済みのタスク"):
+                    for _, row in completed.iterrows():
+                        st.write(f"~~{row['task_name']}~~")
         else:
-            st.caption("なし")
-    
-    with c_det2:
-        st.success(f"📖 **勉強時間: {time_display}**")
-        if not day_logs.empty:
-            for _, row in day_logs.iterrows():
-                st.write(f"・{row['subject']}: {row['duration_minutes']}分")
-        else:
-            st.caption("なし")
-
-# --- 日付補正処理 ---
-def parse_correct_date(raw_date):
-    try:
-        if "T" in raw_date:
-            dt_utc = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
-            dt_jst = dt_utc.astimezone(JST)
-            return dt_jst.strftime('%Y-%m-%d')
-        else:
-            return raw_date
-    except:
-        return raw_date
-
-# --- 共通カレンダーコンポーネント ---
-def render_calendar_and_details(df_tasks, df_logs, unique_key):
-    # ★追加修正: カレンダーの視認性を強制確保するCSS
-    st.markdown("""
-    <style>
-    /* FullCalendarの背景を白く、文字を黒くする強制スタイル */
-    .fc {
-        background-color: rgba(255, 255, 255, 0.95) !important;
-        border-radius: 10px;
-        padding: 10px;
-        color: #333333 !important;
-    }
-    .fc-theme-standard .fc-scrollgrid {
-        border-color: #ddd !important;
-    }
-    .fc-col-header-cell-cushion, .fc-daygrid-day-number {
-        color: #333333 !important;
-        text-decoration: none !important;
-    }
-    /* ボタン類の調整 */
-    .fc-button-primary {
-        background-color: #FF4B4B !important;
-        border-color: #FF4B4B !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.subheader("📅 カレンダー")
-    st.caption("日付をクリックすると詳細がポップアップします")
-    
-    events = []
-    
-    if not df_tasks.empty:
-        for _, row in df_tasks.iterrows():
-            color = "#808080" if row['status'] == '完了' else "#FF4B4B" if row['priority']=="高" else "#1C83E1"
-            events.append({
-                "title": f"📝 {row['task_name']}",
-                "start": row['due_date'],
-                "backgroundColor": color,
-                "allDay": True
-            })
-    
-    if not df_logs.empty:
-        for _, row in df_logs.iterrows():
-            events.append({
-                "title": f"📖 {row['subject']} ({row['duration_minutes']}m)",
-                "start": row['study_date'],
-                "backgroundColor": "#9C27B0",
-                "borderColor": "#9C27B0",
-                "allDay": True
-            })
-
-    cal_options = {
-        "initialView": "dayGridMonth",
-        "height": 450,
-        "selectable": True,
-        "timeZone": 'Asia/Tokyo', 
-    }
-    
-    cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select', 'eventClick'], key=unique_key)
-    
-    if cal_data and cal_data != st.session_state["last_cal_event"]:
-        st.session_state["last_cal_event"] = cal_data
-        
-        raw_date_str = None
-        if "dateClick" in cal_data:
-             raw_date_str = cal_data["dateClick"]["date"]
-        elif "select" in cal_data:
-             raw_date_str = cal_data["select"]["start"]
-        elif "eventClick" in cal_data:
-             raw_date_str = cal_data["eventClick"]["event"]["start"]
-        
-        if raw_date_str:
-            target_date = parse_correct_date(raw_date_str)
-            show_detail_dialog(target_date, df_tasks, df_logs)
+            st.info("予定はありません。ゆっくり休みましょう🍵")
 
 
 # --- メイン処理 ---
@@ -582,7 +495,8 @@ def main():
                     st.info("タスクはありません！")
         
         with col_t2:
-            render_calendar_and_details(df_tasks, df_logs, "cal_todo")
+            # カレンダーの代わりにタスクリストを表示
+            render_daily_task_list(df_tasks, "todo_tab")
 
     # === タブ2: 勉強タイマー ===
     with tab2:
@@ -623,7 +537,7 @@ def main():
                     m_subj = st.text_input("教科")
                     ch, cm = st.columns(2)
                     mh = ch.number_input("時間", 0, 24, 0)
-                    mm = cm.number_input("分", 0, 59, 0) # 初期値0
+                    mm = cm.number_input("分", 0, 59, 0) 
                     
                     if st.form_submit_button("記録", type="primary"):
                         total_m = (mh * 60) + mm
@@ -638,7 +552,8 @@ def main():
                             st.error("時間を入力してください")
 
         with col_s2:
-            render_calendar_and_details(df_tasks, df_logs, "cal_timer")
+            # カレンダーの代わりにタスクリストを表示（タイマー側）
+            render_daily_task_list(df_tasks, "timer_tab")
 
     # === タブ3: 分析レポート ===
     with tab3:

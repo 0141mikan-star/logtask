@@ -234,7 +234,7 @@ def set_title(username, title):
     supabase.table("users").update({"current_title": title}).eq("username", username).execute()
 
 
-# --- 共通カレンダーコンポーネント (修正版) ---
+# --- 共通カレンダーコンポーネント (修正版2) ---
 def render_calendar_and_details(df_tasks, df_logs, unique_key):
     st.subheader("📅 カレンダー")
     
@@ -269,12 +269,17 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
     # カレンダー描画
     cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick'], key=unique_key)
     
-    # --- 【修正箇所】 安全にデータを取り出す ---
+    # --- 【修正箇所】 dateStr を優先して取得する ---
     if cal_data and cal_data.get("callback") == "dateClick":
-        # 'date' というキーが存在するか確認してから処理する
-        if "date" in cal_data:
+        # 'dateStr' (YYYY-MM-DD) があればそれを使い、なければ 'date' を使う
+        clicked_date_str = cal_data.get("dateStr")
+        if not clicked_date_str and "date" in cal_data:
             clicked_date_str = cal_data["date"].split("T")[0]
+        
+        if clicked_date_str:
             st.session_state["selected_date"] = clicked_date_str
+            # クリック後に即座に再描画して詳細を表示させる
+            st.rerun()
 
     if st.session_state["selected_date"]:
         target_date = st.session_state["selected_date"]

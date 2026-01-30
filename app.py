@@ -11,7 +11,7 @@ from streamlit_calendar import calendar
 # ページ設定
 st.set_page_config(page_title="個人タスク管理", layout="wide")
 
-# --- セッションステート初期化 (ポップアップ用) ---
+# --- セッションステート初期化 ---
 if "toast_msg" not in st.session_state:
     st.session_state["toast_msg"] = None
 
@@ -50,31 +50,39 @@ if not supabase:
     st.stop()
 
 # --- 【修正】デザイン変更用の魔法の関数 ---
-# CSSの「!important」を追加して強制力を強めました
+# バグ修正: アイコン（material-iconsなど）を除外してテキストだけにフォントを適用する
 def apply_theme(font_type):
     css = ""
+    font_family = ""
     if font_type == "ピクセル風":
-        css = """
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
-        
-        html, body, [class*="st-"], header, footer, div, input, button, select, p, span, h1, h2, h3, h4, h5, h6 {
-            font-family: 'DotGothic16', sans-serif !important;
-        }
-        </style>
-        """
+        css_import = "@import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');"
+        font_family = "'DotGothic16', sans-serif"
     elif font_type == "手書き風":
-        css = """
+        css_import = "@import url('https://fonts.googleapis.com/css2?family=Yomogi&display=swap');"
+        font_family = "'Yomogi', cursive"
+    
+    if font_family:
+        # divやspanを無差別に指定せず、テキスト要素のみをターゲットにする
+        css = f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Yomogi&display=swap');
+        {css_import}
         
-        html, body, [class*="st-"], header, footer, div, input, button, select, p, span, h1, h2, h3, h4, h5, h6 {
-            font-family: 'Yomogi', cursive !important;
-        }
+        /* 一般的なテキスト要素に適用 */
+        body, p, h1, h2, h3, h4, h5, h6, input, textarea, label, button, .stTooltip {{
+            font-family: {font_family} !important;
+        }}
+        
+        /* Streamlitの特定の要素 */
+        .stMarkdown, .stTextInput > div > div, .stSelectbox > div > div {{
+            font-family: {font_family} !important;
+        }}
+
+        /* アイコンが壊れないように除外設定（念のため） */
+        .material-icons, .material-symbols-rounded, [data-testid="stExpander"] svg {{
+            font-family: inherit !important;
+        }}
         </style>
         """
-    
-    if css:
         st.markdown(css, unsafe_allow_html=True)
 
 # --- ユーザー情報取得 ---
@@ -138,18 +146,19 @@ def get_tasks(username):
         return df
     return pd.DataFrame()
 
-# --- ステータス更新 & XP加算 ---
-def update_status(task_id, is_done, username):
-    status = '完了' if is_done else '未完了'
-    supabase.table("tasks").update({"status": status}).eq("id", task_id).execute()
+# --- 【修正】一括更新用の関数 ---
+def complete_tasks_bulk(task_ids, username):
+    # 1. すべてのIDを完了にする
+    supabase.table("tasks").update({"status": "完了"}).in_("id", task_ids).execute()
     
-    if is_done:
-        current_xp = get_user_xp(username)
-        added_xp = 10
-        new_xp = current_xp + added_xp
-        supabase.table("users").update({"xp": new_xp}).eq("username", username).execute()
-        return added_xp, new_xp 
-    return 0, 0
+    # 2. 経験値を計算（1つにつき10XP）
+    xp_gained = len(task_ids) * 10
+    
+    current_xp = get_user_xp(username)
+    new_xp = current_xp + xp_gained
+    supabase.table("users").update({"xp": new_xp}).eq("username", username).execute()
+    
+    return xp_gained, new_xp
 
 def delete_task(task_id):
     supabase.table("tasks").delete().eq("id", task_id).execute()
@@ -177,7 +186,7 @@ def main():
     if not st.session_state["logged_in"]:
         st.sidebar.title("🔐 ログイン / 登録")
         choice = st.sidebar.selectbox("メニュー", ["ログイン", "新規登録"])
-
+        # ... (ログイン処理は変更なし) ...
         if choice == "ログイン":
             st.subheader("ログイン")
             username = st.text_input("ユーザー名")
@@ -190,7 +199,6 @@ def main():
                     st.rerun()
                 else:
                     st.error("失敗しました。")
-
         elif choice == "新規登録":
             st.subheader("新規登録")
             new_user = st.text_input("ユーザー名")
@@ -205,7 +213,7 @@ def main():
     # === アプリ本編 ===
     current_user = st.session_state["username"]
     
-    # --- サイドバー (着せ替えのみ配置) ---
+    # --- サイドバー ---
     with st.sidebar:
         st.write(f"👤 {current_user}")
         if st.button("ログアウト"):
@@ -222,7 +230,6 @@ def main():
             theme_options.append("ピクセル風")
         else:
             st.caption("🔒 Lv.2 (XP 50) で「ピクセル風」解放")
-            
         if current_xp >= 100:
             theme_options.append("手書き風")
         else:
@@ -233,11 +240,9 @@ def main():
             
         selected_theme = st.selectbox("フォント選択", theme_options, index=theme_options.index(st.session_state.get("theme", "標準")) if st.session_state.get("theme", "標準") in theme_options else 0)
         st.session_state["theme"] = selected_theme
-        
-        # 関数呼び出し
         apply_theme(selected_theme)
 
-    # --- メイン画面：ステータスダッシュボード ---
+    # --- メイン画面：ステータス ---
     current_xp = get_user_xp(current_user)
     level = (current_xp // 50) + 1
     next_level_xp = level * 50
@@ -264,6 +269,7 @@ def main():
     col_list, col_calendar = st.columns([0.45, 0.55], gap="large")
     df = get_tasks(current_user)
 
+    # --- タスクリスト (複数選択対応) ---
     with col_list:
         st.subheader("📋 タスクリスト")
         with st.expander("➕ タスク追加", expanded=True):
@@ -281,24 +287,52 @@ def main():
 
         if not df.empty:
             st.divider()
-            for _, row in df.iterrows():
-                c1, c2, c3 = st.columns([0.1, 0.7, 0.2])
-                is_done = row['status'] == '完了'
+            
+            # 未完了のタスクのみを対象にするリストを作る
+            active_tasks = df[df['status'] == '未完了']
+            completed_tasks = df[df['status'] == '完了']
+            
+            # 1. 未完了タスク（チェックボックス付き）
+            if not active_tasks.empty:
+                st.write("🔽 **未完了タスク (選択してまとめて完了)**")
+                selected_ids = []
                 
-                if c1.checkbox("", value=is_done, key=f"c_{row['id']}") != is_done:
-                    gained_xp, total_xp = update_status(row['id'], not is_done, current_user)
-                    if not is_done: 
-                        st.session_state["celebrate"] = True 
-                        if gained_xp > 0:
-                            st.session_state["toast_msg"] = f"経験値 +{gained_xp} 獲得！ (現在: {total_xp})"
-                    st.rerun()
+                for _, row in active_tasks.iterrows():
+                    c1, c2, c3 = st.columns([0.1, 0.7, 0.2])
+                    
+                    # 選択用チェックボックス (keyをユニークにする)
+                    if c1.checkbox("", key=f"sel_{row['id']}"):
+                        selected_ids.append(row['id'])
+                    
+                    c2.markdown(f"**{row['task_name']}**")
+                    c2.caption(f"📅 {row['due_date']} | {row['priority']}")
+                    
+                    if c3.button("🗑️", key=f"d_{row['id']}"):
+                        delete_task(row['id'])
+                        st.rerun()
+                    st.markdown("---")
                 
-                c2.markdown(f"~~{row['task_name']}~~" if is_done else f"**{row['task_name']}**")
-                if not is_done: c2.caption(f"📅 {row['due_date']} | {row['priority']}")
-                
-                if c3.button("🗑️", key=f"d_{row['id']}"):
-                    delete_task(row['id'])
-                    st.rerun()
+                # まとめて完了ボタン
+                if selected_ids:
+                    if st.button(f"✅ 選択した {len(selected_ids)} 件を完了にする (+{len(selected_ids)*10} XP)", type="primary"):
+                        gained, total = complete_tasks_bulk(selected_ids, current_user)
+                        st.session_state["celebrate"] = True
+                        st.session_state["toast_msg"] = f"まとめて完了！ 経験値 +{gained} 獲得！ (現在: {total})"
+                        st.rerun()
+            else:
+                st.info("未完了のタスクはありません！")
+
+            # 2. 完了済みタスク（履歴として表示）
+            if not completed_tasks.empty:
+                with st.expander("✅ 完了済みタスクを表示"):
+                    for _, row in completed_tasks.iterrows():
+                        c1, c2, c3 = st.columns([0.1, 0.7, 0.2])
+                        c1.write("✅") # ただのアイコン
+                        c2.markdown(f"~~{row['task_name']}~~")
+                        if c3.button("🗑️", key=f"d_done_{row['id']}"):
+                            delete_task(row['id'])
+                            st.rerun()
+                        st.markdown("---")
 
     with col_calendar:
         st.subheader("📅 カレンダー")

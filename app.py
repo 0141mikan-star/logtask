@@ -94,41 +94,33 @@ def apply_font(font_type):
 
 # --- デザイン適用関数 (壁紙) ---
 def apply_wallpaper(wallpaper_name):
-    # CSSの定義
     bg_style = ""
     
     if wallpaper_name == "シンプル":
-        return # 何もしない(デフォルト)
+        return 
         
-    elif wallpaper_name == "草原": # 緑のグラデーション
-        bg_style = """
-        background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);
-        """
+    elif wallpaper_name == "草原":
+        bg_style = "background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);"
         
-    elif wallpaper_name == "夕焼け": # オレンジのグラデーション
-        bg_style = """
-        background: linear-gradient(120deg, #f6d365 0%, #fda085 100%);
-        """
+    elif wallpaper_name == "夕焼け":
+        bg_style = "background: linear-gradient(120deg, #f6d365 0%, #fda085 100%);"
         
-    elif wallpaper_name == "夜空": # 濃い青
+    elif wallpaper_name == "夜空":
         bg_style = """
         background: linear-gradient(to top, #30cfd0 0%, #330867 100%);
-        color: white; /* 文字を白くする */
+        color: white; /* これが原因でカレンダーが見えなくなっていた */
         """
         
-    elif wallpaper_name == "ダンジョン": # ダークグレー
+    elif wallpaper_name == "ダンジョン":
         bg_style = """
         background: linear-gradient(to right, #434343 0%, black 100%);
         color: #e0e0e0;
         """
     
-    elif wallpaper_name == "王宮": # ゴールド・白
-        bg_style = """
-        background-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);
-        """
+    elif wallpaper_name == "王宮":
+        bg_style = "background-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);"
 
     if bg_style:
-        # .stApp はStreamlitの全体コンテナのクラス名
         st.markdown(f"""
         <style>
         .stApp {{
@@ -252,7 +244,7 @@ def get_study_logs(username):
     df = pd.DataFrame(response.data)
     return df
 
-# --- DB操作: ショップ・ガチャ関連 (フォント) ---
+# --- DB操作: ショップ・ガチャ関連 ---
 def buy_theme(username, theme_name, cost):
     user_data = get_user_data(username)
     current_coins = user_data.get('coins', 0)
@@ -265,7 +257,6 @@ def buy_theme(username, theme_name, cost):
         return True, new_coins
     return False, current_coins
 
-# --- DB操作: ショップ・ガチャ関連 (壁紙) ---
 def buy_wallpaper(username, wallpaper_name, cost):
     user_data = get_user_data(username)
     current_coins = user_data.get('coins', 0)
@@ -323,7 +314,6 @@ def show_detail_dialog(target_date, df_tasks, df_logs):
         if not day_logs.empty:
             total_minutes = day_logs['duration_minutes'].sum()
             
-    # 時間・分表記への変換ロジック
     hours = total_minutes // 60
     mins = total_minutes % 60
     if hours > 0:
@@ -350,7 +340,6 @@ def show_detail_dialog(target_date, df_tasks, df_logs):
         else:
             st.caption("なし")
 
-
 # --- 日付補正処理 ---
 def parse_correct_date(raw_date):
     try:
@@ -365,6 +354,31 @@ def parse_correct_date(raw_date):
 
 # --- 共通カレンダーコンポーネント ---
 def render_calendar_and_details(df_tasks, df_logs, unique_key):
+    # ★追加修正: カレンダーの視認性を強制確保するCSS
+    st.markdown("""
+    <style>
+    /* FullCalendarの背景を白く、文字を黒くする強制スタイル */
+    .fc {
+        background-color: rgba(255, 255, 255, 0.95) !important;
+        border-radius: 10px;
+        padding: 10px;
+        color: #333333 !important;
+    }
+    .fc-theme-standard .fc-scrollgrid {
+        border-color: #ddd !important;
+    }
+    .fc-col-header-cell-cushion, .fc-daygrid-day-number {
+        color: #333333 !important;
+        text-decoration: none !important;
+    }
+    /* ボタン類の調整 */
+    .fc-button-primary {
+        background-color: #FF4B4B !important;
+        border-color: #FF4B4B !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.subheader("📅 カレンダー")
     st.caption("日付をクリックすると詳細がポップアップします")
     
@@ -399,7 +413,6 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
     
     cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select', 'eventClick'], key=unique_key)
     
-    # 無限ループ防止: 前回と同じイベントデータなら無視
     if cal_data and cal_data != st.session_state["last_cal_event"]:
         st.session_state["last_cal_event"] = cal_data
         

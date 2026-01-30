@@ -234,13 +234,12 @@ def set_title(username, title):
     supabase.table("users").update({"current_title": title}).eq("username", username).execute()
 
 
-# --- 共通カレンダーコンポーネント (修正完了版) ---
+# --- 共通カレンダーコンポーネント (最終修正版) ---
 def render_calendar_and_details(df_tasks, df_logs, unique_key):
     st.subheader("📅 カレンダー")
     st.caption("日付をクリックすると詳細が見れます")
     
     events = []
-    
     if not df_tasks.empty:
         for _, row in df_tasks.iterrows():
             color = "#808080" if row['status'] == '完了' else "#FF4B4B" if row['priority']=="高" else "#1C83E1"
@@ -261,41 +260,49 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
                 "allDay": True
             })
 
+    # カレンダー設定
     cal_options = {
         "initialView": "dayGridMonth",
         "height": 450,
-        "selectable": True, # これによりクリックや選択が可能になる
+        "selectable": True, # これがないとクリックできない
     }
     
-    # callbacksに 'select' も追加して、範囲選択でも反応するようにする
+    # 【重要】callbacksに 'select' と 'dateClick' を指定
     cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select'], key=unique_key)
     
-    # --- データ取得ロジック (rerunは削除) ---
-    clicked_date_str = None
+    # === デバッグ用（もし動かない時はここを開いて中身を教えてください） ===
+    # with st.expander("🛠️ デバッグ情報 (クリックしても反応しない場合はここを確認)"):
+    #     st.write(cal_data)
     
+    # === 日付取得ロジック (大幅緩和) ===
+    # 条件を厳しくせず、「とにかく日付っぽい文字列があったら採用」する
     if cal_data:
-        # パターン1: 日付クリック (dateClick) -> dateStr
+        clicked_date_str = None
+        
+        # パターン1: 日付クリック (dateClick)
         if "dateStr" in cal_data:
              clicked_date_str = cal_data["dateStr"]
-        # パターン2: 範囲選択 (select) -> startStr
+        
+        # パターン2: 範囲選択 (select)
         elif "startStr" in cal_data:
              clicked_date_str = cal_data["startStr"]
-        # パターン3: 予備 (date)
-        elif "date" in cal_data:
-             clicked_date_str = cal_data["date"].split("T")[0]
         
-        # 日付が取れたらステートを更新
+        # パターン3: イベントクリック (eventClick) -> イベントの日付を取る
+        elif "event" in cal_data and "start" in cal_data["event"]:
+             clicked_date_str = cal_data["event"]["start"].split("T")[0]
+
+        # 日付が取れたら更新
         if clicked_date_str:
             st.session_state["selected_date"] = clicked_date_str
-            # ここでrerun()してはいけない（表示が消える原因になるため）
 
-    # 詳細表示エリア
+    # === 詳細表示エリア ===
     if st.session_state["selected_date"]:
         target_date = st.session_state["selected_date"]
         
         with st.container(border=True):
             st.markdown(f"### 📅 {target_date} の記録")
             
+            # データ抽出
             day_tasks = pd.DataFrame()
             if not df_tasks.empty:
                 day_tasks = df_tasks[df_tasks['due_date'] == target_date]
@@ -327,6 +334,7 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
                 else:
                     st.caption("勉強記録なし")
             
+            # 閉じるボタン
             if st.button("閉じる", key=f"btn_close_{unique_key}"):
                 st.session_state["selected_date"] = None
                 st.rerun()

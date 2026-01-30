@@ -3,7 +3,7 @@ from supabase import create_client, Client
 import pandas as pd
 import random
 import time
-from datetime import datetime, date, timedelta, timezone # timezoneを追加
+from datetime import datetime, date, timedelta, timezone
 import urllib.parse
 import hashlib
 from streamlit_calendar import calendar
@@ -79,7 +79,6 @@ def apply_theme(font_type):
         .stMarkdown, .stTextInput > div > div, .stSelectbox > div > div {{
             font-family: {font_family} !important;
         }}
-        /* アイコン除外 */
         .material-icons, .material-symbols-rounded, [data-testid="stExpander"] svg {{
             font-family: inherit !important;
         }}
@@ -158,15 +157,19 @@ def complete_tasks_bulk(task_ids, username):
 def delete_task(task_id):
     supabase.table("tasks").delete().eq("id", task_id).execute()
 
-# --- DB操作: 勉強ログ関連 ---
-def add_study_log(username, subject, minutes):
-    # 日本時間で日付を取得
-    today_str = datetime.now(JST).strftime('%Y-%m-%d')
+# --- DB操作: 勉強ログ関連 (改良版) ---
+def add_study_log(username, subject, minutes, date_obj=None):
+    # 日付指定がない場合は今日(JST)にする
+    if date_obj is None:
+        date_str = datetime.now(JST).strftime('%Y-%m-%d')
+    else:
+        date_str = date_obj.strftime('%Y-%m-%d')
+        
     data = {
         "username": username,
         "subject": subject,
         "duration_minutes": minutes,
-        "study_date": today_str
+        "study_date": date_str
     }
     supabase.table("study_logs").insert(data).execute()
     
@@ -326,14 +329,12 @@ def main():
             else:
                 st.info("タスクを追加しよう！")
 
-        # === タブ2: 勉強タイマー (GIF削除・時刻修正版) ===
+        # === タブ2: 勉強タイマー (手動入力機能追加) ===
         with tab_timer:
-            st.subheader("🔥 勉強時間を記録")
-            st.caption("時間を測ると 1分につき 1XP もらえるよ！")
+            # 1. ストップウォッチ機能
+            st.subheader("🔥 ストップウォッチ")
             
-            # 計測中の表示
             if st.session_state["is_studying"]:
-                # 日本時間で開始時刻を表示
                 start_dt = datetime.fromtimestamp(st.session_state["start_time"], JST)
                 st.info(f"🕐 **{start_dt.strftime('%H:%M')}** から計測中...")
                 
@@ -350,8 +351,7 @@ def main():
                         end_time = time.time()
                         duration_min = int((end_time - st.session_state["start_time"]) // 60)
                         
-                        if duration_min < 1:
-                            duration_min = 1
+                        if duration_min < 1: duration_min = 1
                             
                         gained, total = add_study_log(current_user, study_subject, duration_min)
                         
@@ -360,12 +360,31 @@ def main():
                         st.session_state["celebrate"] = True
                         st.session_state["toast_msg"] = f"{duration_min}分勉強した！ +{gained}XP (現在: {total})"
                         st.rerun()
-            
             else:
                 if st.button("▶️ 勉強スタート！", type="primary"):
                     st.session_state["is_studying"] = True
                     st.session_state["start_time"] = time.time()
                     st.rerun()
+
+            st.divider()
+
+            # 2. 手動入力機能 (ここに追加！)
+            st.subheader("✏️ 手動で記録する")
+            with st.expander("過去の勉強や、測り忘れた時はこちら", expanded=False):
+                with st.form("manual_study_log", clear_on_submit=True):
+                    m_date = st.date_input("日付", value=date.today())
+                    m_subject = st.text_input("教科・内容 (例: 英語単語)")
+                    m_minutes = st.number_input("勉強時間 (分)", min_value=1, step=5, value=30)
+                    
+                    if st.form_submit_button("記録する"):
+                        if m_subject:
+                            gained, total = add_study_log(current_user, m_subject, m_minutes, m_date)
+                            st.session_state["celebrate"] = True
+                            st.session_state["toast_msg"] = f"記録しました！ +{gained}XP (現在: {total})"
+                            time.sleep(0.5)
+                            st.rerun()
+                        else:
+                            st.warning("教科名を入力してください")
 
     # --- カレンダー表示 ---
     with col_right:

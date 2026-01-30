@@ -24,6 +24,8 @@ if "start_time" not in st.session_state:
     st.session_state["start_time"] = None
 if "selected_date" not in st.session_state:
     st.session_state["selected_date"] = None
+if "show_dialog" not in st.session_state: # ダイアログ表示制御用
+    st.session_state["show_dialog"] = False
 
 # トースト通知表示
 if st.session_state["toast_msg"]:
@@ -233,11 +235,66 @@ def play_gacha(username, cost):
 def set_title(username, title):
     supabase.table("users").update({"current_title": title}).eq("username", username).execute()
 
+# --- 日付変換ヘルパー関数 (日付ズレ防止の要) ---
+def parse_date_correctly(date_data):
+    """
+    FullCalendarから返ってきた日付文字列を、日本時間(JST)のYYYY-MM-DDに正しく変換する
+    """
+    # 1. すでにYYYY-MM-DD形式 (dateStr) ならそのまま返す
+    if "T" not in date_data:
+        return date_data
+    
+    # 2. ISO形式 (T...Z) の場合、UTCとして解釈して9時間足す
+    try:
+        # 末尾のZを+00:00に置換してdatetimeオブジェクトにする
+        dt_utc = datetime.fromisoformat(date_data.replace("Z", "+00:00"))
+        # 日本時間に変換
+        dt_jst = dt_utc.astimezone(JST)
+        return dt_jst.strftime('%Y-%m-%d')
+    except:
+        # 万が一パースに失敗したら、単純にTの前までを使う
+        return date_data.split("T")[0]
 
-# --- 共通カレンダーコンポーネント (解析完了・修正版) ---
+
+# --- ポップアップ詳細表示用の関数 ---
+@st.dialog("📅 記録の詳細")
+def show_detail_dialog(target_date, df_tasks, df_logs):
+    st.write(f"**{target_date}** の頑張り記録です")
+    
+    day_tasks = pd.DataFrame()
+    if not df_tasks.empty:
+        day_tasks = df_tasks[df_tasks['due_date'] == target_date]
+    
+    day_logs = pd.DataFrame()
+    total_minutes = 0
+    if not df_logs.empty:
+        day_logs = df_logs[df_logs['study_date'] == target_date]
+        if not day_logs.empty:
+            total_minutes = day_logs['duration_minutes'].sum()
+    
+    c_det1, c_det2 = st.columns(2)
+    
+    with c_det1:
+        st.info("📝 **タスク**")
+        if not day_tasks.empty:
+            for _, row in day_tasks.iterrows():
+                status_icon = "✅" if row['status'] == '完了' else "⬜"
+                st.write(f"{status_icon} {row['task_name']}")
+        else:
+            st.caption("なし")
+    
+    with c_det2:
+        st.success(f"📖 **勉強時間: {total_minutes}分**")
+        if not day_logs.empty:
+            for _, row in day_logs.iterrows():
+                st.write(f"・{row['subject']}: {row['duration_minutes']}分")
+        else:
+            st.caption("なし")
+
+# --- 共通カレンダーコンポーネント (ポップアップ対応版) ---
 def render_calendar_and_details(df_tasks, df_logs, unique_key):
     st.subheader("📅 カレンダー")
-    st.caption("日付をクリックすると詳細が見れます")
+    st.caption("日付をクリックするとポップアップで詳細が見れます")
     
     events = []
     
@@ -269,73 +326,33 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
     
     cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick', 'select', 'eventClick'], key=unique_key)
     
-    # === 【修正】入れ子構造に対応したデータ取得ロジック ===
     if cal_data:
-        clicked_date_str = None
+        raw_date_str = None
         callback_type = cal_data.get("callback")
         
-        # 1. 日付クリックの場合 (箱: dateClick)
+        # どの操作が行われたか判定して、生の日時文字列を取得
         if callback_type == "dateClick":
-            click_info = cal_data.get("dateClick", {})
-            # dateStr がなければ date を使う (T以下を削除)
-            clicked_date_str = click_info.get("dateStr") or click_info.get("date", "").split("T")[0]
-            
-        # 2. 範囲選択の場合 (箱: select)
+            info = cal_data.get("dateClick", {})
+            raw_date_str = info.get("date") # ここでISO形式(UTC)が取れることが多い
         elif callback_type == "select":
-            select_info = cal_data.get("select", {})
-            clicked_date_str = select_info.get("startStr")
-            
-        # 3. イベントクリックの場合 (箱: eventClick)
+            info = cal_data.get("select", {})
+            raw_date_str = info.get("start")
         elif callback_type == "eventClick":
-            event_info = cal_data.get("eventClick", {}).get("event", {})
-            clicked_date_str = event_info.get("start", "").split("T")[0]
+            info = cal_data.get("eventClick", {}).get("event", {})
+            raw_date_str = info.get("start")
 
-        # 日付が取れたら更新
-        if clicked_date_str:
-            st.session_state["selected_date"] = clicked_date_str
+        # 日付が取れたら、ズレ補正をしてセット
+        if raw_date_str:
+            corrected_date = parse_date_correctly(raw_date_str)
+            st.session_state["selected_date"] = corrected_date
+            st.session_state["show_dialog"] = True # ダイアログを表示するフラグを立てる
+            st.rerun() # リロードしてダイアログを表示させる
 
-    # === 詳細表示エリア ===
-    if st.session_state["selected_date"]:
-        target_date = st.session_state["selected_date"]
-        
-        with st.container(border=True):
-            st.markdown(f"### 📅 {target_date} の記録")
-            
-            day_tasks = pd.DataFrame()
-            if not df_tasks.empty:
-                day_tasks = df_tasks[df_tasks['due_date'] == target_date]
-            
-            day_logs = pd.DataFrame()
-            total_minutes = 0
-            if not df_logs.empty:
-                day_logs = df_logs[df_logs['study_date'] == target_date]
-                if not day_logs.empty:
-                    total_minutes = day_logs['duration_minutes'].sum()
-            
-            c_det1, c_det2 = st.columns(2)
-            
-            with c_det1:
-                st.write("**📝 タスク**")
-                if not day_tasks.empty:
-                    for _, row in day_tasks.iterrows():
-                        status_icon = "✅" if row['status'] == '完了' else "⬜"
-                        st.write(f"{status_icon} {row['task_name']}")
-                else:
-                    st.caption("タスクなし")
-            
-            with c_det2:
-                st.write("**📖 勉強ログ**")
-                if not day_logs.empty:
-                    for _, row in day_logs.iterrows():
-                        st.write(f"・{row['subject']}: {row['duration_minutes']}分")
-                    st.markdown(f"**合計: {total_minutes} 分**")
-                else:
-                    st.caption("勉強記録なし")
-            
-            # 閉じるボタン
-            if st.button("閉じる", key=f"btn_close_{unique_key}"):
-                st.session_state["selected_date"] = None
-                st.rerun()
+    # フラグが立っていたらポップアップを表示
+    if st.session_state.get("show_dialog") and st.session_state["selected_date"]:
+        show_detail_dialog(st.session_state["selected_date"], df_tasks, df_logs)
+        # 表示したらフラグを下ろす（次回リロード時に消えるように）
+        st.session_state["show_dialog"] = False
 
 
 # --- メイン処理 ---

@@ -475,4 +475,367 @@ def render_daily_task_list(df_tasks, unique_key):
     
     c1, c2 = st.columns([0.5, 0.5])
     with c1:
-        target_date = st.date_input("日付
+        target_date = st.date_input("日付を確認", value=date.today(), key=f"date_{unique_key}")
+    
+    day_tasks = pd.DataFrame()
+    if not df_tasks.empty:
+        day_tasks = df_tasks[df_tasks['due_date'] == str(target_date)]
+    
+    st.markdown(f'<div class="task-container-box"><div style="border-bottom:1px solid #555; padding-bottom:5px; margin-bottom:10px; font-weight:bold; color:#FFD700;">📅 {target_date} のクエスト</div>', unsafe_allow_html=True)
+    
+    if not day_tasks.empty:
+        active = day_tasks[day_tasks['status'] == '未完了']
+        completed = day_tasks[day_tasks['status'] == '完了']
+        
+        if not active.empty:
+            for _, row in active.iterrows():
+                prio = row['priority']
+                icon = "🔥" if prio == "高" else "⚠️" if prio == "中" else "🟢"
+                st.info(f"{icon} **{row['task_name']}**")
+        else:
+            if not completed.empty:
+                st.success("🎉 全クエスト完了！")
+            else:
+                st.caption("タスクはありません")
+        
+        if not completed.empty:
+            with st.expander("✅ 完了済み"):
+                for _, row in completed.iterrows():
+                    st.write(f"~~{row['task_name']}~~")
+    else:
+        st.info("予定はありません。休息も冒険の一部です🍵")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# --- メイン処理 ---
+def main():
+    if "logged_in" not in st.session_state:
+        st.session_state["logged_in"] = False
+        st.session_state["username"] = ""
+
+    # === ログイン画面 ===
+    if not st.session_state["logged_in"]:
+        st.sidebar.title("🔐 ログイン")
+        choice = st.sidebar.selectbox("メニュー", ["ログイン", "新規登録"])
+        if choice == "ログイン":
+            st.subheader("ログイン")
+            u = st.text_input("ユーザー名")
+            p = st.text_input("パスワード", type='password')
+            if st.button("ログイン"):
+                if login_user(u, p):
+                    st.session_state["logged_in"] = True
+                    st.session_state["username"] = u
+                    st.success("成功！")
+                    st.rerun()
+                else:
+                    st.error("失敗しました。")
+        elif choice == "新規登録":
+            st.subheader("新規登録")
+            nu = st.text_input("ユーザー名")
+            np = st.text_input("パスワード", type='password')
+            if st.button("登録"):
+                if add_user(nu, np):
+                    st.success("登録完了！ログインしてください。")
+                else:
+                    st.warning("その名前は使われています。")
+        return
+
+    # === アプリ本編 ===
+    current_user = st.session_state["username"]
+    user_data = get_user_data(current_user)
+    
+    xp = user_data.get('xp', 0) if user_data else 0
+    coins = user_data.get('coins', 0) if user_data else 0
+    my_themes = user_data.get('unlocked_themes', "標準").split(',') if user_data else ["標準"]
+    my_title = user_data.get('current_title', "見習い") if user_data else "見習い"
+    
+    # 壁紙情報の取得
+    my_wallpapers = user_data.get('unlocked_wallpapers')
+    if not my_wallpapers: 
+        my_wallpapers = "シンプル"
+    my_wallpapers_list = my_wallpapers.split(',')
+    
+    current_wallpaper = user_data.get('current_wallpaper')
+    if not current_wallpaper:
+        current_wallpaper = "シンプル"
+
+    # --- サイドバー ---
+    with st.sidebar:
+        st.subheader(f"👤 {current_user}")
+        st.caption(f"👑 {my_title}")
+        
+        if st.button("ログアウト"):
+            st.session_state["logged_in"] = False
+            st.rerun()
+        st.divider()
+        
+        st.subheader("🎨 デザイン設定")
+        
+        # フォント設定
+        selected_theme = st.selectbox("フォント", my_themes, index=0)
+        apply_font(selected_theme)
+        
+        # 壁紙設定
+        try:
+            w_index = my_wallpapers_list.index(current_wallpaper)
+        except:
+            w_index = 0
+        
+        selected_wallpaper = st.selectbox("壁紙", my_wallpapers_list, index=w_index)
+        
+        st.divider()
+        st.write("🔧 **調整**")
+        
+        # ★ スライダーの名前を変更し、役割を明確化
+        bg_opacity = st.slider("壁紙の暗さ (フィルター)", 0.0, 1.0, 0.3, 0.05, help="壁紙全体にかける黒いフィルターの濃さです。値が大きいほど暗くなります。")
+        box_opacity = st.slider("ボックスの背景濃度", 0.0, 1.0, 0.9, 0.05, help="ショップのカードや入力フォームなどの背景色の濃さです。値が小さいほど透明になります。")
+        
+        if selected_wallpaper != current_wallpaper:
+            supabase.table("users").update({"current_wallpaper": selected_wallpaper}).eq("username", current_user).execute()
+            st.rerun()
+            
+        apply_wallpaper(selected_wallpaper, bg_opacity, box_opacity)
+
+
+    # --- メイン画面：ステータス ---
+    level = (xp // 50) + 1
+    next_level_xp = level * 50
+    xp_needed = next_level_xp - xp
+    progress_val = 1.0 - (xp_needed / 50)
+    
+    with st.container(border=True):
+        c1, c2, c3, c4 = st.columns([1, 1, 1, 2])
+        c1.metric("Lv", f"{level}")
+        c2.metric("XP", f"{xp}")
+        c3.metric("Coin", f"{coins} 💰")
+        c4.write(f"Next Lv: **{xp_needed} XP**")
+        c4.progress(max(0.0, min(1.0, progress_val)))
+
+    if "celebrate" not in st.session_state: st.session_state["celebrate"] = False
+    if st.session_state["celebrate"]:
+        st.balloons()
+        st.session_state["celebrate"] = False
+
+    st.divider()
+
+    df_tasks = get_tasks(current_user)
+    df_logs = get_study_logs(current_user)
+
+    # --- 画面レイアウト ---
+    tab1, tab2, tab3, tab4 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🛒 ショップ"])
+    
+    # === タブ1: ToDoリスト (カレンダー復活) ===
+    with tab1:
+        col_t1, col_t2 = st.columns([0.6, 0.4])
+        with col_t1:
+            with st.expander("➕ タスク追加", expanded=False):
+                with st.form("add", clear_on_submit=True):
+                    name = st.text_input("タスク名")
+                    c1, c2 = st.columns(2)
+                    d_date = c1.date_input("期限", value=date.today())
+                    prio = c2.selectbox("優先度", ["高", "中", "低"], index=1)
+                    if st.form_submit_button("追加", type="primary"):
+                        if name:
+                            add_task(current_user, name, d_date, prio)
+                            st.session_state["toast_msg"] = "タスクを追加しました！"
+                            time.sleep(0.5)
+                            st.rerun()
+
+            if not df_tasks.empty:
+                active_tasks = df_tasks[df_tasks['status'] == '未完了']
+                if not active_tasks.empty:
+                    st.write("🔽 **未完了タスク**")
+                    selected_ids = []
+                    for _, row in active_tasks.iterrows():
+                        cc1, cc2, cc3 = st.columns([0.1, 0.7, 0.2])
+                        if cc1.checkbox("", key=f"sel_{row['id']}"):
+                            selected_ids.append(row['id'])
+                        cc2.markdown(f"**{row['task_name']}**")
+                        cc2.caption(f"📅 {row['due_date']} | {row['priority']}")
+                        if cc3.button("🗑️", key=f"d_{row['id']}"):
+                            delete_task(row['id'])
+                            st.rerun()
+                        st.markdown("---")
+                    
+                    if selected_ids:
+                        if st.button(f"✅ {len(selected_ids)}件完了 (+{len(selected_ids)*10} XP/Coin)", type="primary"):
+                            amount, new_xp, new_coins = complete_tasks_bulk(selected_ids, current_user)
+                            st.session_state["celebrate"] = True
+                            st.session_state["toast_msg"] = f"+{amount}XP & +{amount}コイン 獲得！"
+                            st.rerun()
+                else:
+                    st.info("タスクはありません！")
+        
+        with col_t2:
+            # カレンダー復活！
+            render_calendar_and_details(df_tasks, df_logs, "cal_todo")
+
+    # === タブ2: 勉強タイマー (リスト表示) ===
+    with tab2:
+        col_s1, col_s2 = st.columns([0.5, 0.5])
+        with col_s1:
+            st.subheader("🔥 ストップウォッチ")
+            if st.session_state["is_studying"]:
+                start_dt = datetime.fromtimestamp(st.session_state["start_time"], JST)
+                st.info(f"🕐 **{start_dt.strftime('%H:%M')}** から計測中...")
+                elapsed_sec = time.time() - st.session_state["start_time"]
+                st.metric("経過", f"{int(elapsed_sec // 60)} 分")
+                
+                study_subject = st.text_input("教科・内容", key="subject_input")
+                if st.button("⏹️ 終了", type="primary"):
+                    if not study_subject:
+                        st.error("教科名を入力！")
+                    else:
+                        end_time = time.time()
+                        duration_min = int((end_time - st.session_state["start_time"]) // 60)
+                        if duration_min < 1: duration_min = 1
+                        amount, nx, nc = add_study_log(current_user, study_subject, duration_min)
+                        st.session_state["is_studying"] = False
+                        st.session_state["start_time"] = None
+                        st.session_state["celebrate"] = True
+                        st.session_state["toast_msg"] = f"{duration_min}分勉強！ +{amount}XP & Coin"
+                        st.rerun()
+            else:
+                if st.button("▶️ スタート", type="primary"):
+                    st.session_state["is_studying"] = True
+                    st.session_state["start_time"] = time.time()
+                    st.rerun()
+
+            st.divider()
+            st.subheader("✏️ 手動記録")
+            with st.expander("入力フォームを開く", expanded=True):
+                with st.form("manual", clear_on_submit=True):
+                    m_date = st.date_input("日付", value=date.today())
+                    m_subj = st.text_input("教科")
+                    ch, cm = st.columns(2)
+                    mh = ch.number_input("時間", 0, 24, 0)
+                    mm = cm.number_input("分", 0, 59, 0) 
+                    
+                    if st.form_submit_button("記録", type="primary"):
+                        total_m = (mh * 60) + mm
+                        if m_subj and total_m > 0:
+                            amt, nx, nc = add_study_log(current_user, m_subj, total_m, m_date)
+                            st.session_state["celebrate"] = True
+                            st.session_state["toast_msg"] = f"記録完了！ +{amt}XP & Coin"
+                            st.rerun()
+                        elif not m_subj:
+                            st.error("教科を入力してください")
+                        elif total_m <= 0:
+                            st.error("時間を入力してください")
+
+        with col_s2:
+            # こちらはリストのまま
+            render_daily_task_list(df_tasks, "timer_list")
+
+    # === タブ3: 分析レポート ===
+    with tab3:
+        st.subheader("📊 学習データ分析")
+        if not df_logs.empty:
+            st.markdown("##### 📚 教科ごとの勉強時間")
+            subject_dist = df_logs.groupby('subject')['duration_minutes'].sum().reset_index()
+            pie_chart = alt.Chart(subject_dist).mark_arc(innerRadius=50).encode(
+                theta=alt.Theta(field="duration_minutes", type="quantitative"),
+                color=alt.Color(field="subject", type="nominal"),
+                tooltip=["subject", "duration_minutes"]
+            ).properties(height=300)
+            st.altair_chart(pie_chart, use_container_width=True)
+
+            st.divider()
+            st.markdown("##### 📈 過去7日間の推移 (教科別)")
+            
+            today = date.today()
+            last_7_days = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(6, -1, -1)]
+            
+            df_recent = df_logs[df_logs['study_date'].isin(last_7_days)].copy()
+            
+            if not df_recent.empty:
+                bar_chart = alt.Chart(df_recent).mark_bar().encode(
+                    x=alt.X('study_date', title='日付', scale=alt.Scale(domain=last_7_days)),
+                    y=alt.Y('duration_minutes', title='時間(分)'),
+                    color=alt.Color('subject', title='教科', legend=alt.Legend(orient='top')),
+                    tooltip=['study_date', 'subject', 'duration_minutes']
+                ).properties(height=300)
+                
+                st.altair_chart(bar_chart, use_container_width=True)
+            else:
+                st.info("過去7日間の記録はありません")
+        else:
+            st.info("データがありません")
+
+    # === タブ4: ショップ・ガチャ ===
+    with tab4:
+        col_shop_font, col_shop_wall, col_gacha = st.columns(3)
+        
+        with col_shop_font:
+            st.subheader("🅰️ フォント屋")
+            font_items = [
+                {"name": "ピクセル風", "cost": 500, "desc": "レトロゲーム風"},
+                {"name": "手書き風", "cost": 800, "desc": "黒板風"},
+                {"name": "ポップ", "cost": 1000, "desc": "元気な丸文字"},
+                {"name": "明朝体", "cost": 1200, "desc": "小説のような雰囲気"},
+                {"name": "筆文字", "cost": 1500, "desc": "達筆な和風"},
+            ]
+            for item in font_items:
+                with st.container(border=True):
+                    st.write(f"**{item['name']}**")
+                    st.caption(f"{item['desc']} ({item['cost']}💰)")
+                    if item['name'] in my_themes:
+                        st.button("✅ 済", disabled=True, key=f"btn_f_{item['name']}")
+                    else:
+                        if st.button(f"購入", key=f"buy_f_{item['name']}"):
+                            success, bal = buy_theme(current_user, item['name'], item['cost'])
+                            if success:
+                                st.balloons()
+                                st.rerun()
+                            else:
+                                st.error("コイン不足")
+
+        with col_shop_wall:
+            st.subheader("🖼️ 壁紙屋")
+            wall_items = [
+                {"name": "草原", "cost": 500, "desc": "爽やかな緑"},
+                {"name": "夕焼け", "cost": 800, "desc": "落ち着くオレンジ"},
+                {"name": "夜空", "cost": 1000, "desc": "静かな夜"},
+                {"name": "ダンジョン", "cost": 1500, "desc": "冒険の始まり"},
+                {"name": "王宮", "cost": 2000, "desc": "高貴な空間"},
+                {"name": "図書館", "cost": 1200, "desc": "知の宝庫"},
+                {"name": "サイバー", "cost": 1800, "desc": "近未来都市"},
+            ]
+            for item in wall_items:
+                with st.container(border=True):
+                    st.write(f"**{item['name']}**")
+                    st.caption(f"{item['desc']} ({item['cost']}💰)")
+                    if item['name'] in my_wallpapers_list:
+                        st.button("✅ 済", disabled=True, key=f"btn_w_{item['name']}")
+                    else:
+                        if st.button(f"購入", key=f"buy_w_{item['name']}"):
+                            success, bal = buy_wallpaper(current_user, item['name'], item['cost'])
+                            if success:
+                                st.balloons()
+                                st.rerun()
+                            else:
+                                st.error("コイン不足")
+
+        with col_gacha:
+            st.subheader("🎲 称号ガチャ")
+            st.write("1回 **100 💰**")
+            if st.button("回す！", type="primary"):
+                success, won_title, bal = play_gacha(current_user, 100)
+                if success:
+                    st.balloons()
+                    st.success(f"🎉 **{won_title}**")
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error("コイン不足")
+            
+            st.divider()
+            st.write("📂 **称号変更**")
+            my_titles_list = user_data.get('unlocked_titles', "見習い").split(',')
+            selected_t = st.selectbox("称号", my_titles_list, index=my_titles_list.index(my_title) if my_title in my_titles_list else 0)
+            if selected_t != my_title:
+                set_title(current_user, selected_t)
+                st.rerun()
+
+if __name__ == "__main__":
+    main()

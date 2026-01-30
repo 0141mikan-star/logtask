@@ -91,7 +91,7 @@ def apply_font(font_type):
         </style>
         """, unsafe_allow_html=True)
 
-# --- デザイン適用関数 (高画質壁紙) ---
+# --- デザイン適用関数 (高画質壁紙・修正版) ---
 def apply_wallpaper(wallpaper_name):
     # 画像URLの定義 (Unsplashなどの高画質フリー素材)
     bg_url = ""
@@ -100,53 +100,60 @@ def apply_wallpaper(wallpaper_name):
         return 
         
     elif wallpaper_name == "草原": 
-        # 緑豊かなファンタジー風の草原
+        # 爽やかな丘
         bg_url = "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&w=1920&q=80"
         
     elif wallpaper_name == "夕焼け":
-        # ドラマチックな夕日
+        # 鮮やかな夕暮れ
         bg_url = "https://images.unsplash.com/photo-1472120435266-53107fd0c44a?auto=format&fit=crop&w=1920&q=80"
         
     elif wallpaper_name == "夜空":
-        # 満天の星空
-        bg_url = "https://images.unsplash.com/photo-1519681393798-3828fb4090bb?auto=format&fit=crop&w=1920&q=80"
+        # ★変更: 紫と青の綺麗な銀河
+        bg_url = "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=1920&q=80"
         
     elif wallpaper_name == "ダンジョン":
-        # 暗い洞窟・岩肌
-        bg_url = "https://images.unsplash.com/photo-1519074069444-1ba4fff66d16?auto=format&fit=crop&w=1920&q=80"
+        # ★変更: 松明のある石造りの通路
+        bg_url = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1920&q=80"
     
     elif wallpaper_name == "王宮":
-        # 豪華な内装
-        bg_url = "https://images.unsplash.com/photo-1599619351208-3e6c839d6828?auto=format&fit=crop&w=1920&q=80"
+        # ★変更: ファンタジーな城
+        bg_url = "https://images.unsplash.com/photo-1544939514-aa98d908bc47?auto=format&fit=crop&w=1920&q=80"
 
     elif wallpaper_name == "図書館":
-        # 勉強に集中できる図書館
+        # 重厚な本棚
         bg_url = "https://images.unsplash.com/photo-1507842217121-9d5908f4d06a?auto=format&fit=crop&w=1920&q=80"
 
     elif wallpaper_name == "サイバー":
-        # 近未来的なネオン
+        # ネオンシティ
         bg_url = "https://images.unsplash.com/photo-1535295972055-1c762f4483e5?auto=format&fit=crop&w=1920&q=80"
 
     if bg_url:
         st.markdown(f"""
         <style>
         .stApp {{
-            /* 画像の上に半透明の黒を重ねて文字を見やすくする */
-            background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url("{bg_url}");
+            /* 背景画像の指定 (黒フィルターを薄く0.3に変更) */
+            background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url("{bg_url}");
             background-attachment: fixed;
             background-size: cover;
             background-position: center;
+            background-color: #1E1E1E; /* 画像読み込み前の色 */
         }}
-        /* 全体の文字色を白っぽくして読みやすくする */
-        .stMarkdown, .stText, h1, h2, h3 {{
+        /* 文字色を白く、影をつけて読みやすく */
+        .stMarkdown, .stText, h1, h2, h3, p {{
             color: #ffffff !important;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
         }}
-        /* 入力フォームの背景を半透明にする */
-        div[data-testid="stExpander"], div[data-testid="stForm"] {{
-            background-color: rgba(20, 20, 20, 0.7);
+        /* コンテナの背景を半透明にして文字を保護 */
+        div[data-testid="stExpander"], div[data-testid="stForm"], .task-container {{
+            background-color: rgba(30, 30, 30, 0.7) !important;
             border-radius: 10px;
-            padding: 10px;
+            padding: 15px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }}
+        /* 入力フォームのラベルも見やすく */
+        label {{
+            color: #ffffff !important;
+            font-weight: bold;
         }}
         </style>
         """, unsafe_allow_html=True)
@@ -320,18 +327,23 @@ def set_title(username, title):
 
 # --- その日のタスクリストを表示するコンポーネント ---
 def render_daily_task_list(df_tasks, unique_key):
-    # 背景が暗いので、コンテナに白半透明の背景をつけるスタイル
+    # CSSでリストのデザインを調整（壁紙の上でも見やすく）
     st.markdown("""
     <style>
-    .task-container {
-        background-color: rgba(255, 255, 255, 0.9);
+    .task-container-box {
+        background-color: rgba(20, 20, 20, 0.85); /* 濃い半透明黒 */
+        border: 1px solid #444;
         border-radius: 10px;
         padding: 15px;
-        color: #333;
+        margin-top: 10px;
     }
-    .task-container p, .task-container span {
-        color: #333 !important;
-        text-shadow: none !important;
+    .task-date-header {
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #FFD700 !important; /* 金色 */
+        margin-bottom: 10px;
+        border-bottom: 1px solid #555;
+        padding-bottom: 5px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -346,34 +358,32 @@ def render_daily_task_list(df_tasks, unique_key):
     if not df_tasks.empty:
         day_tasks = df_tasks[df_tasks['due_date'] == str(target_date)]
     
-    # 独自のコンテナ風表示
-    with st.container():
-        # 見やすさのためにHTMLでラップする（StreamlitのMarkdownを使用）
-        st.markdown(f'<div class="task-container"><h5>📅 {target_date} のクエスト</h5>', unsafe_allow_html=True)
+    # カスタムHTMLコンテナで表示
+    st.markdown(f'<div class="task-container-box"><div class="task-date-header">📅 {target_date} のクエスト</div>', unsafe_allow_html=True)
+    
+    if not day_tasks.empty:
+        active = day_tasks[day_tasks['status'] == '未完了']
+        completed = day_tasks[day_tasks['status'] == '完了']
         
-        if not day_tasks.empty:
-            active = day_tasks[day_tasks['status'] == '未完了']
-            completed = day_tasks[day_tasks['status'] == '完了']
-            
-            if not active.empty:
-                for _, row in active.iterrows():
-                    prio = row['priority']
-                    icon = "🔥" if prio == "高" else "⚠️" if prio == "中" else "🟢"
-                    st.info(f"{icon} **{row['task_name']}**")
-            else:
-                if not completed.empty:
-                    st.success("🎉 全クエスト完了！")
-                else:
-                    st.caption("タスクはありません")
-            
-            if not completed.empty:
-                with st.expander("✅ 完了済み"):
-                    for _, row in completed.iterrows():
-                        st.write(f"~~{row['task_name']}~~")
+        if not active.empty:
+            for _, row in active.iterrows():
+                prio = row['priority']
+                icon = "🔥" if prio == "高" else "⚠️" if prio == "中" else "🟢"
+                st.info(f"{icon} **{row['task_name']}**")
         else:
-            st.info("予定はありません。休息も冒険の一部です🍵")
-            
-        st.markdown('</div>', unsafe_allow_html=True)
+            if not completed.empty:
+                st.success("🎉 全クエスト完了！")
+            else:
+                st.caption("タスクはありません")
+        
+        if not completed.empty:
+            with st.expander("✅ 完了済み"):
+                for _, row in completed.iterrows():
+                    st.write(f"~~{row['task_name']}~~")
+    else:
+        st.info("予定はありません。休息も冒険の一部です🍵")
+        
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # --- メイン処理 ---

@@ -7,6 +7,7 @@ from datetime import datetime, date, timedelta, timezone
 import urllib.parse
 import hashlib
 import altair as alt
+from streamlit_calendar import calendar
 
 # ページ設定
 st.set_page_config(page_title="個人タスク管理RPG", layout="wide")
@@ -90,41 +91,62 @@ def apply_font(font_type):
         </style>
         """, unsafe_allow_html=True)
 
-# --- デザイン適用関数 (壁紙) ---
+# --- デザイン適用関数 (高画質壁紙) ---
 def apply_wallpaper(wallpaper_name):
-    bg_style = ""
+    # 画像URLの定義 (Unsplashなどの高画質フリー素材)
+    bg_url = ""
     
     if wallpaper_name == "シンプル":
         return 
-    elif wallpaper_name == "草原":
-        bg_style = "background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);"
+        
+    elif wallpaper_name == "草原": 
+        # 緑豊かなファンタジー風の草原
+        bg_url = "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&w=1920&q=80"
+        
     elif wallpaper_name == "夕焼け":
-        bg_style = "background: linear-gradient(120deg, #f6d365 0%, #fda085 100%);"
+        # ドラマチックな夕日
+        bg_url = "https://images.unsplash.com/photo-1472120435266-53107fd0c44a?auto=format&fit=crop&w=1920&q=80"
+        
     elif wallpaper_name == "夜空":
-        bg_style = """
-        background: linear-gradient(to top, #30cfd0 0%, #330867 100%);
-        color: white; 
-        """
+        # 満天の星空
+        bg_url = "https://images.unsplash.com/photo-1519681393798-3828fb4090bb?auto=format&fit=crop&w=1920&q=80"
+        
     elif wallpaper_name == "ダンジョン":
-        bg_style = """
-        background: linear-gradient(to right, #434343 0%, black 100%);
-        color: #e0e0e0;
-        """
+        # 暗い洞窟・岩肌
+        bg_url = "https://images.unsplash.com/photo-1519074069444-1ba4fff66d16?auto=format&fit=crop&w=1920&q=80"
+    
     elif wallpaper_name == "王宮":
-        bg_style = "background-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);"
+        # 豪華な内装
+        bg_url = "https://images.unsplash.com/photo-1599619351208-3e6c839d6828?auto=format&fit=crop&w=1920&q=80"
 
-    if bg_style:
+    elif wallpaper_name == "図書館":
+        # 勉強に集中できる図書館
+        bg_url = "https://images.unsplash.com/photo-1507842217121-9d5908f4d06a?auto=format&fit=crop&w=1920&q=80"
+
+    elif wallpaper_name == "サイバー":
+        # 近未来的なネオン
+        bg_url = "https://images.unsplash.com/photo-1535295972055-1c762f4483e5?auto=format&fit=crop&w=1920&q=80"
+
+    if bg_url:
         st.markdown(f"""
         <style>
         .stApp {{
-            {bg_style}
+            /* 画像の上に半透明の黒を重ねて文字を見やすくする */
+            background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url("{bg_url}");
             background-attachment: fixed;
             background-size: cover;
+            background-position: center;
         }}
-        /* リストなどの文字が見えなくならないように背景色をつける */
-        div[data-testid="stExpander"] {{
-            background-color: rgba(255, 255, 255, 0.1);
+        /* 全体の文字色を白っぽくして読みやすくする */
+        .stMarkdown, .stText, h1, h2, h3 {{
+            color: #ffffff !important;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }}
+        /* 入力フォームの背景を半透明にする */
+        div[data-testid="stExpander"], div[data-testid="stForm"] {{
+            background-color: rgba(20, 20, 20, 0.7);
             border-radius: 10px;
+            padding: 10px;
         }}
         </style>
         """, unsafe_allow_html=True)
@@ -298,6 +320,22 @@ def set_title(username, title):
 
 # --- その日のタスクリストを表示するコンポーネント ---
 def render_daily_task_list(df_tasks, unique_key):
+    # 背景が暗いので、コンテナに白半透明の背景をつけるスタイル
+    st.markdown("""
+    <style>
+    .task-container {
+        background-color: rgba(255, 255, 255, 0.9);
+        border-radius: 10px;
+        padding: 15px;
+        color: #333;
+    }
+    .task-container p, .task-container span {
+        color: #333 !important;
+        text-shadow: none !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.subheader("📅 今日のクエスト")
     
     c1, c2 = st.columns([0.5, 0.5])
@@ -308,8 +346,10 @@ def render_daily_task_list(df_tasks, unique_key):
     if not df_tasks.empty:
         day_tasks = df_tasks[df_tasks['due_date'] == str(target_date)]
     
-    with st.container(border=True):
-        st.write(f"**{target_date}** にやるべきこと")
+    # 独自のコンテナ風表示
+    with st.container():
+        # 見やすさのためにHTMLでラップする（StreamlitのMarkdownを使用）
+        st.markdown(f'<div class="task-container"><h5>📅 {target_date} のクエスト</h5>', unsafe_allow_html=True)
         
         if not day_tasks.empty:
             active = day_tasks[day_tasks['status'] == '未完了']
@@ -322,16 +362,18 @@ def render_daily_task_list(df_tasks, unique_key):
                     st.info(f"{icon} **{row['task_name']}**")
             else:
                 if not completed.empty:
-                    st.success("🎉 この日のタスクは全て完了しました！")
+                    st.success("🎉 全クエスト完了！")
                 else:
                     st.caption("タスクはありません")
             
             if not completed.empty:
-                with st.expander("✅ 完了済みのタスク"):
+                with st.expander("✅ 完了済み"):
                     for _, row in completed.iterrows():
                         st.write(f"~~{row['task_name']}~~")
         else:
-            st.info("予定はありません。ゆっくり休みましょう🍵")
+            st.info("予定はありません。休息も冒険の一部です🍵")
+            
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # --- メイン処理 ---
@@ -561,19 +603,15 @@ def main():
             st.divider()
             st.markdown("##### 📈 過去7日間の推移 (教科別)")
             
-            # --- 【修正箇所】積み上げ棒グラフへの変更 ---
             today = date.today()
             last_7_days = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(6, -1, -1)]
             
-            # 過去7日間のデータだけ抽出
             df_recent = df_logs[df_logs['study_date'].isin(last_7_days)].copy()
             
             if not df_recent.empty:
                 bar_chart = alt.Chart(df_recent).mark_bar().encode(
-                    # X軸を7日間に固定
                     x=alt.X('study_date', title='日付', scale=alt.Scale(domain=last_7_days)),
                     y=alt.Y('duration_minutes', title='時間(分)'),
-                    # 教科で色分けし、凡例を上に配置
                     color=alt.Color('subject', title='教科', legend=alt.Legend(orient='top')),
                     tooltip=['study_date', 'subject', 'duration_minutes']
                 ).properties(height=300)
@@ -620,6 +658,8 @@ def main():
                 {"name": "夜空", "cost": 1000, "desc": "静かな夜"},
                 {"name": "ダンジョン", "cost": 1500, "desc": "冒険の始まり"},
                 {"name": "王宮", "cost": 2000, "desc": "高貴な空間"},
+                {"name": "図書館", "cost": 1200, "desc": "知の宝庫"},
+                {"name": "サイバー", "cost": 1800, "desc": "近未来都市"},
             ]
             for item in wall_items:
                 with st.container(border=True):

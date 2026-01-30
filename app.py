@@ -296,36 +296,29 @@ def set_title(username, title):
     supabase.table("users").update({"current_title": title}).eq("username", username).execute()
 
 
-# --- 【新機能】その日のタスクリストを表示するコンポーネント ---
+# --- その日のタスクリストを表示するコンポーネント ---
 def render_daily_task_list(df_tasks, unique_key):
     st.subheader("📅 今日のクエスト")
     
-    # 日付選択 (デフォルトは今日)
     c1, c2 = st.columns([0.5, 0.5])
     with c1:
         target_date = st.date_input("日付を確認", value=date.today(), key=f"date_{unique_key}")
     
-    # 選択された日付のタスクを抽出
     day_tasks = pd.DataFrame()
     if not df_tasks.empty:
-        # 文字列型で比較
         day_tasks = df_tasks[df_tasks['due_date'] == str(target_date)]
     
-    # 表示エリア
     with st.container(border=True):
         st.write(f"**{target_date}** にやるべきこと")
         
         if not day_tasks.empty:
-            # 未完了と完了に分ける
             active = day_tasks[day_tasks['status'] == '未完了']
             completed = day_tasks[day_tasks['status'] == '完了']
             
             if not active.empty:
                 for _, row in active.iterrows():
-                    # 優先度アイコン
                     prio = row['priority']
                     icon = "🔥" if prio == "高" else "⚠️" if prio == "中" else "🟢"
-                    
                     st.info(f"{icon} **{row['task_name']}**")
             else:
                 if not completed.empty:
@@ -333,7 +326,6 @@ def render_daily_task_list(df_tasks, unique_key):
                 else:
                     st.caption("タスクはありません")
             
-            # 完了済みタスク（折りたたみ）
             if not completed.empty:
                 with st.expander("✅ 完了済みのタスク"):
                     for _, row in completed.iterrows():
@@ -495,7 +487,6 @@ def main():
                     st.info("タスクはありません！")
         
         with col_t2:
-            # カレンダーの代わりにタスクリストを表示
             render_daily_task_list(df_tasks, "todo_tab")
 
     # === タブ2: 勉強タイマー ===
@@ -552,7 +543,6 @@ def main():
                             st.error("時間を入力してください")
 
         with col_s2:
-            # カレンダーの代わりにタスクリストを表示（タイマー側）
             render_daily_task_list(df_tasks, "timer_tab")
 
     # === タブ3: 分析レポート ===
@@ -569,20 +559,28 @@ def main():
             st.altair_chart(pie_chart, use_container_width=True)
 
             st.divider()
-            st.markdown("##### 📈 過去7日間の推移")
+            st.markdown("##### 📈 過去7日間の推移 (教科別)")
+            
+            # --- 【修正箇所】積み上げ棒グラフへの変更 ---
             today = date.today()
             last_7_days = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(6, -1, -1)]
-            daily_logs = df_logs.groupby('study_date')['duration_minutes'].sum().reset_index()
-            df_trend = pd.DataFrame({'study_date': last_7_days})
-            df_trend = pd.merge(df_trend, daily_logs, on='study_date', how='left').fillna(0)
             
-            bar_chart = alt.Chart(df_trend).mark_bar().encode(
-                x=alt.X('study_date', title='日付'),
-                y=alt.Y('duration_minutes', title='時間(分)'),
-                color=alt.value("#4CAF50"),
-                tooltip=['study_date', 'duration_minutes']
-            ).properties(height=300)
-            st.altair_chart(bar_chart, use_container_width=True)
+            # 過去7日間のデータだけ抽出
+            df_recent = df_logs[df_logs['study_date'].isin(last_7_days)].copy()
+            
+            if not df_recent.empty:
+                bar_chart = alt.Chart(df_recent).mark_bar().encode(
+                    # X軸を7日間に固定
+                    x=alt.X('study_date', title='日付', scale=alt.Scale(domain=last_7_days)),
+                    y=alt.Y('duration_minutes', title='時間(分)'),
+                    # 教科で色分けし、凡例を上に配置
+                    color=alt.Color('subject', title='教科', legend=alt.Legend(orient='top')),
+                    tooltip=['study_date', 'subject', 'duration_minutes']
+                ).properties(height=300)
+                
+                st.altair_chart(bar_chart, use_container_width=True)
+            else:
+                st.info("過去7日間の記録はありません")
         else:
             st.info("データがありません")
 

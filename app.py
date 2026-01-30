@@ -32,7 +32,7 @@ if st.session_state["toast_msg"]:
     st.toast(st.session_state["toast_msg"], icon="🆙")
     st.session_state["toast_msg"] = None 
 
-st.title("✅ 褒めてくれるタスク管理 (RPG風)")
+st.title("✅ 褒めてくれる勉強時間・タスク管理アプリ")
 
 # 称号ガチャのリスト
 GACHA_TITLES = [
@@ -983,3 +983,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

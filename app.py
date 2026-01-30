@@ -94,7 +94,7 @@ def apply_font(font_type):
         </style>
         """, unsafe_allow_html=True)
 
-# --- デザイン適用関数 (壁紙・透明度調整対応) ---
+# --- デザイン適用関数 (壁紙) ---
 def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
     bg_url = ""
     
@@ -145,7 +145,7 @@ def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
     div[data-testid="stForm"], 
     .task-container-box,
     .ranking-card {{
-        background-color: rgba(20, 20, 20, {box_opacity}) !important;
+        background-color: rgba(20, 20, 20, 0.9) !important;
         border-radius: 12px;
         padding: 15px;
         border: 1px solid rgba(255,255,255,0.3);
@@ -161,7 +161,7 @@ def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
     }}
     
     button[data-baseweb="tab"] {{
-        background-color: rgba(20, 20, 20, {box_opacity}) !important;
+        background-color: rgba(20, 20, 20, 0.9) !important;
         color: white !important;
         border: 1px solid rgba(255,255,255,0.2);
         border-radius: 5px 5px 0 0;
@@ -177,7 +177,6 @@ def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
         font-weight: bold;
         text-shadow: none;
     }}
-    
     button {{
         font-weight: bold !important;
     }}
@@ -195,32 +194,26 @@ def get_user_data(username):
     except:
         return None
 
-# --- ランキングデータ取得 (New!) ---
+# --- ランキングデータ取得 (ニックネーム対応) ---
 def get_weekly_ranking():
-    # 過去7日間のデータを取得
     start_date = (datetime.now(JST) - timedelta(days=7)).strftime('%Y-%m-%d')
-    
     try:
-        # 1. ログを取得
         logs_resp = supabase.table("study_logs").select("*").gte("study_date", start_date).execute()
         if not logs_resp.data:
             return pd.DataFrame()
         
         df_logs = pd.DataFrame(logs_resp.data)
-        
-        # 2. ユーザーごとの合計時間を計算
         ranking = df_logs.groupby('username')['duration_minutes'].sum().reset_index()
         ranking = ranking.sort_values('duration_minutes', ascending=False).reset_index(drop=True)
         
-        # 3. ユーザーの称号を取得
-        users_resp = supabase.table("users").select("username, current_title").execute()
+        # ニックネームも取得
+        users_resp = supabase.table("users").select("username, nickname, current_title").execute()
         if users_resp.data:
             df_users = pd.DataFrame(users_resp.data)
             ranking = pd.merge(ranking, df_users, on='username', how='left')
             
         return ranking
     except Exception as e:
-        st.error(f"ランキング取得エラー: {e}")
         return pd.DataFrame()
 
 # --- セキュリティ関数 ---
@@ -232,19 +225,21 @@ def check_hashes(password, hashed_text):
         return True
     return False
 
-# --- ユーザー管理関数 ---
-def add_user(username, password):
+# --- ユーザー管理関数 (ニックネーム対応) ---
+def add_user(username, password, nickname):
     try:
         data = {
             "username": username, 
-            "password": make_hashes(password), 
+            "password": make_hashes(password),
+            "nickname": nickname, # ニックネーム追加
             "xp": 0,
             "coins": 0,
             "unlocked_themes": "標準",
             "current_title": "見習い",
             "unlocked_titles": "見習い",
             "unlocked_wallpapers": "シンプル",
-            "current_wallpaper": "シンプル"
+            "current_wallpaper": "シンプル",
+            "custom_title_unlocked": False # 自由称号フラグ
         }
         supabase.table("users").insert(data).execute()
         return True
@@ -259,6 +254,17 @@ def login_user(username, password):
                 return True
         return False
     except Exception:
+        return False
+
+# --- 設定保存 (ニックネーム・称号変更) ---
+def update_profile(username, new_nickname, new_title):
+    try:
+        supabase.table("users").update({
+            "nickname": new_nickname,
+            "current_title": new_title
+        }).eq("username", username).execute()
+        return True
+    except:
         return False
 
 # --- DB操作: タスク関連 ---
@@ -353,6 +359,17 @@ def buy_wallpaper(username, wallpaper_name, cost):
         return True, new_coins
     return False, current_coins
 
+# --- 自由称号権の購入 ---
+def buy_custom_title_rights(username, cost):
+    user_data = get_user_data(username)
+    current_coins = user_data.get('coins', 0)
+    
+    if current_coins >= cost:
+        new_coins = current_coins - cost
+        supabase.table("users").update({"coins": new_coins, "custom_title_unlocked": True}).eq("username", username).execute()
+        return True, new_coins
+    return False, current_coins
+
 def play_gacha(username, cost):
     user_data = get_user_data(username)
     current_coins = user_data.get('coins', 0)
@@ -432,8 +449,9 @@ def show_detail_dialog(target_date, df_tasks, df_logs):
         else:
             st.caption("なし")
 
-# --- カレンダーコンポーネント ---
+# --- カレンダーコンポーネント (ToDoタブ用) ---
 def render_calendar_and_details(df_tasks, df_logs, unique_key):
+    # カレンダー用の白い背景スタイルを適用
     st.markdown("""
     <style>
     .fc {
@@ -502,7 +520,7 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
             target_date = parse_correct_date(raw_date_str)
             show_detail_dialog(target_date, df_tasks, df_logs)
 
-# --- その日のタスクリスト ---
+# --- その日のタスクリスト (タイマーダブ用) ---
 def render_daily_task_list(df_tasks, unique_key):
     st.subheader("📅 今日のクエスト")
     
@@ -550,6 +568,7 @@ def main():
     if not st.session_state["logged_in"]:
         st.sidebar.title("🔐 ログイン")
         choice = st.sidebar.selectbox("メニュー", ["ログイン", "新規登録"])
+        
         if choice == "ログイン":
             st.subheader("ログイン")
             u = st.text_input("ユーザー名")
@@ -562,15 +581,22 @@ def main():
                     st.rerun()
                 else:
                     st.error("失敗しました。")
+        
         elif choice == "新規登録":
             st.subheader("新規登録")
-            nu = st.text_input("ユーザー名")
+            nu = st.text_input("ユーザー名 (ID)")
             np = st.text_input("パスワード", type='password')
+            # ★新規機能: ニックネーム設定
+            nn = st.text_input("ニックネーム (ランキング表示用)", placeholder="例: 勉強勇者")
+            
             if st.button("登録"):
-                if add_user(nu, np):
-                    st.success("登録完了！ログインしてください。")
+                if not nu or not np or not nn:
+                    st.error("全ての項目を入力してください")
                 else:
-                    st.warning("その名前は使われています。")
+                    if add_user(nu, np, nn):
+                        st.success("登録完了！ログインしてください。")
+                    else:
+                        st.warning("そのIDは既に使われています。")
         return
 
     # === アプリ本編 ===
@@ -581,6 +607,7 @@ def main():
     coins = user_data.get('coins', 0) if user_data else 0
     my_themes = user_data.get('unlocked_themes', "標準").split(',') if user_data else ["標準"]
     my_title = user_data.get('current_title', "見習い") if user_data else "見習い"
+    my_nickname = user_data.get('nickname') if user_data else current_user
     
     # 壁紙情報の取得
     my_wallpapers = user_data.get('unlocked_wallpapers')
@@ -591,10 +618,14 @@ def main():
     current_wallpaper = user_data.get('current_wallpaper')
     if not current_wallpaper:
         current_wallpaper = "シンプル"
+        
+    # 自由称号権を持っているか
+    has_custom_title = user_data.get('custom_title_unlocked', False)
 
     # --- サイドバー ---
     with st.sidebar:
-        st.subheader(f"👤 {current_user}")
+        st.subheader(f"👤 {my_nickname}")
+        st.caption(f"ID: {current_user}")
         st.caption(f"👑 {my_title}")
         
         if st.button("ログアウト"):
@@ -606,24 +637,60 @@ def main():
         selected_theme = st.selectbox("フォント", my_themes, index=0)
         apply_font(selected_theme)
         
-        # 壁紙設定
         try:
             w_index = my_wallpapers_list.index(current_wallpaper)
         except:
             w_index = 0
-        
         selected_wallpaper = st.selectbox("壁紙", my_wallpapers_list, index=w_index)
         
         st.divider()
         st.write("🔧 **調整**")
-        bg_opacity = st.slider("壁紙の暗さ (フィルター)", 0.0, 1.0, 0.3, 0.05, help="背景を暗くして文字を見やすくします")
-        box_opacity = st.slider("ボックスの背景濃度", 0.0, 1.0, 0.9, 0.05, help="ショップなどのカードの透け具合を調整します")
+        bg_opacity = st.slider("壁紙の暗さ", 0.0, 1.0, 0.3, 0.05)
         
         if selected_wallpaper != current_wallpaper:
             supabase.table("users").update({"current_wallpaper": selected_wallpaper}).eq("username", current_user).execute()
             st.rerun()
             
-        apply_wallpaper(selected_wallpaper, bg_opacity, box_opacity)
+        apply_wallpaper(selected_wallpaper, bg_opacity)
+        
+        st.divider()
+        st.subheader("📝 プロフィール編集")
+        
+        # ニックネーム変更
+        with st.expander("ニックネーム変更"):
+            new_nn = st.text_input("新しい名前", value=my_nickname)
+            if st.button("変更保存"):
+                if update_profile(current_user, new_nn, my_title):
+                    st.success("変更しました")
+                    time.sleep(1)
+                    st.rerun()
+        
+        # 称号変更
+        with st.expander("称号変更"):
+            # 持っている称号リスト
+            my_titles_list = user_data.get('unlocked_titles', "見習い").split(',')
+            
+            if has_custom_title:
+                # 自由入力モード
+                title_mode = st.radio("入力モード", ["リストから選択", "自由入力"])
+                if title_mode == "自由入力":
+                    new_custom_title = st.text_input("好きな称号を入力", value=my_title)
+                    if st.button("称号更新"):
+                        set_title(current_user, new_custom_title)
+                        st.success("更新しました")
+                        time.sleep(1)
+                        st.rerun()
+                else:
+                    selected_t = st.selectbox("リスト", my_titles_list)
+                    if st.button("称号選択"):
+                        set_title(current_user, selected_t)
+                        st.rerun()
+            else:
+                # 通常モード
+                selected_t = st.selectbox("リスト", my_titles_list)
+                if st.button("称号選択"):
+                    set_title(current_user, selected_t)
+                    st.rerun()
 
 
     # --- メイン画面：ステータス ---
@@ -650,7 +717,7 @@ def main():
     df_tasks = get_tasks(current_user)
     df_logs = get_study_logs(current_user)
 
-    # --- 画面レイアウト (ランキング追加) ---
+    # --- 画面レイアウト ---
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ"])
     
     # === タブ1: ToDoリスト ===
@@ -789,7 +856,7 @@ def main():
         else:
             st.info("データがありません")
 
-    # === タブ4: ランキング (New!) ===
+    # === タブ4: ランキング (ニックネーム表示) ===
     with tab4:
         st.subheader("🏆 週間勉強時間ランキング")
         st.caption("過去7日間の合計時間を競いましょう！")
@@ -805,24 +872,24 @@ def main():
                 elif rank == 3: medal = "🥉"
                 else: medal = f"{rank}位"
                 
-                # 自分のカードだけ色を変える
                 is_me = (row['username'] == current_user)
                 border_color = "#FF4B4B" if is_me else "rgba(255,255,255,0.3)"
-                bg_style = "background-color: rgba(255, 75, 75, 0.2);" if is_me else ""
+                bg_style = "background-color: rgba(255, 75, 75, 0.2) !important;" if is_me else ""
                 
-                # 時間表記
+                # ニックネームが無ければユーザー名を表示
+                display_name = row.get('nickname') if row.get('nickname') else row['username']
+                
                 total_m = row['duration_minutes']
                 h = total_m // 60
                 m = total_m % 60
                 time_str = f"{h}時間 {m}分" if h > 0 else f"{m}分"
                 
-                # カード表示 (HTML)
                 st.markdown(f"""
                 <div class="ranking-card" style="border: 1px solid {border_color}; {bg_style} margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
                     <div style="display:flex; align-items:center;">
                         <span style="font-size: 1.5em; width: 50px; text-align:center;">{medal}</span>
                         <div>
-                            <div style="font-size: 1.1em; font-weight: bold;">{row['username']}</div>
+                            <div style="font-size: 1.1em; font-weight: bold;">{display_name}</div>
                             <div style="font-size: 0.8em; color: #ccc;">{row.get('current_title', '見習い')}</div>
                         </div>
                     </div>
@@ -900,12 +967,19 @@ def main():
                     st.error("コイン不足")
             
             st.divider()
-            st.write("📂 **称号変更**")
-            my_titles_list = user_data.get('unlocked_titles', "見習い").split(',')
-            selected_t = st.selectbox("称号", my_titles_list, index=my_titles_list.index(my_title) if my_title in my_titles_list else 0)
-            if selected_t != my_title:
-                set_title(current_user, selected_t)
-                st.rerun()
+            # ★新規機能: 自由称号権の販売
+            st.subheader("📛 自由称号パス")
+            st.write("**9999 💰**")
+            if has_custom_title:
+                st.button("✅ 解放済み", disabled=True)
+            else:
+                if st.button("購入する", type="primary"):
+                    success, bal = buy_custom_title_rights(current_user, 9999)
+                    if success:
+                        st.balloons()
+                        st.rerun()
+                    else:
+                        st.error("コイン不足")
 
 if __name__ == "__main__":
     main()

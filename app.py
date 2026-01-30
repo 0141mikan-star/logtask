@@ -157,9 +157,8 @@ def complete_tasks_bulk(task_ids, username):
 def delete_task(task_id):
     supabase.table("tasks").delete().eq("id", task_id).execute()
 
-# --- DB操作: 勉強ログ関連 (改良版) ---
+# --- DB操作: 勉強ログ関連 ---
 def add_study_log(username, subject, minutes, date_obj=None):
-    # 日付指定がない場合は今日(JST)にする
     if date_obj is None:
         date_str = datetime.now(JST).strftime('%Y-%m-%d')
     else:
@@ -173,7 +172,6 @@ def add_study_log(username, subject, minutes, date_obj=None):
     }
     supabase.table("study_logs").insert(data).execute()
     
-    # 勉強時間 1分につき 1XP ゲット
     gained_xp = minutes
     current_xp = get_user_xp(username)
     new_xp = current_xp + gained_xp
@@ -329,7 +327,7 @@ def main():
             else:
                 st.info("タスクを追加しよう！")
 
-        # === タブ2: 勉強タイマー (手動入力機能追加) ===
+        # === タブ2: 勉強タイマー ===
         with tab_timer:
             # 1. ストップウォッチ機能
             st.subheader("🔥 ストップウォッチ")
@@ -368,23 +366,32 @@ def main():
 
             st.divider()
 
-            # 2. 手動入力機能 (ここに追加！)
+            # 2. 手動入力機能 (時間と分を入力可能に改良)
             st.subheader("✏️ 手動で記録する")
             with st.expander("過去の勉強や、測り忘れた時はこちら", expanded=False):
                 with st.form("manual_study_log", clear_on_submit=True):
                     m_date = st.date_input("日付", value=date.today())
                     m_subject = st.text_input("教科・内容 (例: 英語単語)")
-                    m_minutes = st.number_input("勉強時間 (分)", min_value=1, step=5, value=30)
+                    
+                    # --- ここを変更: 時間と分を横並びにする ---
+                    col_h, col_m = st.columns(2)
+                    m_hours = col_h.number_input("時間 (h)", min_value=0, step=1, value=0)
+                    m_minutes = col_m.number_input("分 (m)", min_value=0, max_value=59, step=5, value=30)
                     
                     if st.form_submit_button("記録する"):
-                        if m_subject:
-                            gained, total = add_study_log(current_user, m_subject, m_minutes, m_date)
+                        # 時間を分に換算して合計する
+                        total_minutes = (m_hours * 60) + m_minutes
+                        
+                        if m_subject and total_minutes > 0:
+                            gained, total = add_study_log(current_user, m_subject, total_minutes, m_date)
                             st.session_state["celebrate"] = True
                             st.session_state["toast_msg"] = f"記録しました！ +{gained}XP (現在: {total})"
                             time.sleep(0.5)
                             st.rerun()
-                        else:
+                        elif not m_subject:
                             st.warning("教科名を入力してください")
+                        elif total_minutes <= 0:
+                            st.warning("勉強時間を入力してください")
 
     # --- カレンダー表示 ---
     with col_right:
@@ -404,6 +411,7 @@ def main():
         
         if not df_logs.empty:
             for _, row in df_logs.iterrows():
+                # カレンダーには「〇時間〇分」と表示すると見やすいかも？（今回はシンプルに分で表示）
                 events.append({
                     "title": f"📖 {row['subject']} ({row['duration_minutes']}分)",
                     "start": row['study_date'],

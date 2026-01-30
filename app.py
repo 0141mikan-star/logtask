@@ -3,13 +3,16 @@ from supabase import create_client, Client
 import pandas as pd
 import random
 import time
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone # timezoneを追加
 import urllib.parse
 import hashlib
 from streamlit_calendar import calendar
 
 # ページ設定
 st.set_page_config(page_title="個人タスク管理", layout="wide")
+
+# --- 日本時間 (JST) の定義 ---
+JST = timezone(timedelta(hours=9))
 
 # --- セッションステート初期化 ---
 if "toast_msg" not in st.session_state:
@@ -155,10 +158,10 @@ def complete_tasks_bulk(task_ids, username):
 def delete_task(task_id):
     supabase.table("tasks").delete().eq("id", task_id).execute()
 
-# --- DB操作: 勉強ログ関連 (新機能) ---
+# --- DB操作: 勉強ログ関連 ---
 def add_study_log(username, subject, minutes):
-    # 今日の日付を取得
-    today_str = date.today().strftime('%Y-%m-%d')
+    # 日本時間で日付を取得
+    today_str = datetime.now(JST).strftime('%Y-%m-%d')
     data = {
         "username": username,
         "subject": subject,
@@ -167,7 +170,7 @@ def add_study_log(username, subject, minutes):
     }
     supabase.table("study_logs").insert(data).execute()
     
-    # 勉強時間 1分につき 1XP ゲット！
+    # 勉強時間 1分につき 1XP ゲット
     gained_xp = minutes
     current_xp = get_user_xp(username)
     new_xp = current_xp + gained_xp
@@ -271,14 +274,13 @@ def main():
 
     st.divider()
 
-    # --- 画面レイアウト (左: 操作パネル / 右: カレンダー) ---
+    # --- 画面レイアウト ---
     col_left, col_right = st.columns([0.45, 0.55], gap="large")
     
     df_tasks = get_tasks(current_user)
     df_logs = get_study_logs(current_user)
 
     with col_left:
-        # タブで機能を切り替え
         tab_tasks, tab_timer = st.tabs(["📝 ToDoリスト", "⏱️ 集中タイマー"])
         
         # === タブ1: ToDoリスト ===
@@ -324,17 +326,17 @@ def main():
             else:
                 st.info("タスクを追加しよう！")
 
-        # === タブ2: 勉強タイマー ===
+        # === タブ2: 勉強タイマー (GIF削除・時刻修正版) ===
         with tab_timer:
             st.subheader("🔥 勉強時間を記録")
             st.caption("時間を測ると 1分につき 1XP もらえるよ！")
             
             # 計測中の表示
             if st.session_state["is_studying"]:
-                start_dt = datetime.fromtimestamp(st.session_state["start_time"])
+                # 日本時間で開始時刻を表示
+                start_dt = datetime.fromtimestamp(st.session_state["start_time"], JST)
                 st.info(f"🕐 **{start_dt.strftime('%H:%M')}** から計測中...")
                 
-                # 経過時間の目安（画面リロードしないと更新されないため目安表示）
                 elapsed_sec = time.time() - st.session_state["start_time"]
                 st.metric("経過時間 (目安)", f"{int(elapsed_sec // 60)} 分")
                 
@@ -348,14 +350,11 @@ def main():
                         end_time = time.time()
                         duration_min = int((end_time - st.session_state["start_time"]) // 60)
                         
-                        # 最低1分から記録
                         if duration_min < 1:
                             duration_min = 1
                             
-                        # DB保存 & XP加算
                         gained, total = add_study_log(current_user, study_subject, duration_min)
                         
-                        # リセット
                         st.session_state["is_studying"] = False
                         st.session_state["start_time"] = None
                         st.session_state["celebrate"] = True
@@ -363,20 +362,16 @@ def main():
                         st.rerun()
             
             else:
-                # 計測していない時
                 if st.button("▶️ 勉強スタート！", type="primary"):
                     st.session_state["is_studying"] = True
                     st.session_state["start_time"] = time.time()
                     st.rerun()
-                st.image("https://media.giphy.com/media/l0HlHJGHe3yAMhdQY/giphy.gif", width=200) # 勉強応援GIF
 
-    # --- カレンダー表示 (タスクと勉強ログを統合) ---
+    # --- カレンダー表示 ---
     with col_right:
         st.subheader("📅 カレンダー")
         
         events = []
-        
-        # 1. タスクをカレンダーに追加
         if not df_tasks.empty:
             for _, row in df_tasks.iterrows():
                 color = "#808080" if row['status'] == '完了' else "#FF4B4B" if row['priority']=="高" else "#1C83E1"
@@ -388,14 +383,12 @@ def main():
                     "allDay": True
                 })
         
-        # 2. 勉強ログをカレンダーに追加（紫色）
         if not df_logs.empty:
             for _, row in df_logs.iterrows():
-                # 〇〇 (30分) のように表示
                 events.append({
                     "title": f"📖 {row['subject']} ({row['duration_minutes']}分)",
                     "start": row['study_date'],
-                    "backgroundColor": "#9C27B0", # 紫色
+                    "backgroundColor": "#9C27B0",
                     "borderColor": "#9C27B0",
                     "allDay": True
                 })

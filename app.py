@@ -94,11 +94,11 @@ def apply_font(font_type):
         </style>
         """, unsafe_allow_html=True)
 
-# --- デザイン適用関数 (高画質壁紙 + 視認性強化) ---
-def apply_wallpaper(wallpaper_name, opacity=0.4):
+# --- デザイン適用関数 (壁紙・透明度調整対応) ---
+def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
     bg_url = ""
     
-    # 画像URL定義
+    # 画像URL定義 (図書館を明るいものに変更)
     if wallpaper_name == "草原": 
         bg_url = "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&w=1920&q=80"
     elif wallpaper_name == "夕焼け":
@@ -110,66 +110,61 @@ def apply_wallpaper(wallpaper_name, opacity=0.4):
     elif wallpaper_name == "王宮":
         bg_url = "https://images.unsplash.com/photo-1544939514-aa98d908bc47?auto=format&fit=crop&w=1920&q=80"
     elif wallpaper_name == "図書館":
-        bg_url = "https://images.unsplash.com/photo-1507842217121-9d5908f4d06a?auto=format&fit=crop&w=1920&q=80"
+        # ★変更: 少し明るめの、奥行きのある図書館の画像
+        bg_url = "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=1920&q=80"
     elif wallpaper_name == "サイバー":
         bg_url = "https://images.unsplash.com/photo-1535295972055-1c762f4483e5?auto=format&fit=crop&w=1920&q=80"
 
-    # シンプル(画像なし)の場合のデフォルト背景色
     if wallpaper_name == "シンプル" or not bg_url:
         return
 
-    # CSS適用
     st.markdown(f"""
     <style>
-    /* 全体の背景画像と明るさ調整 */
+    /* 全体の背景画像と、黒フィルターの濃さ(bg_opacity) */
     .stApp {{
-        background-image: linear-gradient(rgba(0, 0, 0, {opacity}), rgba(0, 0, 0, {opacity})), url("{bg_url}");
+        background-image: linear-gradient(rgba(0, 0, 0, {bg_opacity}), rgba(0, 0, 0, {bg_opacity})), url("{bg_url}");
         background-attachment: fixed;
         background-size: cover;
         background-position: center;
         background-color: #1E1E1E;
     }}
     
-    /* 文字色を白く、影をつけて読みやすく */
+    /* 文字色を白く */
     .stMarkdown, .stText, h1, h2, h3, p, span {{
         color: #ffffff !important;
         text-shadow: 1px 1px 3px rgba(0,0,0,0.9);
     }}
 
-    /* --- 視認性改善エリア --- */
-
-    /* 1. タブバー (ToDo, タイマーなど) */
+    /* タブバー */
     button[data-baseweb="tab"] {{
-        background-color: rgba(0, 0, 0, 0.6) !important; /* タブの背景を半透明の黒に */
+        background-color: rgba(0, 0, 0, 0.6) !important;
         color: white !important;
         border: 1px solid rgba(255,255,255,0.2);
         border-radius: 5px 5px 0 0;
         margin-right: 4px;
     }}
-    /* 選択中のタブ */
     button[aria-selected="true"] {{
-        background-color: #FF4B4B !important; /* 選択中は赤 */
+        background-color: #FF4B4B !important;
         border: 1px solid #FF4B4B;
     }}
     
-    /* 2. 各種コンテナ・ボックス (ショップのカード、入力フォームなど) */
-    /* border=Trueのコンテナ(stVerticalBlockBorderWrapper) と Expander */
+    /* コンテナ・ボックスの濃さ(box_opacity) */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"], .task-container-box {{
-        background-color: rgba(15, 15, 15, 0.95) !important; /* ほぼ不透明な黒 */
+        background-color: rgba(20, 20, 20, {box_opacity}) !important;
         border-radius: 12px;
         padding: 15px;
-        border: 1px solid rgba(255,255,255,0.2);
+        border: 1px solid rgba(255,255,255,0.3);
         box-shadow: 0 4px 6px rgba(0,0,0,0.5);
     }}
     
-    /* 3. 入力フィールドのラベル */
+    /* 入力ラベル */
     label {{
-        color: #FFD700 !important; /* 金色で見やすく */
+        color: #FFD700 !important;
         font-weight: bold;
         text-shadow: none;
     }}
     
-    /* 4. Expanderの中身の文字 */
+    /* Expander内テキスト */
     .streamlit-expanderContent p {{
         color: #eee !important;
     }}
@@ -478,7 +473,6 @@ def render_daily_task_list(df_tasks, unique_key):
     if not df_tasks.empty:
         day_tasks = df_tasks[df_tasks['due_date'] == str(target_date)]
     
-    # CSSクラス .task-container-box は apply_wallpaper で定義済み
     st.markdown(f'<div class="task-container-box"><div style="border-bottom:1px solid #555; padding-bottom:5px; margin-bottom:10px; font-weight:bold; color:#FFD700;">📅 {target_date} のクエスト</div>', unsafe_allow_html=True)
     
     if not day_tasks.empty:
@@ -567,7 +561,7 @@ def main():
             st.rerun()
         st.divider()
         
-        st.subheader("🎨 着せ替え設定")
+        st.subheader("🎨 デザイン設定")
         
         # フォント設定
         selected_theme = st.selectbox("フォント", my_themes, index=0)
@@ -581,14 +575,18 @@ def main():
         
         selected_wallpaper = st.selectbox("壁紙", my_wallpapers_list, index=w_index)
         
-        # ★追加: 壁紙の暗さ調整スライダー
-        bg_opacity = st.slider("壁紙の暗さ", 0.0, 1.0, 0.4, 0.1)
+        st.divider()
+        st.write("🔧 **調整**")
+        
+        # ★ 2つのスライダーを追加
+        bg_opacity = st.slider("壁紙の暗さ (フィルター)", 0.0, 1.0, 0.3, 0.05)
+        box_opacity = st.slider("ウィンドウの濃さ", 0.0, 1.0, 0.9, 0.05)
         
         if selected_wallpaper != current_wallpaper:
             supabase.table("users").update({"current_wallpaper": selected_wallpaper}).eq("username", current_user).execute()
             st.rerun()
             
-        apply_wallpaper(selected_wallpaper, bg_opacity)
+        apply_wallpaper(selected_wallpaper, bg_opacity, box_opacity)
 
 
     # --- メイン画面：ステータス ---

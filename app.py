@@ -88,18 +88,16 @@ def apply_font(font_type):
         .stMarkdown, .stTextInput > div > div, .stSelectbox > div > div {{
             font-family: {font_family} !important;
         }}
-        /* アイコン類はフォントを適用しない */
         .material-icons, .material-symbols-rounded, [data-testid="stExpander"] svg {{
             font-family: inherit !important;
         }}
         </style>
         """, unsafe_allow_html=True)
 
-# --- デザイン適用関数 (壁紙・ボックス透明度 修正版) ---
+# --- デザイン適用関数 (壁紙・透明度調整対応) ---
 def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
     bg_url = ""
     
-    # 画像URL定義
     if wallpaper_name == "草原": 
         bg_url = "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&w=1920&q=80"
     elif wallpaper_name == "夕焼け":
@@ -115,10 +113,8 @@ def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
     elif wallpaper_name == "サイバー":
         bg_url = "https://images.unsplash.com/photo-1535295972055-1c762f4483e5?auto=format&fit=crop&w=1920&q=80"
 
-    # --- CSSの組み立て ---
     css = ""
 
-    # 1. 背景設定 (画像がない場合はダークグレー)
     if bg_url and wallpaper_name != "シンプル":
         css += f"""
         .stApp {{
@@ -132,11 +128,10 @@ def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
     else:
         css += """
         .stApp {
-            background-color: #1E1E1E; /* シンプルでもダークモード背景 */
+            background-color: #1E1E1E; 
         }
         """
 
-    # 2. 共通テキストスタイル (白文字・影付き)
     css += """
     .stMarkdown, .stText, h1, h2, h3, p, span, div {
         color: #ffffff !important;
@@ -144,13 +139,12 @@ def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
     }
     """
 
-    # 3. ボックス・コンテナのスタイル (ここで box_opacity を適用)
     css += f"""
-    /* ショップのカード(border=True), Expander, フォーム, タスクリスト */
     div[data-testid="stVerticalBlockBorderWrapper"], 
     div[data-testid="stExpander"], 
     div[data-testid="stForm"], 
-    .task-container-box {{
+    .task-container-box,
+    .ranking-card {{
         background-color: rgba(20, 20, 20, {box_opacity}) !important;
         border-radius: 12px;
         padding: 15px;
@@ -158,15 +152,14 @@ def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
         box-shadow: 0 4px 6px rgba(0,0,0,0.5);
     }}
     
-    /* ボックス内の要素も白文字を強制 */
     div[data-testid="stVerticalBlockBorderWrapper"] *,
     div[data-testid="stExpander"] *,
     div[data-testid="stForm"] *, 
-    .task-container-box * {{
+    .task-container-box *,
+    .ranking-card * {{
         color: #ffffff !important;
     }}
     
-    /* タブのデザイン */
     button[data-baseweb="tab"] {{
         background-color: rgba(20, 20, 20, {box_opacity}) !important;
         color: white !important;
@@ -179,20 +172,17 @@ def apply_wallpaper(wallpaper_name, bg_opacity=0.3, box_opacity=0.9):
         border: 1px solid #FF4B4B;
     }}
     
-    /* 入力フォームのラベル */
     label {{
-        color: #FFD700 !important; /* 金色 */
+        color: #FFD700 !important;
         font-weight: bold;
         text-shadow: none;
     }}
     
-    /* ボタン類 */
     button {{
         font-weight: bold !important;
     }}
     """
 
-    # CSSを適用
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 # --- ユーザー情報取得 ---
@@ -204,6 +194,34 @@ def get_user_data(username):
         return None
     except:
         return None
+
+# --- ランキングデータ取得 (New!) ---
+def get_weekly_ranking():
+    # 過去7日間のデータを取得
+    start_date = (datetime.now(JST) - timedelta(days=7)).strftime('%Y-%m-%d')
+    
+    try:
+        # 1. ログを取得
+        logs_resp = supabase.table("study_logs").select("*").gte("study_date", start_date).execute()
+        if not logs_resp.data:
+            return pd.DataFrame()
+        
+        df_logs = pd.DataFrame(logs_resp.data)
+        
+        # 2. ユーザーごとの合計時間を計算
+        ranking = df_logs.groupby('username')['duration_minutes'].sum().reset_index()
+        ranking = ranking.sort_values('duration_minutes', ascending=False).reset_index(drop=True)
+        
+        # 3. ユーザーの称号を取得
+        users_resp = supabase.table("users").select("username, current_title").execute()
+        if users_resp.data:
+            df_users = pd.DataFrame(users_resp.data)
+            ranking = pd.merge(ranking, df_users, on='username', how='left')
+            
+        return ranking
+    except Exception as e:
+        st.error(f"ランキング取得エラー: {e}")
+        return pd.DataFrame()
 
 # --- セキュリティ関数 ---
 def make_hashes(password):
@@ -414,9 +432,8 @@ def show_detail_dialog(target_date, df_tasks, df_logs):
         else:
             st.caption("なし")
 
-# --- カレンダーコンポーネント (ToDoタブ用) ---
+# --- カレンダーコンポーネント ---
 def render_calendar_and_details(df_tasks, df_logs, unique_key):
-    # カレンダー用の白い背景スタイルを適用
     st.markdown("""
     <style>
     .fc {
@@ -485,7 +502,7 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
             target_date = parse_correct_date(raw_date_str)
             show_detail_dialog(target_date, df_tasks, df_logs)
 
-# --- その日のタスクリスト (タイマーダブ用) ---
+# --- その日のタスクリスト ---
 def render_daily_task_list(df_tasks, unique_key):
     st.subheader("📅 今日のクエスト")
     
@@ -586,8 +603,6 @@ def main():
         st.divider()
         
         st.subheader("🎨 デザイン設定")
-        
-        # フォント設定
         selected_theme = st.selectbox("フォント", my_themes, index=0)
         apply_font(selected_theme)
         
@@ -601,8 +616,6 @@ def main():
         
         st.divider()
         st.write("🔧 **調整**")
-        
-        # スライダー設定
         bg_opacity = st.slider("壁紙の暗さ (フィルター)", 0.0, 1.0, 0.3, 0.05, help="背景を暗くして文字を見やすくします")
         box_opacity = st.slider("ボックスの背景濃度", 0.0, 1.0, 0.9, 0.05, help="ショップなどのカードの透け具合を調整します")
         
@@ -637,8 +650,8 @@ def main():
     df_tasks = get_tasks(current_user)
     df_logs = get_study_logs(current_user)
 
-    # --- 画面レイアウト ---
-    tab1, tab2, tab3, tab4 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🛒 ショップ"])
+    # --- 画面レイアウト (ランキング追加) ---
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ"])
     
     # === タブ1: ToDoリスト ===
     with tab1:
@@ -683,10 +696,9 @@ def main():
                     st.info("タスクはありません！")
         
         with col_t2:
-            # カレンダー復活！
             render_calendar_and_details(df_tasks, df_logs, "cal_todo")
 
-    # === タブ2: 勉強タイマー (リスト表示) ===
+    # === タブ2: 勉強タイマー ===
     with tab2:
         col_s1, col_s2 = st.columns([0.5, 0.5])
         with col_s1:
@@ -740,7 +752,6 @@ def main():
                             st.error("時間を入力してください")
 
         with col_s2:
-            # こちらはリストのまま
             render_daily_task_list(df_tasks, "timer_list")
 
     # === タブ3: 分析レポート ===
@@ -778,8 +789,51 @@ def main():
         else:
             st.info("データがありません")
 
-    # === タブ4: ショップ・ガチャ ===
+    # === タブ4: ランキング (New!) ===
     with tab4:
+        st.subheader("🏆 週間勉強時間ランキング")
+        st.caption("過去7日間の合計時間を競いましょう！")
+        
+        df_ranking = get_weekly_ranking()
+        
+        if not df_ranking.empty:
+            for index, row in df_ranking.iterrows():
+                rank = index + 1
+                medal = ""
+                if rank == 1: medal = "🥇"
+                elif rank == 2: medal = "🥈"
+                elif rank == 3: medal = "🥉"
+                else: medal = f"{rank}位"
+                
+                # 自分のカードだけ色を変える
+                is_me = (row['username'] == current_user)
+                border_color = "#FF4B4B" if is_me else "rgba(255,255,255,0.3)"
+                bg_style = "background-color: rgba(255, 75, 75, 0.2);" if is_me else ""
+                
+                # 時間表記
+                total_m = row['duration_minutes']
+                h = total_m // 60
+                m = total_m % 60
+                time_str = f"{h}時間 {m}分" if h > 0 else f"{m}分"
+                
+                # カード表示 (HTML)
+                st.markdown(f"""
+                <div class="ranking-card" style="border: 1px solid {border_color}; {bg_style} margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display:flex; align-items:center;">
+                        <span style="font-size: 1.5em; width: 50px; text-align:center;">{medal}</span>
+                        <div>
+                            <div style="font-size: 1.1em; font-weight: bold;">{row['username']}</div>
+                            <div style="font-size: 0.8em; color: #ccc;">{row.get('current_title', '見習い')}</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 1.2em; font-weight: bold; color: #FFD700;">{time_str}</div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("まだデータがありません。あなたが一番乗りです！")
+
+    # === タブ5: ショップ・ガチャ ===
+    with tab5:
         col_shop_font, col_shop_wall, col_gacha = st.columns(3)
         
         with col_shop_font:

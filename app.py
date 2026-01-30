@@ -234,12 +234,10 @@ def set_title(username, title):
     supabase.table("users").update({"current_title": title}).eq("username", username).execute()
 
 
-# --- 共通カレンダーコンポーネント ---
-# 修正: unique_key引数を追加して、IDの重複を防ぐ
+# --- 共通カレンダーコンポーネント (修正版) ---
 def render_calendar_and_details(df_tasks, df_logs, unique_key):
     st.subheader("📅 カレンダー")
     
-    # イベント作成
     events = []
     
     if not df_tasks.empty:
@@ -268,12 +266,15 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
         "selectable": True,
     }
     
-    # 修正: key引数を指定して、Streamlitに別の部品だと認識させる
+    # カレンダー描画
     cal_data = calendar(events=events, options=cal_options, callbacks=['dateClick'], key=unique_key)
     
+    # --- 【修正箇所】 安全にデータを取り出す ---
     if cal_data and cal_data.get("callback") == "dateClick":
-        clicked_date_str = cal_data["date"].split("T")[0]
-        st.session_state["selected_date"] = clicked_date_str
+        # 'date' というキーが存在するか確認してから処理する
+        if "date" in cal_data:
+            clicked_date_str = cal_data["date"].split("T")[0]
+            st.session_state["selected_date"] = clicked_date_str
 
     if st.session_state["selected_date"]:
         target_date = st.session_state["selected_date"]
@@ -312,7 +313,6 @@ def render_calendar_and_details(df_tasks, df_logs, unique_key):
                 else:
                     st.caption("勉強記録なし")
             
-            # 修正: ボタンにもunique_keyを付与
             if st.button("閉じる", key=f"btn_close_{unique_key}"):
                 st.session_state["selected_date"] = None
                 st.rerun()
@@ -444,7 +444,6 @@ def main():
                     st.info("タスクはありません！")
         
         with col_t2:
-            # 修正: カレンダー呼び出し時にIDを渡す
             render_calendar_and_details(df_tasks, df_logs, "cal_todo")
 
     # === タブ2: 勉強タイマー ===
@@ -501,7 +500,6 @@ def main():
                             st.error("時間を入力してください")
 
         with col_s2:
-             # 修正: こちらのカレンダーにも別のIDを渡す
             render_calendar_and_details(df_tasks, df_logs, "cal_timer")
 
     # === タブ3: 分析レポート ===

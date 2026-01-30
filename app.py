@@ -10,7 +10,7 @@ import altair as alt
 from streamlit_calendar import calendar
 
 # ページ設定
-st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide")
+st.set_page_config(page_title="個人タスク管理RPG", layout="wide")
 
 # --- 日本時間 (JST) の定義 ---
 JST = timezone(timedelta(hours=9))
@@ -32,7 +32,7 @@ if st.session_state["toast_msg"]:
     st.toast(st.session_state["toast_msg"], icon="🆙")
     st.session_state["toast_msg"] = None 
 
-st.title("✅ 褒めてくれる勉強時間・タスク管理アプリ")
+st.title("✅ 褒めてくれるタスク管理 (RPG風)")
 
 # 称号ガチャのリスト
 GACHA_TITLES = [
@@ -1009,4 +1009,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

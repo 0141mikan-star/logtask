@@ -10,7 +10,17 @@ from streamlit_calendar import calendar
 
 # ページ設定
 st.set_page_config(page_title="個人タスク管理", layout="wide")
-st.title("✅ 褒めてくれるタスク管理")
+
+# --- セッションステート初期化 (ポップアップ用) ---
+if "toast_msg" not in st.session_state:
+    st.session_state["toast_msg"] = None
+
+# 画面読み込み時に、前回の操作でセットされたメッセージがあれば表示
+if st.session_state["toast_msg"]:
+    st.toast(st.session_state["toast_msg"], icon="🆙")
+    st.session_state["toast_msg"] = None # 表示したら消す
+
+st.title("✅ 褒めてくれるタスク管理 (RPG風)")
 
 # 褒め言葉リスト
 PRAISE_MESSAGES = [
@@ -132,7 +142,7 @@ def update_status(task_id, is_done, username):
         added_xp = 10  # 獲得経験値
         new_xp = current_xp + added_xp
         supabase.table("users").update({"xp": new_xp}).eq("username", username).execute()
-        return added_xp, new_xp # 獲得XPと新合計XPを返す
+        return added_xp, new_xp 
     return 0, 0
 
 def delete_task(task_id):
@@ -189,31 +199,18 @@ def main():
     # === アプリ本編 ===
     current_user = st.session_state["username"]
     
-    # --- サイドバー (ステータス画面) ---
+    # --- サイドバー (着せ替えのみ配置) ---
     with st.sidebar:
-        st.subheader(f"👤 {current_user}")
-        
-        # XPとレベルの計算
-        current_xp = get_user_xp(current_user)
-        # 50XPごとにレベルアップする計算
-        level = (current_xp // 50) + 1
-        # 次のレベルまでのXP
-        next_level_xp = level * 50
-        xp_needed = next_level_xp - current_xp
-        progress = 1.0 - (xp_needed / 50)
-
-        # 常時表示エリア
-        c1, c2 = st.columns(2)
-        c1.metric("Lv (レベル)", f"{level}")
-        c2.metric("XP (経験値)", f"{current_xp}")
-        
-        st.write(f"次のレベルまで: **{xp_needed} XP**")
-        st.progress(progress)
-
+        st.write(f"👤 {current_user}")
+        if st.button("ログアウト"):
+            st.session_state["logged_in"] = False
+            st.rerun()
         st.divider()
+
+        # XPの再取得（着せ替えロック判定用）
+        current_xp = get_user_xp(current_user)
         
-        # 着せ替えセレクター
-        st.subheader("🎨 着せ替え")
+        st.subheader("🎨 着せ替え設定")
         theme_options = ["標準"]
         
         if current_xp >= 50:
@@ -226,26 +223,40 @@ def main():
         else:
             st.caption("🔒 Lv.3 (XP 100) で「手書き風」解放")
             
-        # セッションに保存して選択状態を維持
         if "theme" not in st.session_state:
             st.session_state["theme"] = "標準"
             
         selected_theme = st.selectbox("フォント選択", theme_options, index=theme_options.index(st.session_state.get("theme", "標準")) if st.session_state.get("theme", "標準") in theme_options else 0)
         st.session_state["theme"] = selected_theme
         apply_theme(selected_theme)
+
+    # --- メイン画面：ステータスダッシュボード ---
+    # XPとレベルの計算
+    current_xp = get_user_xp(current_user)
+    level = (current_xp // 50) + 1
+    next_level_xp = level * 50
+    xp_needed = next_level_xp - current_xp
+    progress_val = 1.0 - (xp_needed / 50)
+    
+    # 見やすいように枠線付きのコンテナで表示
+    with st.container(border=True):
+        col_stats1, col_stats2, col_stats3 = st.columns([1, 1, 3])
         
-        st.divider()
+        with col_stats1:
+            st.metric("Lv (レベル)", f"{level}")
+        with col_stats2:
+            st.metric("XP (経験値)", f"{current_xp}")
+        with col_stats3:
+            st.write(f"次のレベルまであと **{xp_needed} XP**")
+            st.progress(max(0.0, min(1.0, progress_val))) # 0.0~1.0の範囲に収める
 
-        if st.button("ログアウト"):
-            st.session_state["logged_in"] = False
-            st.rerun()
-
-    # 褒める演出
+    # 褒める演出（バルーン）
     if "celebrate" not in st.session_state: st.session_state["celebrate"] = False
     if st.session_state["celebrate"]:
         st.balloons()
-        st.toast(random.choice(PRAISE_MESSAGES), icon="🎉")
         st.session_state["celebrate"] = False
+
+    st.divider()
 
     col_list, col_calendar = st.columns([0.45, 0.55], gap="large")
     df = get_tasks(current_user)
@@ -261,7 +272,7 @@ def main():
                 if st.form_submit_button("追加", type="primary"):
                     if name:
                         add_task(current_user, name, d_date, prio)
-                        st.toast("追加しました")
+                        st.session_state["toast_msg"] = "タスクを追加しました！" # 通知セット
                         time.sleep(0.5)
                         st.rerun()
 
@@ -277,10 +288,10 @@ def main():
                     gained_xp, total_xp = update_status(row['id'], not is_done, current_user)
                     
                     if not is_done: # 未完了→完了 になった時
-                        st.session_state["celebrate"] = True
+                        st.session_state["celebrate"] = True # バルーン用フラグ
                         if gained_xp > 0:
-                            # ここで獲得XPを一時表示！
-                            st.toast(f"経験値 +{gained_xp} 獲得！ (現在: {total_xp})", icon="🆙")
+                            # 次の画面で表示するためにセッションステートに入れる
+                            st.session_state["toast_msg"] = f"経験値 +{gained_xp} 獲得！ (現在: {total_xp})"
                     st.rerun()
                 
                 c2.markdown(f"~~{row['task_name']}~~" if is_done else f"**{row['task_name']}**")

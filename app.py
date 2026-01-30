@@ -319,7 +319,6 @@ def main():
     with tab1:
         col_t1, col_t2 = st.columns([0.6, 0.4])
         with col_t1:
-            # ★ここも修正：clear_on_submit=Trueを追加
             with st.expander("➕ タスク追加", expanded=False):
                 with st.form("add", clear_on_submit=True):
                     name = st.text_input("タスク名")
@@ -401,13 +400,13 @@ def main():
             st.divider()
             st.subheader("✏️ 手動記録")
             with st.expander("入力フォームを開く", expanded=True):
-                # ★ここが重要！ clear_on_submit=True で入力値をリセットします
                 with st.form("manual", clear_on_submit=True):
                     m_date = st.date_input("日付", value=date.today())
                     m_subj = st.text_input("教科")
                     ch, cm = st.columns(2)
+                    # 初期値を 0 に変更しました
                     mh = ch.number_input("時間", 0, 24, 0)
-                    mm = cm.number_input("分", 0, 59, 30)
+                    mm = cm.number_input("分", 0, 59, 0) # ここを30から0に変更
                     
                     if st.form_submit_button("記録", type="primary"):
                         total_m = (mh * 60) + mm
@@ -418,6 +417,8 @@ def main():
                             st.rerun()
                         elif not m_subj:
                             st.error("教科を入力してください")
+                        elif total_m <= 0:
+                            st.error("時間を入力してください")
 
         with col_s2:
             logs = []
@@ -509,5 +510,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

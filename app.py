@@ -816,7 +816,7 @@ def main():
     df_logs = get_study_logs(current_user)
 
     # タブ
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ", "📚 科目管理"])
     
     # === タブ1: ToDo ===
     with tab1:
@@ -1078,8 +1078,32 @@ def main():
                         st.rerun()
                     else:
                         st.error("コイン不足")
+# === タブ6: 科目管理 ===
+with tab6:
+    st.subheader("📚 勉強科目管理")
+
+    new_subj = st.text_input("新しい科目を追加")
+    if st.button("追加"):
+        if new_subj:
+            add_subject(current_user, new_subj)
+            st.session_state["toast_msg"] = "科目を追加しました！"
+            st.rerun()
+
+    st.divider()
+
+    subjects = get_subjects(current_user)
+    if subjects:
+        for s in subjects:
+            if st.button(f"🗑️ {s}", key=f"del_subj_{s}"):
+                delete_subject(current_user, s)
+                st.session_state["toast_msg"] = "科目を削除しました"
+                st.rerun()
+    else:
+        st.info("まだ科目が登録されていません")
+
 
 if __name__ == "__main__":
     main()
+
 
 

@@ -872,27 +872,25 @@ def main():
 
      # === タブ2: 勉強タイマー (開始前画面) ===
     with tab2:
-    col_s1, col_s2 = st.columns([0.5, 0.5])
+        col_s1, col_s2 = st.columns([0.5, 0.5])
     
-    with col_s1:
-        st.subheader("🔥 ストップウォッチ")
+        with col_s1:
+            st.subheader("🔥 ストップウォッチ")
 
-        # 🔽 追加：保存済み科目を取得
-        subjects = get_subjects(current_user)
+            subjects = get_subjects(current_user)
 
-        # 🔽 セレクト or 手入力
-        subject_names = [s["subject_name"] for s in subjects]
-        subject_names.append("＋ 新しく追加")
+            subject_names = [s["subject_name"] for s in subjects]
+            subject_names.append("＋ 新しく追加")
 
-        selected = st.selectbox("教科を選択", subject_names)
+            selected = st.selectbox("教科を選択", subject_names)
 
-        if selected == "＋ 新しく追加":
-            subj_input = st.text_input("新しい教科名")
-            if st.button("➕ 追加"):
-                if subj_input:
-                    add_subject(current_user, subj_input)
-                    st.success("追加しました")
-                    st.rerun()
+            if selected == "＋ 新しく追加":
+                subj_input = st.text_input("新しい教科名")
+                if st.button("➕ 追加"):
+                    if subj_input:
+                        add_subject(current_user, subj_input)
+                        st.success("追加しました")
+                        st.rerun()
         else:
             subj_input = selected
 
@@ -904,6 +902,7 @@ def main():
                 st.session_state["start_time"] = time.time()
                 st.session_state["current_subject"] = subj_input
                 st.rerun()
+
 
 
             st.divider()
@@ -1130,6 +1129,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

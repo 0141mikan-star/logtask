@@ -785,6 +785,9 @@ def main():
     if st.session_state.get("celebrate", False):
         st.balloons()
         st.session_state["celebrate"] = False
+    if st.session_state.get("toast_msg"):
+        st.toast(st.session_state["toast_msg"])
+        st.session_state["toast_msg"] = None
 
     st.divider()
 
@@ -1057,3 +1060,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

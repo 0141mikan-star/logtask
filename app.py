@@ -1081,9 +1081,7 @@ def main():
                         st.rerun()
                     else:
                         st.error("コイン不足")
-        with col_gacha:
-            ...
-                    st.error("コイン不足")
+
 
     # === タブ6: 科目管理 ===
     with tab6:
@@ -1111,6 +1109,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

@@ -879,7 +879,7 @@ def main():
 
             subjects = get_subjects(current_user)
 
-            subject_names = [s["subject_name"] for s in subjects]
+            subject_names = subjects.copy()
             subject_names.append("＋ 新しく追加")
 
             selected = st.selectbox("教科を選択", subject_names)
@@ -1129,6 +1129,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

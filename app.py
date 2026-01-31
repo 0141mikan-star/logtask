@@ -891,8 +891,8 @@ def main():
                         add_subject(current_user, subj_input)
                         st.success("追加しました")
                         st.rerun()
-        else:
-            subj_input = selected
+            else:
+                subj_input = selected
 
         if st.button("▶️ 集中モードを開始", type="primary"):
             if not subj_input:
@@ -1129,6 +1129,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

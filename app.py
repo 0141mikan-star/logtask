@@ -870,24 +870,41 @@ def main():
         with col_t2:
             render_calendar_and_details(df_tasks, df_logs, "cal_todo", current_user)
 
-    # === タブ2: 勉強タイマー (開始前画面) ===
+     # === タブ2: 勉強タイマー (開始前画面) ===
     with tab2:
-        col_s1, col_s2 = st.columns([0.5, 0.5])
-        with col_s1:
-            st.subheader("🔥 ストップウォッチ")
-            # 開始前の入力フォーム
-            with st.container(border=True):
-                st.write("集中したい教科を入力してスタート！")
-                subj_input = st.text_input("教科・内容", placeholder="例: 英語", key="start_subject_input")
-                
-                if st.button("▶️ 集中モードを開始", type="primary", use_container_width=True):
-                    if not subj_input:
-                        st.error("教科を入力してください")
-                    else:
-                        st.session_state["is_studying"] = True
-                        st.session_state["start_time"] = time.time()
-                        st.session_state["current_subject"] = subj_input
-                        st.rerun()
+    col_s1, col_s2 = st.columns([0.5, 0.5])
+    
+    with col_s1:
+        st.subheader("🔥 ストップウォッチ")
+
+        # 🔽 追加：保存済み科目を取得
+        subjects = get_subjects(current_user)
+
+        # 🔽 セレクト or 手入力
+        subject_names = [s["subject_name"] for s in subjects]
+        subject_names.append("＋ 新しく追加")
+
+        selected = st.selectbox("教科を選択", subject_names)
+
+        if selected == "＋ 新しく追加":
+            subj_input = st.text_input("新しい教科名")
+            if st.button("➕ 追加"):
+                if subj_input:
+                    add_subject(current_user, subj_input)
+                    st.success("追加しました")
+                    st.rerun()
+        else:
+            subj_input = selected
+
+        if st.button("▶️ 集中モードを開始", type="primary"):
+            if not subj_input:
+                st.error("教科を入力してください")
+            else:
+                st.session_state["is_studying"] = True
+                st.session_state["start_time"] = time.time()
+                st.session_state["current_subject"] = subj_input
+                st.rerun()
+
 
             st.divider()
             st.subheader("✏️ 手動記録")
@@ -1113,6 +1130,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

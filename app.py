@@ -168,6 +168,27 @@ def get_user_data(username):
     except:
         return None
 
+# --- DB操作：勉強科目 ---
+def get_subjects(username):
+    res = supabase.table("subjects") \
+        .select("subject_name") \
+        .eq("username", username) \
+        .execute()
+    return [r["subject_name"] for r in res.data] if res.data else []
+
+def add_subject(username, subject):
+    supabase.table("subjects").insert({
+        "username": username,
+        "subject_name": subject
+    }).execute()
+
+def delete_subject(username, subject):
+    supabase.table("subjects") \
+        .delete() \
+        .eq("username", username) \
+        .eq("subject_name", subject) \
+        .execute()
+
 # --- ランキングデータ取得 ---
 def get_weekly_ranking():
     start_date = (datetime.now(JST) - timedelta(days=7)).strftime('%Y-%m-%d')
@@ -1060,4 +1081,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

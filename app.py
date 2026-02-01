@@ -165,7 +165,7 @@ def add_study_log(u, s, m, d):
     supabase.table("study_logs").insert({"username": u, "subject": s, "duration_minutes": m, "study_date": str(d)}).execute()
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": ud['xp']+m, "coins": ud['coins']+m}).eq("username", u).execute()
-    return m
+    return m, ud['xp']+m, ud['coins']+m
 
 def delete_study_log(lid, u, m):
     supabase.table("study_logs").delete().eq("id", lid).execute()
@@ -285,30 +285,37 @@ def main():
             
         with st.expander("👑 称号コレクション"):
             my_titles = user.get('unlocked_titles', '見習い').split(',')
+            current = user.get('current_title', '見習い')
             
-            # リスト表示（バッジ風）
-            st.markdown("##### 📜 獲得済み")
-            html_titles = "".join([f"<span style='background:rgba(255,255,255,0.1); border:1px solid #FFD700; padding:2px 8px; border-radius:10px; margin:3px; display:inline-block; font-size:0.8em; color:#fff;'>{t}</span>" for t in my_titles])
-            st.markdown(html_titles, unsafe_allow_html=True)
-            
-            st.divider()
-            st.markdown("##### ✏️ 装備変更")
+            # タブで「リスト選択」と「自由入力」を分ける
             if user.get('custom_title_unlocked'):
-                mode = st.radio("モード", ["リスト選択", "自由入力"], horizontal=True)
-                if mode == "自由入力":
-                    custom_t = st.text_input("称号を入力", value=user.get('current_title'))
-                    if st.button("変更", key="c_custom"):
-                        supabase.table("users").update({"current_title": custom_t}).eq("username", user['username']).execute()
-                        st.rerun()
-                else:
-                    sel_t = st.selectbox("リスト", my_titles)
-                    if st.button("変更", key="c_list"):
+                tab_list, tab_custom = st.tabs(["📜 リスト", "✏️ 自由入力"])
+                
+                with tab_list:
+                    # デフォルトで現在の称号を選択状態にする
+                    idx = my_titles.index(current) if current in my_titles else 0
+                    sel_t = st.selectbox("獲得済みリスト", my_titles, index=idx)
+                    if st.button("装備する", key="eq_list"):
                         supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
+                        st.toast("装備を変更しました！")
+                        time.sleep(1)
+                        st.rerun()
+                
+                with tab_custom:
+                    custom_t = st.text_input("好きな名前を入力", value=current)
+                    if st.button("設定する", key="eq_custom"):
+                        supabase.table("users").update({"current_title": custom_t}).eq("username", user['username']).execute()
+                        st.toast("称号を設定しました！")
+                        time.sleep(1)
                         st.rerun()
             else:
-                sel_t = st.selectbox("リストから選択", my_titles)
-                if st.button("変更", key="c_list"):
+                # パスがない場合はリスト選択のみ
+                idx = my_titles.index(current) if current in my_titles else 0
+                sel_t = st.selectbox("獲得済みリスト", my_titles, index=idx)
+                if st.button("装備する", key="eq_only_list"):
                     supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
+                    st.toast("装備を変更しました！")
+                    time.sleep(1)
                     st.rerun()
 
         if st.button("ログアウト"): st.session_state["logged_in"] = False; st.rerun()
@@ -319,7 +326,7 @@ def main():
 
     t1, t2, t3, t4, t5, t6 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ", "📚 科目"])
 
-    with t1: # ToDo
+    with t1: # ToDo & Calendar
         c1, c2 = st.columns([0.6, 0.4])
         tasks = get_tasks(user['username'])
         logs = get_study_logs(user['username'])
@@ -334,6 +341,7 @@ def main():
                 events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": d_str, "color": "#00CC00"})
 
         with c1:
+            st.subheader("📅 カレンダー")
             cal = calendar(events=events, options={"initialView": "dayGridMonth", "height": 500}, callbacks=['dateClick'])
             if cal.get('dateClick'): st.session_state["selected_date"] = cal['dateClick']['date']
         
@@ -368,7 +376,7 @@ def main():
                     add_task(user['username'], tn, display_date, "中")
                     st.rerun()
 
-    with t2: # タイマー
+    with t2: # タイマー & 手動記録
         c1, c2 = st.columns([1, 1])
         with c1:
             st.subheader("🔥 集中モード")
@@ -466,7 +474,7 @@ def main():
                 """, unsafe_allow_html=True)
         else: st.info("データなし")
 
-    with t5: # ショップ (豪華版)
+    with t5: # ショップ
         st.write("アイテムを購入してカスタマイズしよう！")
         
         st.markdown("### 🖼️ 壁紙")

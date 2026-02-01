@@ -35,8 +35,9 @@ def init_supabase():
 
 supabase = init_supabase()
 
-# --- デザイン適用関数 ---
+# --- デザイン適用関数 (超豪華版復活) ---
 def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
+    # フォント設定
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -47,6 +48,7 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
+    # 壁紙設定
     wallpapers = {
         "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
         "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
@@ -68,35 +70,57 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     html, body, [class*="css"] {{ font-family: {font_family} !important; color: #ffffff; }}
     .stMarkdown, .stText, h1, h2, h3, p, span, div {{ color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }}
     
+    /* コンテナ（カード）デザイン */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: rgba(30, 30, 30, 0.85) !important;
-        border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 15px;
+        padding: 20px;
+        border: 1px solid rgba(255,255,255,0.15);
         box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        backdrop-filter: blur(5px);
     }}
-    
+
+    /* ランキングカード */
     .ranking-card {{
-        background: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 15px;
-        margin-bottom: 10px; display: flex; align-items: center; border: 1px solid rgba(255,255,255,0.2);
+        background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        border: 1px solid rgba(255,255,255,0.2);
+        transition: transform 0.2s;
     }}
-    .rank-num {{ font-size: 24px; font-weight: bold; width: 50px; text-align: center; margin-right: 15px; }}
-    .rank-name {{ font-size: 18px; font-weight: bold; }}
-    .rank-title {{ font-size: 14px; color: #FFD700 !important; }}
-    .rank-score {{ margin-left: auto; font-size: 20px; font-weight: bold; color: #00FF00 !important; }}
-    
-    /* ステータスバー */
+    .ranking-card:hover {{ transform: scale(1.02); background: rgba(255,255,255,0.15); }}
+    .rank-medal {{ font-size: 28px; width: 60px; text-align: center; }}
+    .rank-info {{ flex-grow: 1; }}
+    .rank-name {{ font-size: 1.2em; font-weight: bold; color: #fff; }}
+    .rank-title {{ font-size: 0.85em; color: #FFD700; }}
+    .rank-score {{ font-size: 1.4em; font-weight: bold; color: #00FF00; text-shadow: 0 0 10px rgba(0,255,0,0.5); }}
+
+    /* ショップアイテム */
+    .shop-title {{ font-size: 1.1em; font-weight: bold; color: #fff; border-bottom: 1px solid #555; padding-bottom: 5px; margin-bottom: 10px; }}
+    .shop-price {{ font-size: 1.0em; color: #FFD700; font-weight: bold; }}
+    .shop-owned {{ color: #00FF00; border: 1px solid #00FF00; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; }}
+
+    /* ステータスバー (HUD) */
     .status-bar {{
-        background: linear-gradient(90deg, rgba(0,0,0,0.8), rgba(50,50,50,0.8));
-        padding: 10px 20px; border-radius: 10px; border: 1px solid #555;
+        background: linear-gradient(90deg, #1a1a1a, #2d2d2d);
+        padding: 15px; border-radius: 15px; border: 2px solid #444;
         display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
+        box-shadow: 0 0 15px rgba(0,0,0,0.8);
     }}
     .stat-item {{ text-align: center; }}
-    .stat-label {{ font-size: 0.8em; color: #aaa; }}
-    .stat-value {{ font-size: 1.5em; font-weight: bold; color: #FFD700; }}
-
+    .stat-label {{ font-size: 0.7em; color: #aaa; letter-spacing: 1px; }}
+    .stat-val {{ font-size: 1.6em; font-weight: bold; color: #fff; text-shadow: 0 0 5px rgba(255,255,255,0.5); }}
+    
+    /* ボタン装飾 */
     button[kind="primary"] {{
-        background: linear-gradient(45deg, #FF4B4B, #FF914D) !important; border: none !important; transition: transform 0.2s;
+        background: linear-gradient(45deg, #FF4B4B, #FF914D) !important;
+        border: none !important;
+        box-shadow: 0 4px 10px rgba(255, 75, 75, 0.4);
+        font-weight: bold !important;
     }}
-    button[kind="primary"]:hover {{ transform: scale(1.05); }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -155,7 +179,7 @@ def add_study_log(u, s, m, d):
     supabase.table("study_logs").insert({"username": u, "subject": s, "duration_minutes": m, "study_date": str(d)}).execute()
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": ud['xp']+m, "coins": ud['coins']+m}).eq("username", u).execute()
-    return m, ud['xp']+m, ud['coins']+m
+    return m
 
 def delete_study_log(lid, u, m):
     supabase.table("study_logs").delete().eq("id", lid).execute()
@@ -178,29 +202,25 @@ def complete_task(tid, u):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": ud['xp']+10, "coins": ud['coins']+10}).eq("username", u).execute()
 
-# --- ★重要: タイマー部分だけを更新するフラグメント関数 ---
+# --- ★重要: タイマー更新フラグメント ---
 @st.fragment(run_every=1)
 def show_timer_fragment(user_name):
-    # 経過時間計算
     now = time.time()
     start = st.session_state.get("start_time", now)
     elapsed = int(now - start)
     h, m, s = elapsed // 3600, (elapsed % 3600) // 60, elapsed % 60
     
-    # 時計表示
     st.markdown(f"""
     <div style="text-align: center; font-size: 6em; font-weight: bold; color: #00FF00; text-shadow: 0 0 20px #00FF00; margin-bottom: 20px;">
         {h:02}:{m:02}:{s:02}
     </div>
     """, unsafe_allow_html=True)
     
-    # 終了ボタン
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button("⏹️ 終了して記録", use_container_width=True, type="primary"):
             duration = max(1, elapsed // 60)
             add_study_log(user_name, st.session_state.get("current_subject", "自習"), duration, date.today())
-            
             st.session_state["is_studying"] = False
             st.session_state["celebrate"] = True
             st.session_state["toast_msg"] = f"{duration}分 記録しました！"
@@ -209,11 +229,7 @@ def show_timer_fragment(user_name):
 # --- メイン処理 ---
 def main():
     if "logged_in" not in st.session_state: 
-        st.session_state.update({
-            "logged_in": False, "username": "", "is_studying": False, 
-            "start_time": None, "celebrate": False, "toast_msg": None,
-            "selected_date": str(date.today())
-        })
+        st.session_state.update({"logged_in": False, "username": "", "is_studying": False, "start_time": None, "celebrate": False, "toast_msg": None, "selected_date": str(date.today())})
 
     if not st.session_state["logged_in"]:
         st.title("🛡️ ログイン")
@@ -223,8 +239,8 @@ def main():
         if mode == "新規登録":
             n = st.text_input("ニックネーム")
             if st.button("登録"):
-                if add_user(u, p, n): st.success("登録成功！ログインしてください")
-                else: st.error("エラー：IDが重複しています")
+                if add_user(u, p, n): st.success("登録成功！")
+                else: st.error("エラー")
         else:
             if st.button("ログイン"):
                 res, msg = login_user(u, p)
@@ -242,34 +258,25 @@ def main():
     # デザイン適用
     apply_design(user.get('unlocked_themes', '標準').split(',')[0], user.get('current_wallpaper', '草原'))
 
-    # ★ 集中モード (待機画面)
+    # BGM再生 (Fragment外で一度だけ呼ぶ)
     if st.session_state["is_studying"]:
-        st.empty() # 余白調整
-        
-        # BGM再生 (画面全体のリロードではないので、ここで1回だけ呼び出せば途切れない)
+        st.empty()
         bgm = user.get('current_bgm', 'なし')
         if bgm != 'なし' and BGM_DATA.get(bgm):
             st.audio(BGM_DATA[bgm], format="audio/ogg", loop=True, autoplay=True)
-            st.caption(f"🎵 Now Playing: {bgm}")
-        
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
-        
-        # ★ ここでフラグメントを呼び出し、時計だけを1秒ごとに更新させる
         show_timer_fragment(user['username'])
-        
-        return # これ以降の通常画面を表示しない
+        return
 
-    # --- 通常画面 ---
-    
-    # ステータスバー表示
+    # ★ HUD (ステータスバー)
     level = (user['xp'] // 100) + 1
     next_xp = level * 100
     st.markdown(f"""
     <div class="status-bar">
-        <div class="stat-item"><div class="stat-label">NAME</div><div class="stat-value" style="font-size:1.2em;">{user['nickname']}</div></div>
-        <div class="stat-item"><div class="stat-label">LEVEL</div><div class="stat-value" style="color:#00e5ff;">{level}</div></div>
-        <div class="stat-item"><div class="stat-label">XP</div><div class="stat-value">{user['xp']} <span style="font-size:0.5em;">/ {next_xp}</span></div></div>
-        <div class="stat-item"><div class="stat-label">COIN</div><div class="stat-value" style="color:#FFD700;">{user['coins']} G</div></div>
+        <div class="stat-item"><div class="stat-label">PLAYER</div><div class="stat-val" style="font-size:1.2em;">{user['nickname']}</div><div style="font-size:0.7em; color:gold;">{user.get('current_title', '見習い')}</div></div>
+        <div class="stat-item"><div class="stat-label">LEVEL</div><div class="stat-val" style="color:#00e5ff;">{level}</div></div>
+        <div class="stat-item"><div class="stat-label">XP</div><div class="stat-val">{user['xp']} <span style="font-size:0.5em; color:#888;">/ {next_xp}</span></div></div>
+        <div class="stat-item"><div class="stat-label">COIN</div><div class="stat-val" style="color:#FFD700;">{user['coins']} G</div></div>
     </div>
     """, unsafe_allow_html=True)
     st.progress(min(1.0, (user['xp'] % 100) / 100))
@@ -278,14 +285,14 @@ def main():
     with st.sidebar:
         st.subheader("⚙️ 設定")
         walls = user['unlocked_wallpapers'].split(',')
-        new_w = st.selectbox("壁紙", walls, index=walls.index(user.get('current_wallpaper', '草原')) if user.get('current_wallpaper') in walls else 0)
+        new_w = st.selectbox("壁紙設定", walls, index=walls.index(user.get('current_wallpaper', '草原')) if user.get('current_wallpaper') in walls else 0)
         if new_w != user.get('current_wallpaper'):
             supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
             st.rerun()
         
         bgms = user.get('unlocked_bgm', 'なし').split(',')
         if 'なし' not in bgms: bgms.insert(0, 'なし')
-        new_b = st.selectbox("集中BGM", bgms, index=bgms.index(user.get('current_bgm', 'なし')) if user.get('current_bgm') in bgms else 0)
+        new_b = st.selectbox("集中BGM設定", bgms, index=bgms.index(user.get('current_bgm', 'なし')) if user.get('current_bgm') in bgms else 0)
         if new_b != user.get('current_bgm'):
             supabase.table("users").update({"current_bgm": new_b}).eq("username", user['username']).execute()
             st.rerun()
@@ -305,17 +312,16 @@ def main():
 
         if st.button("ログアウト"): st.session_state["logged_in"] = False; st.rerun()
 
+    # メイン処理
     if st.session_state.get("celebrate"): st.balloons(); st.session_state["celebrate"] = False
     if st.session_state.get("toast_msg"): st.toast(st.session_state["toast_msg"]); st.session_state["toast_msg"] = None
 
     t1, t2, t3, t4, t5 = st.tabs(["📝 ToDo", "⏱️ タイマー", "🏆 ランキング", "🛒 ショップ", "📚 科目"])
 
-    # ★ ToDo & カレンダー
-    with t1:
+    with t1: # ToDo & Calendar
         c1, c2 = st.columns([0.6, 0.4])
         tasks = get_tasks(user['username'])
         logs = get_study_logs(user['username'])
-        
         events = []
         if not tasks.empty:
             for _, r in tasks.iterrows():
@@ -327,7 +333,6 @@ def main():
                 events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": d_str, "color": "#00CC00"})
 
         with c1:
-            st.subheader("📅 カレンダー")
             cal = calendar(events=events, options={"initialView": "dayGridMonth", "height": 500}, callbacks=['dateClick'])
             if cal.get('dateClick'): st.session_state["selected_date"] = cal['dateClick']['date']
         
@@ -352,8 +357,7 @@ def main():
                             if st.button(f"完了: {task['task_name']}", key=f"do_{task['id']}"):
                                 complete_task(task['id'], user['username'])
                                 st.rerun()
-                        else:
-                            st.write(f"✅ {task['task_name']}")
+                        else: st.write(f"✅ {task['task_name']}")
                 else: st.caption("タスクなし")
             
             st.divider()
@@ -363,8 +367,7 @@ def main():
                     add_task(user['username'], tn, display_date, "中")
                     st.rerun()
 
-    # ★ タイマー
-    with t2:
+    with t2: # タイマー & 手動記録
         c1, c2 = st.columns([1, 1])
         with c1:
             st.subheader("🔥 集中モード")
@@ -405,23 +408,20 @@ def main():
                 d_str = str(r['study_date'])[:10]
                 lc1.write(f"・{r['subject']} ({r['duration_minutes']}分) - {d_str}")
                 if lc2.button("削除", key=f"dl_{r['id']}"):
-                    if delete_study_log(r['id'], user['username'], r['duration_minutes']):
-                        st.session_state["toast_msg"] = "削除しました"
-                        st.rerun()
+                    delete_study_log(r['id'], user['username'], r['duration_minutes'])
+                    st.rerun()
 
-    # ★ ランキング
-    with t3:
+    with t3: # ランキング (豪華版)
         st.subheader("🏆 週間ランキング")
         df_rank = get_weekly_ranking()
         if not df_rank.empty:
             for i, row in df_rank.iterrows():
                 rank = i + 1
                 medal = "🥇" if rank==1 else "🥈" if rank==2 else "🥉" if rank==3 else f"{rank}位"
-                border = "2px solid #FFD700" if rank==1 else "1px solid #555"
                 st.markdown(f"""
-                <div class="ranking-card" style="border: {border};">
-                    <div class="rank-num">{medal}</div>
-                    <div style="flex-grow: 1;">
+                <div class="ranking-card">
+                    <div class="rank-medal" style="color: {'#FFD700' if rank==1 else '#C0C0C0' if rank==2 else '#CD7F32' if rank==3 else '#fff'};">{medal}</div>
+                    <div class="rank-info">
                         <div class="rank-name">{row['nickname']}</div>
                         <div class="rank-title">👑 {row.get('current_title', '見習い')}</div>
                     </div>
@@ -430,45 +430,78 @@ def main():
                 """, unsafe_allow_html=True)
         else: st.info("データなし")
 
-    # ★ ショップ
-    with t4:
-        c1, c2, c3 = st.columns(3)
+    with t4: # ショップ (豪華版)
+        st.write("アイテムを購入してカスタマイズしよう！")
+        
+        st.markdown("### 🖼️ 壁紙")
+        items = [("夕焼け", 500), ("夜空", 800), ("ダンジョン", 1200), ("王宮", 2000)]
+        cols = st.columns(2)
+        for i, (n, p) in enumerate(items):
+            with cols[i % 2]:
+                with st.container(border=True):
+                    st.markdown(f"<div class='shop-title'>{n}</div>", unsafe_allow_html=True)
+                    if n in user['unlocked_wallpapers']:
+                        st.markdown(f"<span class='shop-owned'>所有済み</span>", unsafe_allow_html=True)
+                        st.button("設定へ", disabled=True, key=f"d_{n}")
+                    else:
+                        st.markdown(f"<div class='shop-price'>{p} G</div>", unsafe_allow_html=True)
+                        if st.button("購入する", key=f"buy_w_{n}", use_container_width=True):
+                            if user['coins'] >= p:
+                                nl = user['unlocked_wallpapers'] + f",{n}"
+                                supabase.table("users").update({"coins": user['coins']-p, "unlocked_wallpapers": nl}).eq("username", user['username']).execute()
+                                st.balloons(); st.rerun()
+                            else: st.error("コイン不足")
+
+        st.markdown("### 🎵 BGM")
+        items = [("雨の音", 300), ("焚き火", 500), ("カフェ", 800)]
+        cols = st.columns(3)
+        my_bgms = user.get('unlocked_bgm', 'なし')
+        for i, (n, p) in enumerate(items):
+            with cols[i % 3]:
+                with st.container(border=True):
+                    st.markdown(f"<div class='shop-title'>{n}</div>", unsafe_allow_html=True)
+                    if n in my_bgms:
+                        st.markdown(f"<span class='shop-owned'>所有済み</span>", unsafe_allow_html=True)
+                        st.button("設定へ", disabled=True, key=f"db_{n}")
+                    else:
+                        st.markdown(f"<div class='shop-price'>{p} G</div>", unsafe_allow_html=True)
+                        if st.button("購入", key=f"buy_b_{n}", use_container_width=True):
+                            if user['coins'] >= p:
+                                nl = my_bgms + f",{n}"
+                                supabase.table("users").update({"coins": user['coins']-p, "unlocked_bgm": nl}).eq("username", user['username']).execute()
+                                st.balloons(); st.rerun()
+                            else: st.error("コイン不足")
+
+        st.markdown("### 💎 その他")
+        c1, c2 = st.columns(2)
         with c1:
-            st.markdown("### 🖼️ 壁紙")
-            items = [("夕焼け", 500), ("夜空", 800), ("ダンジョン", 1200), ("王宮", 2000)]
-            for n, p in items:
-                if st.button(f"{n} ({p}G)", key=f"w_{n}", disabled=(n in user['unlocked_wallpapers'])):
-                    if user['coins'] >= p:
-                        nl = user['unlocked_wallpapers'] + f",{n}"
-                        supabase.table("users").update({"coins": user['coins']-p, "unlocked_wallpapers": nl}).eq("username", user['username']).execute()
-                        st.balloons(); st.rerun()
+            with st.container(border=True):
+                st.markdown("<div class='shop-title'>🎲 称号ガチャ</div>", unsafe_allow_html=True)
+                st.markdown("<div class='shop-price'>100 G</div>", unsafe_allow_html=True)
+                if st.button("ガチャを回す", type="primary", use_container_width=True):
+                    if user['coins'] >= 100:
+                        got = random.choice(["駆け出し", "努力家", "集中王", "夜更かし", "天才", "覚醒者", "大賢者", "神童"])
+                        current = user.get('unlocked_titles', '')
+                        if got not in current: current += f",{got}"
+                        supabase.table("users").update({"coins": user['coins']-100, "unlocked_titles": current, "current_title": got}).eq("username", user['username']).execute()
+                        st.toast(f"🎉 称号『{got}』を獲得しました！")
+                        st.balloons()
+                        time.sleep(1)
+                        st.rerun()
+                    else: st.error("コイン不足")
+        
         with c2:
-            st.markdown("### 🎵 BGM")
-            items = [("雨の音", 300), ("焚き火", 500), ("カフェ", 800)]
-            for n, p in items:
-                if st.button(f"{n} ({p}G)", key=f"b_{n}", disabled=(n in user.get('unlocked_bgm', ''))):
-                    if user['coins'] >= p:
-                        nl = user.get('unlocked_bgm', 'なし') + f",{n}"
-                        supabase.table("users").update({"coins": user['coins']-p, "unlocked_bgm": nl}).eq("username", user['username']).execute()
-                        st.balloons(); st.rerun()
-        with c3:
-            st.markdown("### 💎 その他")
-            if st.button("ガチャ (100G)"):
-                if user['coins'] >= 100:
-                    got = random.choice(["駆け出し", "努力家", "集中王", "夜更かし", "天才", "覚醒者", "大賢者", "神童"])
-                    current = user.get('unlocked_titles', '')
-                    if got not in current: current += f",{got}"
-                    supabase.table("users").update({"coins": user['coins']-100, "unlocked_titles": current, "current_title": got}).eq("username", user['username']).execute()
-                    st.toast(f"🎉 {got}！"); st.balloons(); time.sleep(1); st.rerun()
-                else: st.error("コイン不足")
-            
-            if not user.get('custom_title_unlocked'):
-                if st.button("自由称号パス (9999G)"):
-                    if user['coins'] >= 9999:
-                        supabase.table("users").update({"coins": user['coins']-9999, "custom_title_unlocked": True}).eq("username", user['username']).execute()
-                        st.balloons(); st.rerun()
-                    else: st.error("不足")
-            else: st.button("✅ パス購入済", disabled=True)
+            with st.container(border=True):
+                st.markdown("<div class='shop-title'>👑 自由称号パス</div>", unsafe_allow_html=True)
+                st.markdown("<div class='shop-price'>9999 G</div>", unsafe_allow_html=True)
+                if user.get('custom_title_unlocked'):
+                    st.button("✅ 購入済み", disabled=True, use_container_width=True)
+                else:
+                    if st.button("パスを購入", key="buy_pass", use_container_width=True):
+                        if user['coins'] >= 9999:
+                            supabase.table("users").update({"coins": user['coins']-9999, "custom_title_unlocked": True}).eq("username", user['username']).execute()
+                            st.balloons(); st.rerun()
+                        else: st.error("不足")
 
     with t5: # 科目
         new_s = st.text_input("科目追加")

@@ -14,16 +14,6 @@ st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理�
 # --- 日本時間 (JST) の定義 ---
 JST = timezone(timedelta(hours=9))
 
-# --- BGMデータ ---
-BGM_DATA = {
-    "なし": None,
-    "雨の音": "https://cdn.pixabay.com/audio/2022/05/17/audio_49448373b3.mp3",
-    "焚き火": "https://cdn.pixabay.com/audio/2022/01/18/audio_8db1f115a9.mp3",
-    "カフェ": "https://cdn.pixabay.com/audio/2021/08/09/audio_0dcdd5871f.mp3",
-    "川のせせらぎ": "https://cdn.pixabay.com/audio/2022/02/07/audio_6590920188.mp3",
-    "ホワイトノイズ": "https://cdn.pixabay.com/audio/2022/11/04/audio_30c2937666.mp3"
-}
-
 # --- Supabase接続設定 ---
 @st.cache_resource
 def init_supabase():
@@ -126,7 +116,7 @@ def add_user(username, password, nickname):
         data = {"username": username, "password": make_hashes(password), "nickname": nickname,
                 "xp": 0, "coins": 0, "unlocked_themes": "標準", "current_title": "見習い",
                 "unlocked_titles": "見習い", "current_wallpaper": "草原", "unlocked_wallpapers": "草原",
-                "current_bgm": "なし", "unlocked_bgm": "なし", "custom_title_unlocked": False}
+                "custom_title_unlocked": False}
         supabase.table("users").insert(data).execute()
         return True
     except: return False
@@ -244,17 +234,14 @@ def main():
     # デザイン適用
     apply_design(user.get('unlocked_themes', '標準').split(',')[0], user.get('current_wallpaper', '草原'))
 
-    # BGM再生 (MP3版)
+    # ★ 集中モード (待機画面)
     if st.session_state["is_studying"]:
         st.empty()
-        bgm = user.get('current_bgm', 'なし')
-        if bgm != 'なし' and BGM_DATA.get(bgm):
-            st.audio(BGM_DATA[bgm], format="audio/mp3", loop=True, autoplay=True)
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
         return
 
-    # HUD
+    # ★ HUD
     level = (user['xp'] // 100) + 1
     next_xp = level * 100
     st.markdown(f"""
@@ -275,48 +262,30 @@ def main():
         if new_w != user.get('current_wallpaper'):
             supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
             st.rerun()
-        
-        bgms = user.get('unlocked_bgm', 'なし').split(',')
-        if 'なし' not in bgms: bgms.insert(0, 'なし')
-        new_b = st.selectbox("集中BGM設定", bgms, index=bgms.index(user.get('current_bgm', 'なし')) if user.get('current_bgm') in bgms else 0)
-        if new_b != user.get('current_bgm'):
-            supabase.table("users").update({"current_bgm": new_b}).eq("username", user['username']).execute()
-            st.rerun()
             
         with st.expander("👑 称号コレクション"):
             my_titles = user.get('unlocked_titles', '見習い').split(',')
             current = user.get('current_title', '見習い')
             
-            # タブで「リスト選択」と「自由入力」を分ける
             if user.get('custom_title_unlocked'):
                 tab_list, tab_custom = st.tabs(["📜 リスト", "✏️ 自由入力"])
-                
                 with tab_list:
-                    # デフォルトで現在の称号を選択状態にする
                     idx = my_titles.index(current) if current in my_titles else 0
-                    sel_t = st.selectbox("獲得済みリスト", my_titles, index=idx)
-                    if st.button("装備する", key="eq_list"):
+                    sel_t = st.selectbox("獲得済み", my_titles, index=idx)
+                    if st.button("装備", key="eq_list"):
                         supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
-                        st.toast("装備を変更しました！")
-                        time.sleep(1)
-                        st.rerun()
-                
+                        st.toast("装備を変更しました！"); time.sleep(1); st.rerun()
                 with tab_custom:
-                    custom_t = st.text_input("好きな名前を入力", value=current)
-                    if st.button("設定する", key="eq_custom"):
+                    custom_t = st.text_input("名前を入力", value=current)
+                    if st.button("設定", key="eq_custom"):
                         supabase.table("users").update({"current_title": custom_t}).eq("username", user['username']).execute()
-                        st.toast("称号を設定しました！")
-                        time.sleep(1)
-                        st.rerun()
+                        st.toast("称号を設定しました！"); time.sleep(1); st.rerun()
             else:
-                # パスがない場合はリスト選択のみ
                 idx = my_titles.index(current) if current in my_titles else 0
-                sel_t = st.selectbox("獲得済みリスト", my_titles, index=idx)
-                if st.button("装備する", key="eq_only_list"):
+                sel_t = st.selectbox("獲得済み", my_titles, index=idx)
+                if st.button("装備", key="eq_only_list"):
                     supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
-                    st.toast("装備を変更しました！")
-                    time.sleep(1)
-                    st.rerun()
+                    st.toast("装備を変更しました！"); time.sleep(1); st.rerun()
 
         if st.button("ログアウト"): st.session_state["logged_in"] = False; st.rerun()
 
@@ -493,26 +462,6 @@ def main():
                             if user['coins'] >= p:
                                 nl = user['unlocked_wallpapers'] + f",{n}"
                                 supabase.table("users").update({"coins": user['coins']-p, "unlocked_wallpapers": nl}).eq("username", user['username']).execute()
-                                st.balloons(); st.rerun()
-                            else: st.error("コイン不足")
-
-        st.markdown("### 🎵 BGM")
-        items = [("雨の音", 300), ("焚き火", 500), ("カフェ", 800)]
-        cols = st.columns(3)
-        my_bgms = user.get('unlocked_bgm', 'なし')
-        for i, (n, p) in enumerate(items):
-            with cols[i % 3]:
-                with st.container(border=True):
-                    st.markdown(f"<div class='shop-title'>{n}</div>", unsafe_allow_html=True)
-                    if n in my_bgms:
-                        st.markdown(f"<span class='shop-owned'>所有済み</span>", unsafe_allow_html=True)
-                        st.button("設定へ", disabled=True, key=f"db_{n}")
-                    else:
-                        st.markdown(f"<div class='shop-price'>{p} G</div>", unsafe_allow_html=True)
-                        if st.button("購入", key=f"buy_b_{n}", use_container_width=True):
-                            if user['coins'] >= p:
-                                nl = my_bgms + f",{n}"
-                                supabase.table("users").update({"coins": user['coins']-p, "unlocked_bgm": nl}).eq("username", user['username']).execute()
                                 st.balloons(); st.rerun()
                             else: st.error("コイン不足")
 

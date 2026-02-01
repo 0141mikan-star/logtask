@@ -40,86 +40,93 @@ if not supabase:
     st.error("Supabaseへの接続設定が見つかりません。")
     st.stop()
 
-# --- デザイン適用関数 ---
-def apply_font(font_type):
+# --- デザイン適用関数（ここを共通化して短縮しました！） ---
+def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
+    # フォント設定
     fonts = {
-        "ピクセル風": ("DotGothic16", "sans-serif"),
-        "手書き風": ("Yomogi", "cursive"),
-        "ポップ": ("Hachi+Maru+Pop", "cursive"),
-        "明朝体": ("Shippori+Mincho", "serif"),
-        "筆文字": ("Yuji+Syuku", "serif")
+        "ピクセル風": "'DotGothic16', sans-serif",
+        "手書き風": "'Yomogi', cursive",
+        "ポップ": "'Hachi Maru Pop', cursive",
+        "明朝体": "'Shippori Mincho', serif",
+        "筆文字": "'Yuji Syuku', serif",
+        "標準": "sans-serif"
     }
-    if font_type in fonts:
-        name, fallback = fonts[font_type]
-        st.markdown(f"""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family={name}&display=swap');
-        body, p, h1, h2, h3, h4, h5, h6, input, textarea, label, button, .stTooltip, .stExpander {{
-            font-family: '{name}', {fallback} !important;
-        }}
-        </style>
-        """, unsafe_allow_html=True)
-
-def apply_wallpaper(wallpaper_name, bg_opacity=0.3):
+    font_family = fonts.get(user_theme, "sans-serif")
+    
+    # 壁紙設定
     wallpapers = {
         "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
         "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
         "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
-        "サイバー": "1535295972055-1c762f4483e5"
+        "サイバー": "1535295972055-1c762f4483e5", "シンプル": ""
     }
-    bg_css = f"background-color: #1E1E1E;"
-    if wallpaper_name in wallpapers:
-        id = wallpapers[wallpaper_name]
-        url = f"https://images.unsplash.com/photo-{id}?auto=format&fit=crop&w=1920&q=80"
-        bg_css += f'background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{url}"); background-attachment: fixed; background-size: cover;'
+    bg_url = f"https://images.unsplash.com/photo-{wallpapers.get(wallpaper, '')}?auto=format&fit=crop&w=1920&q=80" if wallpapers.get(wallpaper) else ""
     
+    bg_css = f"""
+        background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}");
+        background-attachment: fixed; background-size: cover; background-color: #1E1E1E;
+    """ if bg_url else "background-color: #1E1E1E;"
+
     st.markdown(f"""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
+    
     .stApp {{ {bg_css} }}
-    .stMarkdown, .stText, h1, h2, h3, p, span, div {{ color: #ffffff !important; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); }}
-    div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"], .task-container-box, .ranking-card {{
-        background-color: rgba(20, 20, 20, 0.9) !important; border-radius: 12px; padding: 15px; border: 1px solid rgba(255,255,255,0.3);
+    
+    html, body, [class*="css"] {{ font-family: {font_family} !important; color: #ffffff; }}
+    .stMarkdown, .stText, h1, h2, h3, p, span, div {{ color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }}
+    
+    div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
+        background-color: rgba(30, 30, 30, 0.85) !important;
+        border-radius: 15px;
+        padding: 20px;
+        border: 1px solid rgba(255,255,255,0.15);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }}
-    button[data-baseweb="tab"] {{ background-color: rgba(20, 20, 20, 0.9) !important; color: white !important; }}
-    button[aria-selected="true"] {{ background-color: #FF4B4B !important; }}
-    label {{ color: #FFD700 !important; font-weight: bold; }}
+    
+    .ranking-card {{
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        border: 1px solid rgba(255,255,255,0.2);
+    }}
+    .rank-num {{ font-size: 24px; font-weight: bold; width: 50px; text-align: center; margin-right: 15px; }}
+    .rank-name {{ font-size: 18px; font-weight: bold; }}
+    .rank-title {{ font-size: 14px; color: #FFD700 !important; }}
+    .rank-score {{ margin-left: auto; font-size: 20px; font-weight: bold; color: #00FF00 !important; }}
+    
+    button[kind="primary"] {{
+        background: linear-gradient(45deg, #FF4B4B, #FF914D) !important;
+        border: none !important;
+        transition: transform 0.2s;
+    }}
+    button[kind="primary"]:hover {{ transform: scale(1.05); }}
     </style>
     """, unsafe_allow_html=True)
 
 # --- 認証・DB操作 ---
-def make_hashes(password):
-    return hashlib.sha256(str.encode(password)).hexdigest()
-
-def check_hashes(password, hashed_text):
-    return make_hashes(password) == hashed_text
+def make_hashes(password): return hashlib.sha256(str.encode(password)).hexdigest()
+def check_hashes(password, hashed_text): return make_hashes(password) == hashed_text
 
 def login_user(username, password):
     try:
-        username = username.strip()
-        response = supabase.table("users").select("password").eq("username", username).execute()
-        if response.data:
-            if check_hashes(password, response.data[0]["password"]):
-                return True, "成功"
-        return False, "ユーザー名かパスワードが違います"
-    except Exception as e:
-        return False, f"エラー: {e}"
+        res = supabase.table("users").select("password").eq("username", username).execute()
+        if res.data and check_hashes(password, res.data[0]["password"]): return True, "成功"
+        return False, "IDまたはパスワードが違います"
+    except: return False, "エラー"
 
 def add_user(username, password, nickname):
     try:
-        data = {
-            "username": username.strip(),
-            "password": make_hashes(password.strip()),
-            "nickname": nickname.strip(),
-            "xp": 0, "coins": 0, "unlocked_themes": "標準",
-            "current_title": "見習い", "unlocked_titles": "見習い",
-            "current_wallpaper": "草原", "unlocked_wallpapers": "草原",
-            "current_bgm": "なし", "unlocked_bgm": "なし",
-            "custom_title_unlocked": False
-        }
+        data = {"username": username, "password": make_hashes(password), "nickname": nickname,
+                "xp": 0, "coins": 0, "unlocked_themes": "標準", "current_title": "見習い",
+                "unlocked_titles": "見習い", "current_wallpaper": "草原", "unlocked_wallpapers": "草原",
+                "current_bgm": "なし", "unlocked_bgm": "なし", "custom_title_unlocked": False}
         supabase.table("users").insert(data).execute()
         return True
-    except:
-        return False
+    except: return False
 
 def get_user_data(username):
     try:
@@ -127,491 +134,295 @@ def get_user_data(username):
         return res.data[0] if res.data else None
     except: return None
 
+# --- ランキングデータ取得 (称号対応) ---
+def get_weekly_ranking():
+    start = (datetime.now(JST) - timedelta(days=7)).strftime('%Y-%m-%d')
+    try:
+        logs = supabase.table("study_logs").select("username, duration_minutes").gte("study_date", start).execute()
+        if not logs.data: return pd.DataFrame()
+        df = pd.DataFrame(logs.data).groupby('username').sum().reset_index()
+        users = supabase.table("users").select("username, nickname, current_title").execute()
+        df_users = pd.DataFrame(users.data)
+        merged = pd.merge(df, df_users, on='username', how='left')
+        return merged.sort_values('duration_minutes', ascending=False)
+    except: return pd.DataFrame()
+
 # --- 科目管理 ---
 def get_subjects(username):
     try:
-        res = supabase.table("subjects").select("*").eq("username", username).execute()
-        return [row['subject_name'] for row in res.data]
+        res = supabase.table("subjects").select("subject_name").eq("username", username).execute()
+        return [r['subject_name'] for r in res.data]
     except: return []
 
-def add_subject_db(username, subject_name):
-    try:
-        supabase.table("subjects").insert({"username": username, "subject_name": subject_name}).execute()
-        return True
-    except: return False
+def add_subject_db(u, s): supabase.table("subjects").insert({"username": u, "subject_name": s}).execute()
+def delete_subject_db(u, s): supabase.table("subjects").delete().eq("username", u).eq("subject_name", s).execute()
 
-def delete_subject_db(username, subject_name):
-    try:
-        supabase.table("subjects").delete().eq("username", username).eq("subject_name", subject_name).execute()
-        return True
-    except: return False
+# --- ログ・タスク ---
+def add_study_log(u, s, m, d):
+    supabase.table("study_logs").insert({"username": u, "subject": s, "duration_minutes": m, "study_date": str(d)}).execute()
+    ud = get_user_data(u)
+    if ud: supabase.table("users").update({"xp": ud['xp']+m, "coins": ud['coins']+m}).eq("username", u).execute()
+    return m
 
-# --- タスク・ログ管理 ---
-def get_tasks(username):
-    try:
-        res = supabase.table("tasks").select("*").eq("username", username).execute()
-        df = pd.DataFrame(res.data)
-        if not df.empty:
-            df['status_rank'] = df['status'].apply(lambda x: 1 if x == '未完了' else 2)
-            df = df.sort_values(by=['status_rank', 'created_at'])
-        return df
-    except: return pd.DataFrame()
-
-def add_task(username, name, date, prio):
-    supabase.table("tasks").insert({"username": username, "task_name": name, "status": "未完了", "due_date": str(date), "priority": prio}).execute()
-
-def complete_tasks_bulk(ids, username, amount):
-    supabase.table("tasks").update({"status": "完了"}).in_("id", ids).execute()
-    u = get_user_data(username)
-    if u: supabase.table("users").update({"xp": u['xp'] + amount, "coins": u['coins'] + amount}).eq("username", username).execute()
-    return amount, u['xp'] + amount, u['coins'] + amount
-
-def delete_task(tid):
-    supabase.table("tasks").delete().eq("id", tid).execute()
-
-def add_study_log(username, subject, minutes, date_obj=None):
-    if date_obj is None:
-        date_str = datetime.now(JST).strftime('%Y-%m-%d')
-    else:
-        date_str = date_obj.strftime('%Y-%m-%d')
-        
-    data = {
-        "username": username,
-        "subject": subject,
-        "duration_minutes": minutes,
-        "study_date": date_str
-    }
-    supabase.table("study_logs").insert(data).execute()
-    
-    amount = minutes
-    user_data = get_user_data(username)
-    new_xp = user_data['xp'] if user_data else 0
-    new_coins = user_data['coins'] if user_data else 0
-    
-    if user_data:
-        new_xp = user_data.get('xp', 0) + amount
-        new_coins = user_data.get('coins', 0) + amount
-        supabase.table("users").update({"xp": new_xp, "coins": new_coins}).eq("username", username).execute()
-        
-    return amount, new_xp, new_coins
-
-def delete_study_log(lid, username, mins):
+def delete_study_log(lid, u, m):
     supabase.table("study_logs").delete().eq("id", lid).execute()
-    u = get_user_data(username)
-    if u: supabase.table("users").update({"xp": max(0, u['xp'] - mins), "coins": max(0, u['coins'] - mins)}).eq("username", username).execute()
+    ud = get_user_data(u)
+    if ud: supabase.table("users").update({"xp": max(0, ud['xp']-m), "coins": max(0, ud['coins']-m)}).eq("username", u).execute()
     return True
 
-def get_study_logs(username):
-    try:
-        res = supabase.table("study_logs").select("*").eq("username", username).execute()
-        df = pd.DataFrame(res.data)
-        return df.sort_values('created_at', ascending=False) if not df.empty else df
-    except: return pd.DataFrame()
+def get_study_logs(u):
+    res = supabase.table("study_logs").select("*").eq("username", u).order("created_at", desc=True).execute()
+    return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
-# ガチャリスト
-GACHA_TITLES = ["駆け出し冒険者", "夜更かしの達人", "努力の天才", "タスクスレイヤー", "週末の戦士", "無限の集中力", "数学の悪魔", "コードの魔術師", "文房具マスター", "伝説の勇者", "睡眠不足の神", "カフェイン中毒"]
+def get_tasks(u):
+    res = supabase.table("tasks").select("*").eq("username", u).order("due_date").execute()
+    return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
-def play_gacha(username, cost):
-    user_data = get_user_data(username)
-    current_coins = user_data.get('coins', 0)
-    current_titles = user_data.get('unlocked_titles', "見習い")
-    
-    if current_coins >= cost:
-        new_coins = current_coins - cost
-        won_title = random.choice(GACHA_TITLES)
-        if won_title not in current_titles.split(','):
-            new_titles = f"{current_titles},{won_title}"
-        else:
-            new_titles = current_titles
-        supabase.table("users").update({"coins": new_coins, "unlocked_titles": new_titles, "current_title": won_title}).eq("username", username).execute()
-        return True, won_title, new_coins
-    return False, None, current_coins
-
-def set_title(username, title):
-    supabase.table("users").update({"current_title": title}).eq("username", username).execute()
-
-def parse_correct_date(raw_date):
-    try:
-        if "T" in raw_date:
-            dt_utc = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
-            dt_jst = dt_utc.astimezone(JST)
-            return dt_jst.strftime('%Y-%m-%d')
-        else: return raw_date
-    except: return raw_date
-
-# --- 詳細ダイアログ ---
-@st.dialog("📅 記録の詳細")
-def show_detail_dialog(target_date, df_tasks, df_logs, username):
-    st.write(f"**{target_date}** の記録")
-    day_tasks = pd.DataFrame()
-    if not df_tasks.empty:
-        day_tasks = df_tasks[df_tasks['due_date'] == target_date]
-    day_logs = pd.DataFrame()
-    if not df_logs.empty:
-        day_logs = df_logs[df_logs['study_date'] == target_date]
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        st.info("📝 **タスク**")
-        if not day_tasks.empty:
-            for _, row in day_tasks.iterrows():
-                cc1, cc2 = st.columns([0.8, 0.2])
-                icon = "✅" if row['status'] == '完了' else "⬜"
-                cc1.write(f"{icon} {row['task_name']}")
-                if cc2.button("🗑️", key=f"del_task_cal_{row['id']}"):
-                    delete_task(row['id'])
-                    st.session_state["toast_msg"] = "タスクを削除しました"
-                    st.rerun()
-        else: st.caption("なし")
-    with c2:
-        st.success(f"📖 **勉強**")
-        if not day_logs.empty:
-            for _, row in day_logs.iterrows():
-                cc1, cc2 = st.columns([0.8, 0.2])
-                cc1.write(f"・{row['subject']}: {row['duration_minutes']}分")
-                if cc2.button("🗑️", key=f"del_log_cal_{row['id']}"):
-                    delete_study_log(row['id'], username, row['duration_minutes'])
-                    st.session_state["toast_msg"] = f"ログを削除 (-{row['duration_minutes']} XP/Coin)"
-                    st.rerun()
-        else: st.caption("なし")
-
-# --- カレンダー表示 ---
-def render_calendar_and_details(df_tasks, df_logs, unique_key, username):
-    st.subheader("📅 カレンダー")
-    events = []
-    if not df_tasks.empty:
-        for _, row in df_tasks.iterrows():
-            color = "#808080" if row['status'] == '完了' else "#FF4B4B" if row['priority']=="高" else "#1C83E1"
-            events.append({"title": f"📝 {row['task_name']}", "start": row['due_date'], "backgroundColor": color, "allDay": True})
-    if not df_logs.empty:
-        for _, row in df_logs.iterrows():
-            events.append({"title": f"📖 {row['subject']} ({row['duration_minutes']}m)", "start": row['study_date'], "backgroundColor": "#9C27B0", "borderColor": "#9C27B0", "allDay": True})
-    
-    cal_data = calendar(events=events, options={"initialView": "dayGridMonth", "height": 450}, callbacks=['dateClick', 'eventClick'], key=unique_key)
-    
-    if cal_data and cal_data != st.session_state.get("last_cal_event"):
-        st.session_state["last_cal_event"] = cal_data
-        raw = None
-        if "dateClick" in cal_data: raw = cal_data["dateClick"]["date"]
-        elif "eventClick" in cal_data: raw = cal_data["eventClick"]["event"]["start"]
-        if raw:
-            target = parse_correct_date(raw)
-            show_detail_dialog(target, df_tasks, df_logs, username)
-
-# --- その日のタスク ---
-def render_daily_task_list(df_tasks, unique_key):
-    st.subheader("📅 今日のクエスト")
-    c1, c2 = st.columns([0.5, 0.5])
-    with c1:
-        target_date = st.date_input("日付を確認", value=date.today(), key=f"date_{unique_key}")
-    day_tasks = pd.DataFrame()
-    if not df_tasks.empty:
-        day_tasks = df_tasks[df_tasks['due_date'] == str(target_date)]
-    st.markdown(f'<div class="task-container-box"><div style="border-bottom:1px solid #555; padding-bottom:5px; margin-bottom:10px; font-weight:bold; color:#FFD700;">📅 {target_date} のクエスト</div>', unsafe_allow_html=True)
-    if not day_tasks.empty:
-        active = day_tasks[day_tasks['status'] == '未完了']
-        if not active.empty:
-            for _, row in active.iterrows():
-                icon = "🔥" if row['priority'] == "高" else "⚠️" if row['priority'] == "中" else "🟢"
-                st.info(f"{icon} **{row['task_name']}**")
-        else: st.success("🎉 全クエスト完了！")
-    else: st.info("予定はありません。")
-    st.markdown('</div>', unsafe_allow_html=True)
+def add_task(u, n, d, p): supabase.table("tasks").insert({"username": u, "task_name": n, "status": "未完了", "due_date": str(d), "priority": p}).execute()
+def delete_task(tid): supabase.table("tasks").delete().eq("id", tid).execute()
+def complete_task(tid, u):
+    supabase.table("tasks").update({"status": "完了"}).eq("id", tid).execute()
+    ud = get_user_data(u)
+    if ud: supabase.table("users").update({"xp": ud['xp']+10, "coins": ud['coins']+10}).eq("username", u).execute()
 
 # --- メイン処理 ---
 def main():
-    # セッション初期化
-    if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
-    if "username" not in st.session_state: st.session_state["username"] = ""
-    if "is_studying" not in st.session_state: st.session_state["is_studying"] = False
-    if "celebrate" not in st.session_state: st.session_state["celebrate"] = False
-    if "toast_msg" not in st.session_state: st.session_state["toast_msg"] = None
-    if "start_time" not in st.session_state: st.session_state["start_time"] = None
-    if "current_subject" not in st.session_state: st.session_state["current_subject"] = ""
+    if "logged_in" not in st.session_state: st.session_state.update({"logged_in": False, "username": "", "is_studying": False, "start_time": None, "celebrate": False, "toast_msg": None})
 
-    st.title("✅ 褒めてくれる勉強時間・タスク管理アプリ")
-
-    # ログイン画面
     if not st.session_state["logged_in"]:
-        st.sidebar.title("🔐 ログイン")
-        choice = st.sidebar.selectbox("メニュー", ["ログイン", "新規登録"])
-        if choice == "ログイン":
-            st.subheader("ログイン")
-            u = st.text_input("ユーザー名")
-            p = st.text_input("パスワード", type='password')
+        st.title("🛡️ ログイン")
+        mode = st.selectbox("モード", ["ログイン", "新規登録"])
+        u = st.text_input("ユーザーID")
+        p = st.text_input("パスワード", type="password")
+        if mode == "新規登録":
+            n = st.text_input("ニックネーム")
+            if st.button("登録"):
+                if add_user(u, p, n): st.success("登録成功！ログインしてください")
+                else: st.error("エラー：IDが重複しています")
+        else:
             if st.button("ログイン"):
-                ok, msg = login_user(u, p)
-                if ok:
+                res, msg = login_user(u, p)
+                if res:
                     st.session_state["logged_in"] = True
-                    st.session_state["username"] = u.strip()
+                    st.session_state["username"] = u
                     st.rerun()
                 else: st.error(msg)
-        else:
-            st.subheader("新規登録")
-            nu = st.text_input("ユーザー名 (ID)")
-            np = st.text_input("パスワード", type='password')
-            nn = st.text_input("ニックネーム")
-            if st.button("登録"):
-                if nu and np and nn:
-                    if add_user(nu, np, nn): st.success("登録完了！"); st.rerun()
-                    else: st.error("そのIDは使われています。")
-                else: st.warning("全項目入力してください")
         return
 
-    # ユーザーロード
-    current_user = st.session_state["username"]
-    user = get_user_data(current_user)
-    if not user:
-        st.session_state["logged_in"] = False
-        st.rerun()
+    # ログイン後
+    user = get_user_data(st.session_state["username"])
+    if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # ★ 集中モード (待機画面 & BGM) ★
-    if st.session_state.get("is_studying", False):
-        st.markdown(f"### 🔥 {st.session_state.get('current_subject', '勉強')} を勉強中...")
-        
-        # BGM再生
-        bgm_name = user.get('current_bgm', 'なし')
-        if bgm_name in BGM_DATA and BGM_DATA[bgm_name]:
-            st.audio(BGM_DATA[bgm_name], format="audio/ogg", loop=True, autoplay=True)
-            st.caption(f"🎵 Now Playing: {bgm_name}")
+    # デザイン適用
+    apply_design(user.get('unlocked_themes', '標準').split(',')[0], user.get('current_wallpaper', '草原'))
 
-        now = time.time()
-        start = st.session_state.get("start_time")
-        if start is None: start = now
-        elapsed = int(now - start)
-        h, m, s = elapsed // 3600, (elapsed % 3600) // 60, elapsed % 60
+    # BGM再生 (集中モードのみ)
+    if st.session_state["is_studying"]:
+        bgm = user.get('current_bgm', 'なし')
+        if bgm != 'なし' and BGM_DATA.get(bgm):
+            st.audio(BGM_DATA[bgm], format="audio/ogg", loop=True, autoplay=True)
+
+    # サイドバー
+    with st.sidebar:
+        st.markdown(f"### 👤 {user['nickname']}")
+        st.markdown(f"**👑 {user.get('current_title', '見習い')}**")
+        st.progress(min(1.0, (user['xp'] % 100) / 100))
+        st.caption(f"Lv.{(user['xp']//100)+1} | XP: {user['xp']} | Coin: {user['coins']}")
         
-        st.markdown(f"""
-        <div style="text-align: center; font-size: 80px; font-weight: bold; color: #FF4B4B; background-color: rgba(0,0,0,0.5); padding: 20px; border-radius: 15px; margin: 50px 0;">
-            {h:02}:{m:02}:{s:02}
-        </div>
-        """, unsafe_allow_html=True)
+        if st.button("ログアウト"):
+            st.session_state["logged_in"] = False
+            st.rerun()
         
-        c1, c2, c3 = st.columns([1, 2, 1])
-        with c2:
-            if st.button("⏹️ 終了して記録", type="primary", use_container_width=True):
+        st.divider()
+        st.subheader("⚙️ 設定")
+        # 壁紙変更
+        walls = user['unlocked_wallpapers'].split(',')
+        cur_w = user.get('current_wallpaper', '草原')
+        new_w = st.selectbox("壁紙", walls, index=walls.index(cur_w) if cur_w in walls else 0)
+        if new_w != cur_w:
+            supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
+            st.rerun()
+        
+        # BGM変更
+        bgms = user.get('unlocked_bgm', 'なし').split(',')
+        if 'なし' not in bgms: bgms.insert(0, 'なし')
+        cur_b = user.get('current_bgm', 'なし')
+        new_b = st.selectbox("集中BGM", bgms, index=bgms.index(cur_b) if cur_b in bgms else 0)
+        if new_b != cur_b:
+            supabase.table("users").update({"current_bgm": new_b}).eq("username", user['username']).execute()
+            st.rerun()
+
+    # 集中モード画面
+    if st.session_state["is_studying"]:
+        st.empty()
+        st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state['current_subject']} 中...</h1>", unsafe_allow_html=True)
+        elapsed = int(time.time() - st.session_state["start_time"])
+        h, m, s = elapsed//3600, (elapsed%3600)//60, elapsed%60
+        st.markdown(f"<div style='text-align: center; font-size: 6em; font-weight: bold; color: #00FF00; text-shadow: 0 0 20px #00FF00;'>{h:02}:{m:02}:{s:02}</div>", unsafe_allow_html=True)
+        
+        col1, col2, col3 = st.columns([1,2,1])
+        with col2:
+            if st.button("⏹️ 終了して記録", use_container_width=True, type="primary"):
                 mins = max(1, elapsed // 60)
-                add_study_log(current_user, st.session_state.get("current_subject", "自習"), mins)
+                add_study_log(user['username'], st.session_state['current_subject'], mins, date.today())
                 st.session_state["is_studying"] = False
                 st.session_state["celebrate"] = True
-                st.session_state["toast_msg"] = f"{mins}分 完了！お疲れ様！"
                 st.rerun()
-        
         time.sleep(1)
         st.rerun()
         return
 
-    # 通常画面
-    apply_font(user.get('unlocked_themes', '標準').split(',')[0])
-    apply_wallpaper(user.get('current_wallpaper', '草原'))
-    if st.session_state.get("celebrate", False):
+    # メイン画面
+    if st.session_state.get("celebrate"):
         st.balloons()
         st.session_state["celebrate"] = False
+    
     if st.session_state.get("toast_msg"):
-        st.toast(st.session_state["toast_msg"], icon="🆙")
+        st.toast(st.session_state["toast_msg"])
         st.session_state["toast_msg"] = None
 
-    # サイドバー
-    with st.sidebar:
-        st.subheader(f"👤 {user['nickname']}")
-        if st.button("ログアウト"): st.session_state["logged_in"] = False; st.rerun()
-        st.divider()
-        
-        # BGM設定
-        st.write("🎵 **BGM設定**")
-        my_bgms = user.get('unlocked_bgm', 'なし').split(',')
-        if 'なし' not in my_bgms: my_bgms.insert(0, 'なし')
-        cur_bgm = user.get('current_bgm', 'なし')
-        try: bgm_idx = my_bgms.index(cur_bgm)
-        except: bgm_idx = 0
-        new_bgm = st.selectbox("集中時の音楽", my_bgms, index=bgm_idx)
-        if new_bgm != cur_bgm:
-            supabase.table("users").update({"current_bgm": new_bgm}).eq("username", current_user).execute()
-            st.rerun()
+    t1, t2, t3, t4, t5 = st.tabs(["⏱️ タイマー", "📝 タスク", "🏆 ランキング", "🛒 ショップ", "📚 科目"])
 
-        st.divider()
-        
-        # 科目管理機能
-        with st.expander("📚 科目管理"):
-            new_sub = st.text_input("科目を追加", placeholder="例: 数学")
-            if st.button("追加"):
-                if new_sub:
-                    if add_subject_db(current_user, new_sub): st.success("追加しました"); st.rerun()
+    with t1: # タイマー
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            st.subheader("🔥 集中モード")
+            subs = get_subjects(user['username'])
+            s_name = st.selectbox("科目", subs + ["その他"])
+            if s_name == "その他": s_name = st.text_input("科目名入力")
             
-            subjects = get_subjects(current_user)
-            if subjects:
-                st.write("登録済み:")
-                for sub in subjects:
-                    c_del1, c_del2 = st.columns([0.8, 0.2])
-                    c_del1.write(f"- {sub}")
-                    if c_del2.button("🗑️", key=f"del_sub_{sub}"):
-                        delete_subject_db(current_user, sub)
-                        st.rerun()
-            else:
-                st.caption("登録なし")
-
-        st.divider()
-        st.write("🔧 デザイン")
-        bg_op = st.slider("壁紙の暗さ", 0.0, 1.0, 0.4)
-        wall_list = user['unlocked_wallpapers'].split(',')
-        new_wall = st.selectbox("壁紙", wall_list, index=wall_list.index(user['current_wallpaper']) if user['current_wallpaper'] in wall_list else 0)
-        if new_wall != user['current_wallpaper']:
-            supabase.table("users").update({"current_wallpaper": new_wall}).eq("username", current_user).execute()
-            st.rerun()
-
-    # メインコンテンツ
-    level = (user['xp'] // 50) + 1
-    with st.container(border=True):
-        c1, c2, c3, c4 = st.columns([1, 1, 1, 2])
-        c1.metric("Lv", f"{level}")
-        c2.metric("XP", f"{user['xp']}")
-        c3.metric("Coin", f"{user['coins']} 💰")
-        c4.write(f"Next Lv: **{level*50 - user['xp']} XP**")
-        c4.progress(min(1.0, (user['xp'] % 50) / 50))
-
-    st.divider()
-    tasks = get_tasks(current_user)
-    logs = get_study_logs(current_user)
-    t1, t2, t3, t4 = st.tabs(["📝 ToDo", "⏱️ タイマー", "🏆 ランク", "🛒 ショップ"])
-
-    # ToDo
-    with t1:
-        col_a, col_b = st.columns([0.6, 0.4])
-        with col_a:
-            with st.expander("➕ タスク追加"):
-                with st.form("at"):
-                    n = st.text_input("タスク名")
-                    d = st.date_input("期限")
-                    if st.form_submit_button("追加"):
-                        add_task(current_user, n, d, "中"); st.session_state["toast_msg"]="追加！"; st.rerun()
-            if not tasks.empty:
-                for _, r in tasks[tasks['status']=='未完了'].iterrows():
-                    c1, c2 = st.columns([0.85, 0.15])
-                    if c1.button(f"✅ {r['task_name']}", key=f"t_{r['id']}"):
-                        complete_tasks_bulk([r['id']], current_user, 10); st.session_state["celebrate"]=True; st.rerun()
-                    if c2.button("🗑️", key=f"d_{r['id']}"): delete_task(r['id']); st.rerun()
-            else: st.info("タスクなし")
-        with col_b:
-            render_calendar_and_details(tasks, logs, "cal_todo", current_user)
-
-    # タイマー
-    with t2:
-        col_s1, col_s2 = st.columns([0.5, 0.5]) # ★ここを修正しました！
-        with col_s1:
-            st.subheader("勉強タイマー")
-            # 登録済み科目から選択できるように変更
-            subjects = get_subjects(current_user)
-            if subjects:
-                subj = st.selectbox("科目を選択", subjects + ["その他 (自由入力)"])
-                if subj == "その他 (自由入力)":
-                    subj = st.text_input("内容を入力", key="free_sub")
-            else:
-                subj = st.text_input("勉強する内容", placeholder="サイドバーで科目を登録できます", key="timer_sub")
-
-            if st.button("▶️ スタート", type="primary"):
-                if subj:
+            if st.button("スタート", type="primary", use_container_width=True):
+                if s_name:
                     st.session_state["is_studying"] = True
                     st.session_state["start_time"] = time.time()
-                    st.session_state["current_subject"] = subj
+                    st.session_state["current_subject"] = s_name
                     st.rerun()
-                else: st.warning("科目を選択してください")
-            
-            st.divider()
-            
-            # 手動記録フォーム
-            st.subheader("✏️ 手動記録")
-            with st.expander("入力フォームを開く", expanded=True):
-                with st.form("manual", clear_on_submit=True):
-                    c_date, c_time_h, c_time_m = st.columns([0.4, 0.3, 0.3])
-                    m_date = c_date.date_input("日付", value=date.today())
-                    mh = c_time_h.number_input("時間", 0, 24, 0)
-                    mm = c_time_m.number_input("分", 0, 59, 0)
-                    m_subj = st.text_input("教科 (Enterで記録)", placeholder="例: 数学")
-                    
-                    if st.form_submit_button("記録", type="primary"):
-                        total_m = (mh * 60) + mm
-                        if m_subj and total_m > 0:
-                            amt, nx, nc = add_study_log(current_user, m_subj, total_m, m_date)
-                            st.session_state["celebrate"] = True
-                            st.session_state["toast_msg"] = f"記録完了！ +{amt}XP & Coin"
-                            st.rerun()
-                        elif not m_subj:
-                            st.error("教科を入力してください")
-                        elif total_m <= 0:
-                            st.error("時間を入力してください")
-
-            if not logs.empty:
-                st.markdown("---")
-                st.subheader("📖 最近の記録 (削除可能)")
-                recent_logs = logs.head(5)
-                for _, row in recent_logs.iterrows():
-                    rc1, rc2, rc3 = st.columns([0.5, 0.3, 0.2])
-                    rc1.write(f"**{row['subject']}**")
-                    rc2.caption(f"{row['study_date']} / {row['duration_minutes']}分")
-                    if rc3.button("🗑️", key=f"del_{row['id']}"):
-                        if delete_study_log(row['id'], current_user, row['duration_minutes']):
-                            st.warning(f"削除しました (-{row['duration_minutes']} XP/Coin)")
-                            time.sleep(1)
-                            st.rerun()
-
-        with col_s2:
-            render_daily_task_list(tasks, "timer_list")
-
-    # ランキング
-    with t3:
-        st.subheader("週間ランキング")
-        start = (datetime.now(JST) - timedelta(days=7)).strftime('%Y-%m-%d')
-        res = supabase.table("study_logs").select("username, duration_minutes").gte("study_date", start).execute()
-        if res.data:
-            df_r = pd.DataFrame(res.data)
-            u_res = supabase.table("users").select("username, nickname").execute()
-            if u_res.data:
-                df_r = pd.merge(df_r, pd.DataFrame(u_res.data), on="username", how="left")
-                st.table(df_r.groupby('nickname').sum()[['duration_minutes']].sort_values('duration_minutes', ascending=False))
-        else: st.info("データなし")
-
-    # ショップ
-    with t4:
-        c_wall, c_bgm, c_gacha = st.columns(3)
-        with c_wall:
-            st.subheader("🖼️ 壁紙")
-            items = [("夕焼け", 800), ("夜空", 1000), ("ダンジョン", 1500), ("王宮", 2000), ("図書館", 1200), ("サイバー", 1800)]
-            for name, price in items:
-                with st.container(border=True):
-                    st.write(f"**{name}** ({price}G)")
-                    if name in user['unlocked_wallpapers'].split(','): st.button("済", disabled=True, key=f"w_{name}")
-                    else:
-                        if st.button("購入", key=f"bw_{name}"):
-                            if user['coins']>=price:
-                                nl = user['unlocked_wallpapers'] + f",{name}"
-                                supabase.table("users").update({"coins":user['coins']-price, "unlocked_wallpapers":nl}).eq("username",current_user).execute()
-                                st.balloons(); st.rerun()
-                            else: st.error("コイン不足")
         
-        with c_bgm:
-            st.subheader("🎵 BGM")
-            bgm_items = [("雨の音", 500), ("焚き火", 800), ("カフェ", 1000), ("川のせせらぎ", 1200), ("ホワイトノイズ", 1500)]
-            my_bgms = user.get('unlocked_bgm', 'なし').split(',')
-            for name, price in bgm_items:
-                with st.container(border=True):
-                    st.write(f"**{name}** ({price}G)")
-                    if name in my_bgms: st.button("済", disabled=True, key=f"bgm_{name}")
-                    else:
-                        if st.button("購入", key=f"bb_{name}"):
-                            if user['coins']>=price:
-                                nl = user.get('unlocked_bgm', 'なし') + f",{name}"
-                                supabase.table("users").update({"coins":user['coins']-price, "unlocked_bgm":nl}).eq("username",current_user).execute()
-                                st.balloons(); st.rerun()
-                            else: st.error("コイン不足")
+        with c2:
+            st.subheader("✏️ 手動記録")
+            with st.form("manual_log"):
+                md = st.date_input("日付")
+                mm = st.number_input("時間(分)", 1, 999, 30)
+                ms = st.text_input("科目", value=s_name if s_name != "その他" else "")
+                if st.form_submit_button("記録"):
+                    add_study_log(user['username'], ms, mm, md)
+                    st.session_state["toast_msg"] = "記録しました！"
+                    st.session_state["celebrate"] = True
+                    st.rerun()
+        
+        st.divider()
+        st.write("📖 **最近の記録**")
+        logs = get_study_logs(user['username'])
+        if not logs.empty:
+            for _, r in logs.head(5).iterrows():
+                lc1, lc2 = st.columns([0.8, 0.2])
+                lc1.write(f"・{r['subject']} ({r['duration_minutes']}分) - {r['study_date']}")
+                if lc2.button("削除", key=f"dl_{r['id']}"):
+                    if delete_study_log(r['id'], user['username'], r['duration_minutes']):
+                        st.session_state["toast_msg"] = "削除しました"
+                        st.rerun()
 
-        with c_gacha:
-            st.subheader("🎲 ガチャ (100G)")
-            if st.button("回す"):
-                if user['coins']>=100:
-                    won = random.choice(GACHA_TITLES)
-                    play_gacha(current_user, 100)
-                    st.success(f"🎉 {won}！"); st.balloons(); time.sleep(1); st.rerun()
-                else: st.error("コイン不足")
+    with t2: # タスク
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            tasks = get_tasks(user['username'])
+            if not tasks.empty:
+                for _, task in tasks.iterrows():
+                    if task['status'] == '未完了':
+                        cc1, cc2 = st.columns([0.8, 0.2])
+                        cc1.info(f"**{task['task_name']}** (期限: {task['due_date']})")
+                        if cc2.button("完了", key=f"c_{task['id']}"):
+                            complete_task(task['id'], user['username'])
+                            st.session_state["celebrate"] = True
+                            st.rerun()
+            else:
+                st.info("タスクはありません")
+        with c2:
+            with st.form("new_task"):
+                tn = st.text_input("タスク名")
+                td = st.date_input("期限")
+                tp = st.selectbox("優先度", ["高", "中", "低"])
+                if st.form_submit_button("追加"):
+                    add_task(user['username'], tn, td, tp)
+                    st.rerun()
+
+    with t3: # ランキング（豪華版）
+        st.subheader("🏆 週間ランキング")
+        df_rank = get_weekly_ranking()
+        if not df_rank.empty:
+            for i, row in df_rank.iterrows():
+                rank = i + 1
+                medal = "🥇" if rank==1 else "🥈" if rank==2 else "🥉" if rank==3 else f"{rank}位"
+                bg = "rgba(255,215,0,0.2)" if rank==1 else "rgba(192,192,192,0.2)" if rank==2 else "rgba(205,127,50,0.2)" if rank==3 else "transparent"
+                border = "2px solid #FFD700" if rank==1 else "1px solid #555"
+                
+                st.markdown(f"""
+                <div class="ranking-card" style="border: {border}; background: {bg};">
+                    <div class="rank-num">{medal}</div>
+                    <div style="flex-grow: 1;">
+                        <div class="rank-name">{row['nickname']}</div>
+                        <div class="rank-title">👑 {row.get('current_title', '見習い')}</div>
+                    </div>
+                    <div class="rank-score">{int(row['duration_minutes'])} min</div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("データが集計されていません")
+
+    with t4: # ショップ
+        st.write(f"所持コイン: **{user['coins']} 💰**")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("### 🖼️ 壁紙")
+            items = [("夕焼け", 500), ("夜空", 800), ("ダンジョン", 1200), ("王宮", 2000)]
+            for n, p in items:
+                if st.button(f"{n} ({p}G)", key=f"w_{n}", disabled=(n in user['unlocked_wallpapers'])):
+                    if user['coins'] >= p:
+                        nl = user['unlocked_wallpapers'] + f",{n}"
+                        supabase.table("users").update({"coins": user['coins']-p, "unlocked_wallpapers": nl}).eq("username", user['username']).execute()
+                        st.balloons()
+                        st.rerun()
+        with c2:
+            st.markdown("### 🎵 BGM")
+            items = [("雨の音", 300), ("焚き火", 500), ("カフェ", 800)]
+            for n, p in items:
+                if st.button(f"{n} ({p}G)", key=f"b_{n}", disabled=(n in user.get('unlocked_bgm', ''))):
+                    if user['coins'] >= p:
+                        nl = user.get('unlocked_bgm', 'なし') + f",{n}"
+                        supabase.table("users").update({"coins": user['coins']-p, "unlocked_bgm": nl}).eq("username", user['username']).execute()
+                        st.balloons()
+                        st.rerun()
+        with c3:
+            st.markdown("### 🎲 称号ガチャ")
+            if st.button("1回 100G", type="primary"):
+                if user['coins'] >= 100:
+                    titles = ["駆け出し", "努力家", "集中王", "夜更かし", "天才", "凡人", "覚醒者", "勇者"]
+                    got = random.choice(titles)
+                    # DB更新
+                    current_titles = user.get('unlocked_titles', '')
+                    if got not in current_titles:
+                        current_titles += f",{got}"
+                    supabase.table("users").update({
+                        "coins": user['coins']-100,
+                        "unlocked_titles": current_titles,
+                        "current_title": got
+                    }).eq("username", user['username']).execute()
+                    st.toast(f"🎉 称号『{got}』を獲得しました！")
+                    st.balloons()
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("コイン不足")
+
+    with t5: # 科目管理
+        new_s = st.text_input("科目追加")
+        if st.button("追加"):
+            if new_s: add_subject_db(user['username'], new_s); st.rerun()
+        st.write("登録済み:")
+        for s in get_subjects(user['username']):
+            c1, c2 = st.columns([0.8, 0.2])
+            c1.write(s)
+            if c2.button("削除", key=f"d_{s}"): delete_subject_db(user['username'], s); st.rerun()
 
 if __name__ == "__main__":
     main()

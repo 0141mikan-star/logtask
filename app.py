@@ -106,8 +106,8 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
         border: none !important; box-shadow: 0 4px 10px rgba(255, 75, 75, 0.4); font-weight: bold !important;
     }}
     
-    /* グラフ用文字色調整 */
-    canvas {{ filter: invert(1) hue-rotate(180deg); }} /* 簡易ダークモード対応 */
+    /* グラフ用色調整 */
+    canvas {{ filter: invert(1) hue-rotate(180deg); }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -189,7 +189,7 @@ def complete_task(tid, u):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": ud['xp']+10, "coins": ud['coins']+10}).eq("username", u).execute()
 
-# --- ★重要: タイマー更新フラグメント ---
+# --- タイマー更新フラグメント ---
 @st.fragment(run_every=1)
 def show_timer_fragment(user_name):
     now = time.time()
@@ -255,7 +255,7 @@ def main():
         show_timer_fragment(user['username'])
         return
 
-    # ★ HUD
+    # HUD
     level = (user['xp'] // 100) + 1
     next_xp = level * 100
     st.markdown(f"""
@@ -305,7 +305,7 @@ def main():
 
     t1, t2, t3, t4, t5, t6 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ", "📚 科目"])
 
-    with t1: # ToDo & Calendar
+    with t1: # ToDo
         c1, c2 = st.columns([0.6, 0.4])
         tasks = get_tasks(user['username'])
         logs = get_study_logs(user['username'])
@@ -320,7 +320,6 @@ def main():
                 events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": d_str, "color": "#00CC00"})
 
         with c1:
-            st.subheader("📅 カレンダー")
             cal = calendar(events=events, options={"initialView": "dayGridMonth", "height": 500}, callbacks=['dateClick'])
             if cal.get('dateClick'): st.session_state["selected_date"] = cal['dateClick']['date']
         
@@ -355,7 +354,7 @@ def main():
                     add_task(user['username'], tn, display_date, "中")
                     st.rerun()
 
-    with t2: # タイマー & 手動記録
+    with t2: # タイマー
         c1, c2 = st.columns([1, 1])
         with c1:
             st.subheader("🔥 集中モード")
@@ -399,21 +398,19 @@ def main():
                     delete_study_log(r['id'], user['username'], r['duration_minutes'])
                     st.rerun()
 
-    # ★ 分析タブ (新規追加)
-    with t3:
+    with t3: # 分析 (修正)
         st.subheader("📊 学習データ分析")
         if not logs.empty:
             logs['study_date'] = pd.to_datetime(logs['study_date'])
-            today = pd.Timestamp.now(JST).normalize()
+            # タイムゾーンをNaiveに揃える
+            today = pd.Timestamp.now(JST).normalize().tz_localize(None)
             
-            # KPI
             total_min = logs['duration_minutes'].sum()
             today_min = logs[logs['study_date'] == today]['duration_minutes'].sum()
             k1, k2 = st.columns(2)
             k1.metric("総勉強時間", f"{total_min//60}時間{total_min%60}分")
             k2.metric("今日の勉強時間", f"{today_min}分")
             
-            # グラフ1: 日別推移
             st.markdown("##### 📅 過去7日間の推移")
             last_7 = today - pd.Timedelta(days=6)
             recent = logs[logs['study_date'] >= last_7].copy()
@@ -427,7 +424,6 @@ def main():
                 st.altair_chart(chart, use_container_width=True)
             else: st.info("直近のデータがありません")
             
-            # グラフ2: 科目比率
             st.markdown("##### 📚 科目比率")
             sub_dist = logs.groupby('subject')['duration_minutes'].sum().reset_index()
             pie = alt.Chart(sub_dist).mark_arc(innerRadius=50).encode(
@@ -438,7 +434,7 @@ def main():
             st.altair_chart(pie, use_container_width=True)
         else: st.info("データがありません")
 
-    with t4: # ランキング (豪華版)
+    with t4: # ランキング
         st.subheader("🏆 週間ランキング")
         df_rank = get_weekly_ranking()
         if not df_rank.empty:
@@ -457,7 +453,7 @@ def main():
                 """, unsafe_allow_html=True)
         else: st.info("データなし")
 
-    with t5: # ショップ (豪華版)
+    with t5: # ショップ
         st.write("アイテムを購入してカスタマイズしよう！")
         
         st.markdown("### 🖼️ 壁紙")

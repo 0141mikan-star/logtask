@@ -90,21 +90,31 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    /* アプリ全体の背景を確実に上書き */
+    /* アプリ全体の背景 */
     [data-testid="stAppViewContainer"], .stApp {{
         {bg_style}
     }}
     
-    /* ヘッダーを透明化 */
+    /* ヘッダー透明化 */
     [data-testid="stHeader"] {{
         background-color: rgba(0,0,0,0);
     }}
 
-    /* フォント設定 */
+    /* ★サイドバーの背景を強制的に黒くする (ブラウザ設定対策) */
+    [data-testid="stSidebar"] {{
+        background-color: #1a1a1a !important;
+        border-right: 1px solid #333;
+    }}
+    /* サイドバー内の文字色を白に強制 */
+    [data-testid="stSidebar"] * {{
+        color: #ffffff !important;
+    }}
+
+    /* フォント設定 & 全体の文字色 */
     html, body, [class*="css"] {{ font-family: {font_family} !important; color: #ffffff; }}
     .stMarkdown, .stText, h1, h2, h3, p, span, div {{ color: #ffffff !important; text-shadow: none; }}
     
-    /* カードコンテナ (半透明の黒) */
+    /* カードコンテナ */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: rgba(30, 30, 30, 0.9) !important;
         border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.15);
@@ -141,6 +151,7 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
         border: none !important; box-shadow: 0 4px 10px rgba(255, 75, 75, 0.4); font-weight: bold !important;
     }}
     
+    /* グラフ用色調整 */
     canvas {{ filter: invert(1) hue-rotate(180deg); }}
     </style>
     """, unsafe_allow_html=True)
@@ -158,7 +169,6 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
-        # ★初期設定: 壁紙="真っ黒"
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
             "xp": 0, "coins": 0, 
@@ -283,9 +293,8 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # ★重要: 「草原」のままのユーザーを強制的に「真っ黒」に自動移行
+    # 自動移行: 草原→真っ黒
     if user.get('current_wallpaper') == "草原" and "真っ黒" not in user.get('unlocked_wallpapers', ''):
-        # 既存ユーザー救済措置: 草原から真っ黒へ
         supabase.table("users").update({
             "current_wallpaper": "真っ黒", 
             "unlocked_wallpapers": user.get('unlocked_wallpapers', '') + ",真っ黒"
@@ -326,7 +335,7 @@ def main():
     with st.sidebar:
         st.subheader("⚙️ 設定")
         
-        # 壁紙設定 (真っ黒対応)
+        # 壁紙設定 (真っ黒、プリセット、カスタム)
         walls = user['unlocked_wallpapers'].split(',')
         if "真っ黒" not in walls: walls.insert(0, "真っ黒")
         

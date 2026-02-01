@@ -6,6 +6,7 @@ import time
 from datetime import datetime, date, timedelta, timezone
 import hashlib
 from streamlit_calendar import calendar
+import altair as alt
 
 # ページ設定
 st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide")
@@ -16,11 +17,11 @@ JST = timezone(timedelta(hours=9))
 # --- BGMデータ ---
 BGM_DATA = {
     "なし": None,
-    "雨の音": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Rain_falling_on_leaves.ogg",
-    "焚き火": "https://upload.wikimedia.org/wikipedia/commons/6/66/Fire_crackling_sound_effect.ogg",
-    "カフェ": "https://upload.wikimedia.org/wikipedia/commons/3/3f/Cafe_noise.ogg",
-    "川のせせらぎ": "https://upload.wikimedia.org/wikipedia/commons/e/ec/River_Sound.ogg",
-    "ホワイトノイズ": "https://upload.wikimedia.org/wikipedia/commons/9/98/White_Noise.ogg"
+    "雨の音": "https://cdn.pixabay.com/audio/2022/05/17/audio_49448373b3.mp3",
+    "焚き火": "https://cdn.pixabay.com/audio/2022/01/18/audio_8db1f115a9.mp3",
+    "カフェ": "https://cdn.pixabay.com/audio/2021/08/09/audio_0dcdd5871f.mp3",
+    "川のせせらぎ": "https://cdn.pixabay.com/audio/2022/02/07/audio_6590920188.mp3",
+    "ホワイトノイズ": "https://cdn.pixabay.com/audio/2022/11/04/audio_30c2937666.mp3"
 }
 
 # --- Supabase接続設定 ---
@@ -35,9 +36,8 @@ def init_supabase():
 
 supabase = init_supabase()
 
-# --- デザイン適用関数 (超豪華版復活) ---
+# --- デザイン適用関数 ---
 def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
-    # フォント設定
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -48,7 +48,6 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
-    # 壁紙設定
     wallpapers = {
         "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
         "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
@@ -70,26 +69,16 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     html, body, [class*="css"] {{ font-family: {font_family} !important; color: #ffffff; }}
     .stMarkdown, .stText, h1, h2, h3, p, span, div {{ color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }}
     
-    /* コンテナ（カード）デザイン */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: rgba(30, 30, 30, 0.85) !important;
-        border-radius: 15px;
-        padding: 20px;
-        border: 1px solid rgba(255,255,255,0.15);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        backdrop-filter: blur(5px);
+        border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.15);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
     }}
 
-    /* ランキングカード */
     .ranking-card {{
         background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
-        border-radius: 12px;
-        padding: 15px;
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        border: 1px solid rgba(255,255,255,0.2);
-        transition: transform 0.2s;
+        border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
+        border: 1px solid rgba(255,255,255,0.2); transition: transform 0.2s;
     }}
     .ranking-card:hover {{ transform: scale(1.02); background: rgba(255,255,255,0.15); }}
     .rank-medal {{ font-size: 28px; width: 60px; text-align: center; }}
@@ -98,12 +87,10 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     .rank-title {{ font-size: 0.85em; color: #FFD700; }}
     .rank-score {{ font-size: 1.4em; font-weight: bold; color: #00FF00; text-shadow: 0 0 10px rgba(0,255,0,0.5); }}
 
-    /* ショップアイテム */
-    .shop-title {{ font-size: 1.1em; font-weight: bold; color: #fff; border-bottom: 1px solid #555; padding-bottom: 5px; margin-bottom: 10px; }}
-    .shop-price {{ font-size: 1.0em; color: #FFD700; font-weight: bold; }}
-    .shop-owned {{ color: #00FF00; border: 1px solid #00FF00; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; }}
+    .shop-title {{ font-size: 1.1em; font-weight: bold; color: #fff; margin-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom:3px; }}
+    .shop-price {{ font-size: 1.0em; color: #FFD700; font-weight: bold; margin-bottom: 8px; }}
+    .shop-owned {{ color: #00FF00; border: 1px solid #00FF00; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
 
-    /* ステータスバー (HUD) */
     .status-bar {{
         background: linear-gradient(90deg, #1a1a1a, #2d2d2d);
         padding: 15px; border-radius: 15px; border: 2px solid #444;
@@ -114,13 +101,13 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     .stat-label {{ font-size: 0.7em; color: #aaa; letter-spacing: 1px; }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; color: #fff; text-shadow: 0 0 5px rgba(255,255,255,0.5); }}
     
-    /* ボタン装飾 */
     button[kind="primary"] {{
         background: linear-gradient(45deg, #FF4B4B, #FF914D) !important;
-        border: none !important;
-        box-shadow: 0 4px 10px rgba(255, 75, 75, 0.4);
-        font-weight: bold !important;
+        border: none !important; box-shadow: 0 4px 10px rgba(255, 75, 75, 0.4); font-weight: bold !important;
     }}
+    
+    /* グラフ用文字色調整 */
+    canvas {{ filter: invert(1) hue-rotate(180deg); }} /* 簡易ダークモード対応 */
     </style>
     """, unsafe_allow_html=True)
 
@@ -258,17 +245,17 @@ def main():
     # デザイン適用
     apply_design(user.get('unlocked_themes', '標準').split(',')[0], user.get('current_wallpaper', '草原'))
 
-    # BGM再生 (Fragment外で一度だけ呼ぶ)
+    # BGM再生 (MP3版)
     if st.session_state["is_studying"]:
         st.empty()
         bgm = user.get('current_bgm', 'なし')
         if bgm != 'なし' and BGM_DATA.get(bgm):
-            st.audio(BGM_DATA[bgm], format="audio/ogg", loop=True, autoplay=True)
+            st.audio(BGM_DATA[bgm], format="audio/mp3", loop=True, autoplay=True)
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
         return
 
-    # ★ HUD (ステータスバー)
+    # ★ HUD
     level = (user['xp'] // 100) + 1
     next_xp = level * 100
     st.markdown(f"""
@@ -312,11 +299,11 @@ def main():
 
         if st.button("ログアウト"): st.session_state["logged_in"] = False; st.rerun()
 
-    # メイン処理
+    # メイン画面
     if st.session_state.get("celebrate"): st.balloons(); st.session_state["celebrate"] = False
     if st.session_state.get("toast_msg"): st.toast(st.session_state["toast_msg"]); st.session_state["toast_msg"] = None
 
-    t1, t2, t3, t4, t5 = st.tabs(["📝 ToDo", "⏱️ タイマー", "🏆 ランキング", "🛒 ショップ", "📚 科目"])
+    t1, t2, t3, t4, t5, t6 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ", "📚 科目"])
 
     with t1: # ToDo & Calendar
         c1, c2 = st.columns([0.6, 0.4])
@@ -333,6 +320,7 @@ def main():
                 events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": d_str, "color": "#00CC00"})
 
         with c1:
+            st.subheader("📅 カレンダー")
             cal = calendar(events=events, options={"initialView": "dayGridMonth", "height": 500}, callbacks=['dateClick'])
             if cal.get('dateClick'): st.session_state["selected_date"] = cal['dateClick']['date']
         
@@ -411,7 +399,46 @@ def main():
                     delete_study_log(r['id'], user['username'], r['duration_minutes'])
                     st.rerun()
 
-    with t3: # ランキング (豪華版)
+    # ★ 分析タブ (新規追加)
+    with t3:
+        st.subheader("📊 学習データ分析")
+        if not logs.empty:
+            logs['study_date'] = pd.to_datetime(logs['study_date'])
+            today = pd.Timestamp.now(JST).normalize()
+            
+            # KPI
+            total_min = logs['duration_minutes'].sum()
+            today_min = logs[logs['study_date'] == today]['duration_minutes'].sum()
+            k1, k2 = st.columns(2)
+            k1.metric("総勉強時間", f"{total_min//60}時間{total_min%60}分")
+            k2.metric("今日の勉強時間", f"{today_min}分")
+            
+            # グラフ1: 日別推移
+            st.markdown("##### 📅 過去7日間の推移")
+            last_7 = today - pd.Timedelta(days=6)
+            recent = logs[logs['study_date'] >= last_7].copy()
+            if not recent.empty:
+                chart = alt.Chart(recent).mark_bar().encode(
+                    x=alt.X('study_date:T', title='日付', axis=alt.Axis(format='%m/%d')),
+                    y=alt.Y('duration_minutes:Q', title='時間(分)'),
+                    color=alt.Color('subject:N', title='科目'),
+                    tooltip=['study_date', 'subject', 'duration_minutes']
+                ).properties(height=300)
+                st.altair_chart(chart, use_container_width=True)
+            else: st.info("直近のデータがありません")
+            
+            # グラフ2: 科目比率
+            st.markdown("##### 📚 科目比率")
+            sub_dist = logs.groupby('subject')['duration_minutes'].sum().reset_index()
+            pie = alt.Chart(sub_dist).mark_arc(innerRadius=50).encode(
+                theta=alt.Theta(field="duration_minutes", type="quantitative"),
+                color=alt.Color(field="subject", type="nominal"),
+                tooltip=['subject', 'duration_minutes']
+            ).properties(height=300)
+            st.altair_chart(pie, use_container_width=True)
+        else: st.info("データがありません")
+
+    with t4: # ランキング (豪華版)
         st.subheader("🏆 週間ランキング")
         df_rank = get_weekly_ranking()
         if not df_rank.empty:
@@ -430,7 +457,7 @@ def main():
                 """, unsafe_allow_html=True)
         else: st.info("データなし")
 
-    with t4: # ショップ (豪華版)
+    with t5: # ショップ (豪華版)
         st.write("アイテムを購入してカスタマイズしよう！")
         
         st.markdown("### 🖼️ 壁紙")
@@ -478,6 +505,7 @@ def main():
             with st.container(border=True):
                 st.markdown("<div class='shop-title'>🎲 称号ガチャ</div>", unsafe_allow_html=True)
                 st.markdown("<div class='shop-price'>100 G</div>", unsafe_allow_html=True)
+                st.caption("ランダムな称号をゲット！")
                 if st.button("ガチャを回す", type="primary", use_container_width=True):
                     if user['coins'] >= 100:
                         got = random.choice(["駆け出し", "努力家", "集中王", "夜更かし", "天才", "覚醒者", "大賢者", "神童"])
@@ -494,6 +522,7 @@ def main():
             with st.container(border=True):
                 st.markdown("<div class='shop-title'>👑 自由称号パス</div>", unsafe_allow_html=True)
                 st.markdown("<div class='shop-price'>9999 G</div>", unsafe_allow_html=True)
+                st.caption("好きな称号を自由に設定可能！")
                 if user.get('custom_title_unlocked'):
                     st.button("✅ 購入済み", disabled=True, use_container_width=True)
                 else:
@@ -503,7 +532,7 @@ def main():
                             st.balloons(); st.rerun()
                         else: st.error("不足")
 
-    with t5: # 科目
+    with t6: # 科目
         new_s = st.text_input("科目追加")
         if st.button("追加"):
             if new_s: add_subject_db(user['username'], new_s); st.rerun()

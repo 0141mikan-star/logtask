@@ -100,20 +100,24 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
         background-color: rgba(0,0,0,0);
     }}
 
-    /* ★サイドバーの視認性修正★ */
+    /* ★サイドバー修正: 見出しとラベルだけ白くする（入力欄の中身は触らない） */
     [data-testid="stSidebar"] {{
-        background-color: #1a1a1a !important; /* 背景は黒系 */
+        background-color: #1a1a1a !important;
         border-right: 1px solid #333;
     }}
-    /* ラベルや見出しのみ白くする（入力ボックス内の文字色はブラウザ標準に任せる） */
-    [data-testid="stSidebar"] h1,
-    [data-testid="stSidebar"] h2,
-    [data-testid="stSidebar"] h3,
-    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] h1, 
+    [data-testid="stSidebar"] h2, 
+    [data-testid="stSidebar"] h3, 
+    [data-testid="stSidebar"] p, 
     [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] .stMarkdown,
-    [data-testid="stSidebar"] .stExpander {{
+    [data-testid="stSidebar"] .stMarkdown {{
         color: #ffffff !important;
+    }}
+    /* 入力ボックス内のテキスト色を黒（またはブラウザ標準）に戻す */
+    [data-testid="stSidebar"] input, 
+    [data-testid="stSidebar"] select, 
+    [data-testid="stSidebar"] div[data-baseweb="select"] span {{
+        color: inherit !important; 
     }}
 
     /* メイン画面のフォント設定 */
@@ -178,7 +182,6 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
-        # ★初期設定: 壁紙="真っ黒"
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
             "xp": 0, "coins": 0, 
@@ -315,7 +318,7 @@ def main():
     # デザイン適用
     apply_design(user.get('current_theme', '標準'), user.get('current_wallpaper', '真っ黒'), user.get('custom_bg_data'))
 
-    # BGM再生
+    # BGM再生 (強制再生ボタン付き)
     if st.session_state["is_studying"]:
         st.empty()
         bgm_key = user.get('current_bgm', 'なし')

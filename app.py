@@ -14,7 +14,7 @@ st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理�
 # --- 日本時間 (JST) の定義 ---
 JST = timezone(timedelta(hours=9))
 
-# --- BGMデータ ---
+# --- BGMデータ (MP3) ---
 BGM_DATA = {
     "なし": None,
     "雨の音": "https://cdn.pixabay.com/audio/2022/05/17/audio_49448373b3.mp3",
@@ -38,7 +38,6 @@ supabase = init_supabase()
 
 # --- デザイン適用関数 ---
 def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
-    # フォント設定
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -67,10 +66,8 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
     .stApp {{ {bg_css} }}
-    
-    /* フォント適用 */
-    html, body, [class*="css"], button, input, textarea, div {{ font-family: {font_family} !important; color: #ffffff; }}
-    .stMarkdown, .stText, h1, h2, h3, p, span {{ color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }}
+    html, body, [class*="css"] {{ font-family: {font_family} !important; color: #ffffff; }}
+    .stMarkdown, .stText, h1, h2, h3, p, span, div {{ color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }}
     
     /* カードコンテナ */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
@@ -92,12 +89,12 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     .rank-title {{ font-size: 0.85em; color: #FFD700; }}
     .rank-score {{ font-size: 1.4em; font-weight: bold; color: #00FF00; text-shadow: 0 0 10px rgba(0,255,0,0.5); }}
 
-    /* ショップアイテムカード */
+    /* ショップアイテム */
     .shop-title {{ font-size: 1.1em; font-weight: bold; color: #fff; margin-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom:3px; }}
     .shop-price {{ font-size: 1.0em; color: #FFD700; font-weight: bold; margin-bottom: 8px; }}
     .shop-owned {{ color: #00FF00; border: 1px solid #00FF00; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
 
-    /* ステータスバー (HUD) */
+    /* ステータスバー */
     .status-bar {{
         background: linear-gradient(90deg, #1a1a1a, #2d2d2d);
         padding: 15px; border-radius: 15px; border: 2px solid #444;
@@ -196,6 +193,22 @@ def complete_task(tid, u):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": ud['xp']+10, "coins": ud['coins']+10}).eq("username", u).execute()
 
+# --- ★ BGM強制再生用関数 (HTML埋め込み) ---
+def play_bgm_html(bgm_url):
+    if bgm_url:
+        # autoplayとloop属性をつけたaudioタグを直接埋め込む
+        # volumeはJavaScriptで制御 (0.2 = 20%)
+        html_code = f"""
+        <audio autoplay loop id="bgm_audio">
+            <source src="{bgm_url}" type="audio/mp3">
+        </audio>
+        <script>
+            var audio = document.getElementById("bgm_audio");
+            audio.volume = 0.2; 
+        </script>
+        """
+        st.markdown(html_code, unsafe_allow_html=True)
+
 # --- タイマー更新フラグメント ---
 @st.fragment(run_every=1)
 def show_timer_fragment(user_name):
@@ -249,15 +262,19 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # デザイン適用 (★フォント機能復活)
+    # デザイン適用
     apply_design(user.get('current_theme', '標準'), user.get('current_wallpaper', '草原'))
 
-    # BGM再生
+    # ★ 集中モード (待機画面)
     if st.session_state["is_studying"]:
         st.empty()
-        bgm = user.get('current_bgm', 'なし')
-        if bgm != 'なし' and BGM_DATA.get(bgm):
-            st.audio(BGM_DATA[bgm], format="audio/mp3", loop=True, autoplay=True)
+        
+        # BGM再生 (HTML埋め込み方式)
+        bgm_name = user.get('current_bgm', 'なし')
+        if bgm_name != 'なし' and BGM_DATA.get(bgm_name):
+            play_bgm_html(BGM_DATA[bgm_name])
+            st.caption(f"🎵 Now Playing: {bgm_name} (音が鳴らない場合は画面をクリックしてください)")
+
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
         return
@@ -286,7 +303,7 @@ def main():
             supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
             st.rerun()
         
-        # ★フォント設定 (復活！)
+        # フォント設定
         themes = user.get('unlocked_themes', '標準').split(',')
         new_t = st.selectbox("フォント", themes, index=themes.index(user.get('current_theme', '標準')) if user.get('current_theme') in themes else 0)
         if new_t != user.get('current_theme'):
@@ -481,7 +498,7 @@ def main():
                 """, unsafe_allow_html=True)
         else: st.info("データなし")
 
-    with t5: # ショップ (★フォント復活)
+    with t5: # ショップ (フォント購入機能あり)
         st.write("アイテムを購入してカスタマイズしよう！")
         
         # フォントショップ
@@ -578,7 +595,7 @@ def main():
                         if user['coins'] >= 9999:
                             supabase.table("users").update({"coins": user['coins']-9999, "custom_title_unlocked": True}).eq("username", user['username']).execute()
                             st.balloons(); st.rerun()
-                        else: st.error("コイン不足")
+                        else: st.error("不足")
 
     with t6: # 科目
         new_s = st.text_input("科目追加")
@@ -592,4 +609,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

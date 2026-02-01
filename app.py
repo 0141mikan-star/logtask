@@ -57,52 +57,63 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
-    # 背景CSSの生成
-    bg_css = "background-color: #000000;" # デフォルトは真っ黒
+    # 背景CSS設定
+    bg_style = """
+        background-color: #000000 !important;
+        background-image: none !important;
+    """
     
-    if wallpaper == "真っ黒":
-        bg_css = "background-color: #000000;"
-    elif wallpaper == "カスタム" and custom_data:
-        bg_css = f"""
-            background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("data:image/png;base64,{custom_data}");
-            background-attachment: fixed; background-size: cover; background-position: center;
+    if wallpaper == "カスタム" and custom_data:
+        bg_style = f"""
+            background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("data:image/png;base64,{custom_data}") !important;
+            background-attachment: fixed !important;
+            background-size: cover !important;
+            background-position: center !important;
         """
-    else:
+    elif wallpaper != "真っ黒":
         wallpapers = {
             "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
             "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
             "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
             "サイバー": "1535295972055-1c762f4483e5"
         }
-        # 指定された壁紙が辞書にある場合のみ画像適用
         if wallpaper in wallpapers:
             img_id = wallpapers[wallpaper]
             bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
-            bg_css = f"""
-                background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}");
-                background-attachment: fixed; background-size: cover;
+            bg_style = f"""
+                background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}") !important;
+                background-attachment: fixed !important;
+                background-size: cover !important;
             """
 
     st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    .stApp {{ {bg_css} }}
+    /* アプリ全体の背景を確実に上書き */
+    [data-testid="stAppViewContainer"], .stApp {{
+        {bg_style}
+    }}
     
-    /* 全体フォント設定 */
+    /* ヘッダーを透明化 */
+    [data-testid="stHeader"] {{
+        background-color: rgba(0,0,0,0);
+    }}
+
+    /* フォント設定 */
     html, body, [class*="css"] {{ font-family: {font_family} !important; color: #ffffff; }}
-    .stMarkdown, .stText, h1, h2, h3, p, span, div {{ color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }}
+    .stMarkdown, .stText, h1, h2, h3, p, span, div {{ color: #ffffff !important; text-shadow: none; }}
     
-    /* カードコンテナ */
+    /* カードコンテナ (半透明の黒) */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
-        background-color: rgba(20, 20, 20, 0.9) !important;
+        background-color: rgba(30, 30, 30, 0.9) !important;
         border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.15);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.8); backdrop-filter: blur(5px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }}
 
     /* ランキングカード */
     .ranking-card {{
-        background: linear-gradient(90deg, rgba(50,50,50,0.5), rgba(30,30,30,0.5));
+        background: linear-gradient(90deg, rgba(60,60,60,0.6), rgba(40,40,40,0.6));
         border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
         border: 1px solid rgba(255,255,255,0.2);
     }}
@@ -110,7 +121,7 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
     .rank-info {{ flex-grow: 1; }}
     .rank-name {{ font-size: 1.2em; font-weight: bold; color: #fff; }}
     .rank-title {{ font-size: 0.85em; color: #FFD700; }}
-    .rank-score {{ font-size: 1.4em; font-weight: bold; color: #00FF00; text-shadow: 0 0 10px rgba(0,255,0,0.5); }}
+    .rank-score {{ font-size: 1.4em; font-weight: bold; color: #00FF00; }}
 
     /* ショップアイテム */
     .shop-title {{ font-size: 1.1em; font-weight: bold; color: #fff; margin-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom:3px; }}
@@ -119,10 +130,9 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
 
     /* HUD */
     .status-bar {{
-        background: linear-gradient(90deg, #000000, #1a1a1a);
-        padding: 15px; border-radius: 15px; border: 2px solid #333;
+        background: #111111;
+        padding: 15px; border-radius: 15px; border: 1px solid #444;
         display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
-        box-shadow: 0 0 15px rgba(0,0,0,1.0);
     }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; color: #fff; }}
     
@@ -148,7 +158,7 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
-        # ★初期壁紙を「真っ黒」に設定
+        # ★初期設定: 壁紙="真っ黒"
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
             "xp": 0, "coins": 0, 
@@ -273,7 +283,17 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # デザイン適用 (★真っ黒対応)
+    # ★重要: 「草原」のままのユーザーを強制的に「真っ黒」に自動移行
+    if user.get('current_wallpaper') == "草原" and "真っ黒" not in user.get('unlocked_wallpapers', ''):
+        # 既存ユーザー救済措置: 草原から真っ黒へ
+        supabase.table("users").update({
+            "current_wallpaper": "真っ黒", 
+            "unlocked_wallpapers": user.get('unlocked_wallpapers', '') + ",真っ黒"
+        }).eq("username", user['username']).execute()
+        user['current_wallpaper'] = "真っ黒"
+        st.rerun()
+
+    # デザイン適用
     apply_design(user.get('current_theme', '標準'), user.get('current_wallpaper', '真っ黒'), user.get('custom_bg_data'))
 
     # BGM再生 (強制再生ボタン付き)
@@ -306,9 +326,8 @@ def main():
     with st.sidebar:
         st.subheader("⚙️ 設定")
         
-        # 壁紙設定 (真っ黒、プリセット、カスタム)
+        # 壁紙設定 (真っ黒対応)
         walls = user['unlocked_wallpapers'].split(',')
-        # リストに「真っ黒」がなければ追加 (既存ユーザー互換)
         if "真っ黒" not in walls: walls.insert(0, "真っ黒")
         
         if user.get('custom_wallpaper_unlocked'):
@@ -385,7 +404,7 @@ def main():
 
     t1, t2, t3, t4, t5, t6 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ", "📚 科目"])
 
-    with t1: # ToDo
+    with t1: # ToDo & Calendar
         c1, c2 = st.columns([0.6, 0.4])
         tasks = get_tasks(user['username'])
         logs = get_study_logs(user['username'])

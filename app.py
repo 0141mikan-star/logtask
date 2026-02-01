@@ -9,6 +9,7 @@ import altair as alt
 import io
 import base64
 from PIL import Image
+import hashlib  # ★ここが重要です！
 
 # ページ設定
 st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide")
@@ -94,6 +95,11 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_o
         border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
         border: 1px solid rgba(255,255,255,0.2);
     }}
+    .rank-medal {{ font-size: 28px; width: 60px; text-align: center; }}
+    .rank-info {{ flex-grow: 1; }}
+    .rank-name {{ font-size: 1.2em; font-weight: bold; color: #fff; }}
+    .rank-title {{ font-size: 0.85em; color: #FFD700; }}
+    .rank-score {{ font-size: 1.4em; font-weight: bold; color: #00FF00; text-shadow: 0 0 10px rgba(0,255,0,0.5); }}
     .shop-title {{ font-size: 1.1em; font-weight: bold; color: #fff; margin-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom:3px; }}
     .shop-price {{ font-size: 1.0em; color: #FFD700; font-weight: bold; margin-bottom: 8px; }}
     .shop-owned {{ color: #00FF00; border: 1px solid #00FF00; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
@@ -113,8 +119,11 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_o
     """, unsafe_allow_html=True)
 
 # --- 認証・DB操作 ---
-def make_hashes(password): return hashlib.sha256(str.encode(password)).hexdigest()
-def check_hashes(password, hashed_text): return make_hashes(password) == hashed_text
+def make_hashes(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
+
+def check_hashes(password, hashed_text):
+    return make_hashes(password) == hashed_text
 
 def login_user(username, password):
     try:
@@ -123,7 +132,6 @@ def login_user(username, password):
         return False, "IDまたはパスワードが違います"
     except Exception as e: return False, f"エラー: {e}"
 
-# ★エラー詳細を表示するように修正★
 def add_user(username, password, nickname):
     try:
         data = {
@@ -233,13 +241,11 @@ def main():
         if mode == "新規登録":
             n = st.text_input("ニックネーム")
             if st.button("登録"):
-                # ★ここでエラー詳細を表示するように変更★
                 success, msg = add_user(u, p, n)
                 if success:
                     st.success(msg)
                 else:
                     st.error(msg)
-                    st.warning("⚠️ エラーが出る場合、SupabaseのSQLエディタでテーブル再作成SQLを実行してください。")
         else:
             if st.button("ログイン"):
                 res, msg = login_user(u, p)
@@ -338,18 +344,18 @@ def main():
                     sel_t = st.selectbox("獲得済み", my_titles, index=idx)
                     if st.button("装備", key="eq_list"):
                         supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
-                        st.rerun()
+                        st.toast("装備を変更しました！"); time.sleep(1); st.rerun()
                 with tab_custom:
                     custom_t = st.text_input("名前を入力", value=current)
                     if st.button("設定", key="eq_custom"):
                         supabase.table("users").update({"current_title": custom_t}).eq("username", user['username']).execute()
-                        st.rerun()
+                        st.toast("称号を設定しました！"); time.sleep(1); st.rerun()
             else:
                 idx = my_titles.index(current) if current in my_titles else 0
                 sel_t = st.selectbox("獲得済み", my_titles, index=idx)
                 if st.button("装備", key="eq_only_list"):
                     supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
-                    st.rerun()
+                    st.toast("装備を変更しました！"); time.sleep(1); st.rerun()
 
         if st.button("ログアウト"): st.session_state["logged_in"] = False; st.rerun()
 
@@ -359,7 +365,7 @@ def main():
 
     t1, t2, t3, t4, t5, t6 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ", "📚 科目"])
 
-    with t1: # ToDo
+    with t1: # ToDo & Calendar
         c1, c2 = st.columns([0.6, 0.4])
         tasks = get_tasks(user['username'])
         logs = get_study_logs(user['username'])
@@ -374,6 +380,7 @@ def main():
                 events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": d_str, "color": "#00CC00"})
 
         with c1:
+            st.subheader("📅 カレンダー")
             cal = calendar(events=events, options={"initialView": "dayGridMonth", "height": 500}, callbacks=['dateClick'])
             if cal.get('dateClick'): st.session_state["selected_date"] = cal['dateClick']['date']
         
@@ -566,19 +573,22 @@ def main():
             with st.container(border=True):
                 st.markdown("<div class='shop-title'>🎲 称号ガチャ</div>", unsafe_allow_html=True)
                 st.markdown("<div class='shop-price'>100 G</div>", unsafe_allow_html=True)
+                st.caption("ランダムな称号をゲット！")
                 if st.button("ガチャを回す", type="primary", use_container_width=True):
                     if user['coins'] >= 100:
                         got = random.choice(["駆け出し", "努力家", "集中王", "夜更かし", "天才", "覚醒者", "大賢者", "神童"])
                         current = user.get('unlocked_titles', '')
                         if got not in current: current += f",{got}"
                         supabase.table("users").update({"coins": user['coins']-100, "unlocked_titles": current, "current_title": got}).eq("username", user['username']).execute()
-                        st.toast(f"🎉 称号『{got}』を獲得しました！"); st.balloons(); time.sleep(1); st.rerun()
+                        st.toast(f"🎉 称号『{got}』を獲得しました！")
+                        st.balloons(); time.sleep(1); st.rerun()
                     else: st.error("コイン不足")
         
         with c2:
             with st.container(border=True):
                 st.markdown("<div class='shop-title'>👑 自由称号パス</div>", unsafe_allow_html=True)
                 st.markdown("<div class='shop-price'>9999 G</div>", unsafe_allow_html=True)
+                st.caption("好きな称号を自由に設定可能！")
                 if user.get('custom_title_unlocked'):
                     st.button("✅ 購入済み", disabled=True, use_container_width=True, key="done_pass")
                 else:

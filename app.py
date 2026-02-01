@@ -4,9 +4,11 @@ import pandas as pd
 import random
 import time
 from datetime import datetime, date, timedelta, timezone
-import hashlib
 from streamlit_calendar import calendar
 import altair as alt
+from PIL import Image
+import io
+import base64
 
 # ページ設定
 st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide")
@@ -14,14 +16,14 @@ st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理�
 # --- 日本時間 (JST) の定義 ---
 JST = timezone(timedelta(hours=9))
 
-# --- BGMデータ (安定したMP3ソースに変更) ---
+# --- BGMデータ ---
 BGM_DATA = {
     "なし": None,
-    "雨の音": "https://upload.wikimedia.org/wikipedia/commons/2/29/Thunder_storm_and_rain_sounds.ogg", # OGGは多くのブラウザで動作
-    "焚き火": "https://upload.wikimedia.org/wikipedia/commons/e/e3/Campfire_sound_effect.ogg",
-    "カフェ": "https://upload.wikimedia.org/wikipedia/commons/5/52/Cafeteria_noise.ogg",
-    "川のせせらぎ": "https://upload.wikimedia.org/wikipedia/commons/5/54/River_Snoring_Forest_Nature_Sounds.ogg",
-    "ホワイトノイズ": "https://upload.wikimedia.org/wikipedia/commons/c/c4/Radio_Static.ogg"
+    "雨の音": {"url": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Rain_falling_on_leaves.ogg", "type": "audio/ogg"},
+    "焚き火": {"url": "https://upload.wikimedia.org/wikipedia/commons/6/66/Fire_crackling_sound_effect.ogg", "type": "audio/ogg"},
+    "カフェ": {"url": "https://upload.wikimedia.org/wikipedia/commons/5/52/Cafeteria_noise.ogg", "type": "audio/ogg"},
+    "川のせせらぎ": {"url": "https://upload.wikimedia.org/wikipedia/commons/5/54/River_Snoring_Forest_Nature_Sounds.ogg", "type": "audio/ogg"},
+    "ホワイトノイズ": {"url": "https://upload.wikimedia.org/wikipedia/commons/9/98/White_Noise.ogg", "type": "audio/ogg"}
 }
 
 # --- Supabase接続設定 ---
@@ -36,8 +38,14 @@ def init_supabase():
 
 supabase = init_supabase()
 
+# --- 画像処理関数 ---
+def image_to_base64(img):
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode()
+
 # --- デザイン適用関数 ---
-def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
+def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_opacity=0.4):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -48,18 +56,33 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
-    wallpapers = {
-        "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
-        "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
-        "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
-        "サイバー": "1535295972055-1c762f4483e5", "シンプル": ""
-    }
-    bg_url = f"https://images.unsplash.com/photo-{wallpapers.get(wallpaper, '')}?auto=format&fit=crop&w=1920&q=80" if wallpapers.get(wallpaper) else ""
+    # 壁紙ロジック
+    bg_css = "background-color: #1E1E1E;" # デフォルト
     
-    bg_css = f"""
-        background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}");
-        background-attachment: fixed; background-size: cover; background-color: #1E1E1E;
-    """ if bg_url else "background-color: #1E1E1E;"
+    if wallpaper == "カスタム" and custom_data:
+        # ユーザーのカスタム画像を使用
+        bg_css = f"""
+            background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("data:image/png;base64,{custom_data}");
+            background-attachment: fixed; background-size: cover; background-position: center;
+        """
+    else:
+        # プリセット画像を使用
+        wallpapers = {
+            "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
+            "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
+            "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
+            "サイバー": "1535295972055-1c762f4483e5", "シンプル": ""
+        }
+        # 指定がない、または辞書にない場合は「草原」をデフォルトにする
+        if wallpaper not in wallpapers: wallpaper = "草原"
+        
+        img_id = wallpapers.get(wallpaper, "")
+        if img_id:
+            bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
+            bg_css = f"""
+                background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}");
+                background-attachment: fixed; background-size: cover;
+            """
 
     st.markdown(f"""
     <style>
@@ -78,9 +101,8 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     .ranking-card {{
         background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
         border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
-        border: 1px solid rgba(255,255,255,0.2); transition: transform 0.2s;
+        border: 1px solid rgba(255,255,255,0.2);
     }}
-    .ranking-card:hover {{ transform: scale(1.02); background: rgba(255,255,255,0.15); }}
     .rank-medal {{ font-size: 28px; width: 60px; text-align: center; }}
     .rank-info {{ flex-grow: 1; }}
     .rank-name {{ font-size: 1.2em; font-weight: bold; color: #fff; }}
@@ -124,9 +146,11 @@ def login_user(username, password):
 def add_user(username, password, nickname):
     try:
         data = {"username": username, "password": make_hashes(password), "nickname": nickname,
-                "xp": 0, "coins": 0, "unlocked_themes": "標準", "current_title": "見習い",
-                "unlocked_titles": "見習い", "current_wallpaper": "草原", "unlocked_wallpapers": "草原",
-                "current_bgm": "なし", "unlocked_bgm": "なし", "custom_title_unlocked": False}
+                "xp": 0, "coins": 0, "unlocked_themes": "標準", "current_theme": "標準",
+                "current_title": "見習い", "unlocked_titles": "見習い", 
+                "current_wallpaper": "草原", "unlocked_wallpapers": "草原",
+                "current_bgm": "なし", "unlocked_bgm": "なし", 
+                "custom_title_unlocked": False, "custom_wallpaper_unlocked": False}
         supabase.table("users").insert(data).execute()
         return True
     except: return False
@@ -241,20 +265,22 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # デザイン適用
-    apply_design(user.get('current_theme', '標準'), user.get('current_wallpaper', '草原'))
+    # デザイン適用 (カスタム壁紙データも渡す)
+    apply_design(
+        user_theme=user.get('current_theme', '標準'), 
+        wallpaper=user.get('current_wallpaper', '草原'),
+        custom_data=user.get('custom_bg_data')
+    )
 
-    # ★ 集中モード (BGMプレイヤー表示版)
+    # BGM再生
     if st.session_state["is_studying"]:
         st.empty()
-        
-        # BGMプレイヤーをここに配置 (自動再生がダメなら手動で押せるようにする)
-        bgm_name = user.get('current_bgm', 'なし')
-        if bgm_name != 'なし' and BGM_DATA.get(bgm_name):
-            # 安定のため st.audio をそのまま使用。autoplay=True にするが、ダメなら手動で押せる
-            st.warning("🎵 BGMが流れない場合は、下の再生ボタン「▶」を押してください")
-            st.audio(BGM_DATA[bgm_name], format="audio/ogg", loop=True, autoplay=True)
-
+        bgm_key = user.get('current_bgm', 'なし')
+        if bgm_key != 'なし' and BGM_DATA.get(bgm_key):
+            bgm_info = BGM_DATA[bgm_key]
+            st.audio(bgm_info["url"], format=bgm_info["type"], loop=True, autoplay=True)
+            st.caption(f"🎵 Now Playing: {bgm_key}")
+            
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
         return
@@ -275,11 +301,44 @@ def main():
     # サイドバー
     with st.sidebar:
         st.subheader("⚙️ 設定")
+        
+        # 壁紙設定 (カスタム対応)
         walls = user['unlocked_wallpapers'].split(',')
-        new_w = st.selectbox("壁紙設定", walls, index=walls.index(user.get('current_wallpaper', '草原')) if user.get('current_wallpaper') in walls else 0)
-        if new_w != user.get('current_wallpaper'):
-            supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
-            st.rerun()
+        if user.get('custom_wallpaper_unlocked'):
+            # カスタム機能がオンの場合
+            bg_mode = st.radio("壁紙モード", ["プリセット", "カスタム画像"], horizontal=True, label_visibility="collapsed")
+            
+            if bg_mode == "カスタム画像":
+                st.caption("画像をアップロードして壁紙に設定")
+                uploaded_file = st.file_uploader("画像を選択", type=['jpg', 'png', 'jpeg'])
+                if uploaded_file:
+                    if st.button("この画像を適用"):
+                        # 画像処理: 読み込んでリサイズしてBase64化
+                        img = Image.open(uploaded_file)
+                        img.thumbnail((1920, 1080)) # サイズ軽量化
+                        b64_str = image_to_base64(img)
+                        # DB保存
+                        supabase.table("users").update({
+                            "current_wallpaper": "カスタム",
+                            "custom_bg_data": b64_str
+                        }).eq("username", user['username']).execute()
+                        st.success("壁紙を更新しました！")
+                        time.sleep(1)
+                        st.rerun()
+                elif user.get('current_wallpaper') == 'カスタム':
+                    st.success("現在カスタム画像適用中")
+            else:
+                # プリセット選択モード
+                new_w = st.selectbox("壁紙", walls, index=walls.index(user.get('current_wallpaper', '草原')) if user.get('current_wallpaper') in walls else 0)
+                if new_w != user.get('current_wallpaper'):
+                    supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
+                    st.rerun()
+        else:
+            # 通常モード
+            new_w = st.selectbox("壁紙", walls, index=walls.index(user.get('current_wallpaper', '草原')) if user.get('current_wallpaper') in walls else 0)
+            if new_w != user.get('current_wallpaper'):
+                supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
+                st.rerun()
         
         # フォント設定
         themes = user.get('unlocked_themes', '標準').split(',')
@@ -339,7 +398,7 @@ def main():
                 events.append({"title": f"📝 {r['task_name']}", "start": r['due_date'], "color": color})
         if not logs.empty:
             for _, r in logs.iterrows():
-                d_str = r['study_date'][:10] if "T" in str(r['study_date']) else str(r['study_date'])
+                d_str = str(r['study_date'])[:10]
                 events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": d_str, "color": "#00CC00"})
 
         with c1:
@@ -348,8 +407,8 @@ def main():
             if cal.get('dateClick'): st.session_state["selected_date"] = cal['dateClick']['date']
         
         with c2:
-            sel_date = st.session_state.get("selected_date", str(date.today()))
-            display_date = sel_date[:10] if "T" in sel_date else sel_date
+            sel_date_raw = st.session_state.get("selected_date", str(date.today()))
+            display_date = sel_date_raw.split("T")[0]
             st.markdown(f"### 📌 {display_date}")
             
             day_mins = 0
@@ -481,10 +540,7 @@ def main():
         
         # フォントショップ
         st.markdown("### 🅰️ フォント")
-        font_items = [
-            ("ピクセル風", 500), ("手書き風", 800), ("ポップ", 1000), 
-            ("明朝体", 1200), ("筆文字", 1500)
-        ]
+        font_items = [("ピクセル風", 500), ("手書き風", 800), ("ポップ", 1000), ("明朝体", 1200), ("筆文字", 1500)]
         cols = st.columns(3)
         my_fonts = user.get('unlocked_themes', '標準').split(',')
         for i, (n, p) in enumerate(font_items):
@@ -556,9 +612,7 @@ def main():
                         if got not in current: current += f",{got}"
                         supabase.table("users").update({"coins": user['coins']-100, "unlocked_titles": current, "current_title": got}).eq("username", user['username']).execute()
                         st.toast(f"🎉 称号『{got}』を獲得しました！")
-                        st.balloons()
-                        time.sleep(1)
-                        st.rerun()
+                        st.balloons(); time.sleep(1); st.rerun()
                     else: st.error("コイン不足")
         
         with c2:
@@ -572,6 +626,20 @@ def main():
                     if st.button("パスを購入", key="buy_pass", use_container_width=True):
                         if user['coins'] >= 9999:
                             supabase.table("users").update({"coins": user['coins']-9999, "custom_title_unlocked": True}).eq("username", user['username']).execute()
+                            st.balloons(); st.rerun()
+                        else: st.error("不足")
+                        
+            # 新アイテム: カスタム壁紙パス
+            with st.container(border=True):
+                st.markdown("<div class='shop-title'>🖼️ カスタム壁紙パス</div>", unsafe_allow_html=True)
+                st.markdown("<div class='shop-price'>9999 G</div>", unsafe_allow_html=True)
+                st.caption("好きな画像を壁紙にできる！")
+                if user.get('custom_wallpaper_unlocked'):
+                    st.button("✅ 購入済み", disabled=True, use_container_width=True, key="buy_wp_done")
+                else:
+                    if st.button("パスを購入", key="buy_wp_pass", use_container_width=True):
+                        if user['coins'] >= 9999:
+                            supabase.table("users").update({"coins": user['coins']-9999, "custom_wallpaper_unlocked": True}).eq("username", user['username']).execute()
                             st.balloons(); st.rerun()
                         else: st.error("不足")
 

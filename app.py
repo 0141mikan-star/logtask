@@ -169,7 +169,6 @@ def complete_tasks_bulk(ids, username, amount):
 def delete_task(tid):
     supabase.table("tasks").delete().eq("id", tid).execute()
 
-# ★修正版: 手動記録が動くように引数と戻り値を修正
 def add_study_log(username, subject, minutes, date_obj=None):
     if date_obj is None:
         date_str = datetime.now(JST).strftime('%Y-%m-%d')
@@ -239,6 +238,7 @@ def parse_correct_date(raw_date):
             return dt_jst.strftime('%Y-%m-%d')
         else: return raw_date
     except: return raw_date
+
 # --- 詳細ダイアログ ---
 @st.dialog("📅 記録の詳細")
 def show_detail_dialog(target_date, df_tasks, df_logs, username):
@@ -472,9 +472,7 @@ def main():
     st.divider()
     tasks = get_tasks(current_user)
     logs = get_study_logs(current_user)
-    t1, t2, t3, t4, t5, t6 = st.tabs(
-    ["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ", "📚 科目"]
-)
+    t1, t2, t3, t4 = st.tabs(["📝 ToDo", "⏱️ タイマー", "🏆 ランク", "🛒 ショップ"])
 
     # ToDo
     with t1:
@@ -498,63 +496,63 @@ def main():
 
     # タイマー
     with t2:
-        st.subheader("勉強タイマー")
-        subjects = get_subjects(current_user)
-        subject_names = subjects.copy()
-        subject_names.append("その他 (自由入力)")
-        
-        selected = st.selectbox("科目を選択", subject_names)
-        
-        if selected == "その他 (自由入力)":
-            subj = st.text_input("内容を入力", key="free_sub")
-        else:
-            subj = selected
+        col_s1, col_s2 = st.columns([0.5, 0.5]) # ★ここを修正しました！
+        with col_s1:
+            st.subheader("勉強タイマー")
+            # 登録済み科目から選択できるように変更
+            subjects = get_subjects(current_user)
+            if subjects:
+                subj = st.selectbox("科目を選択", subjects + ["その他 (自由入力)"])
+                if subj == "その他 (自由入力)":
+                    subj = st.text_input("内容を入力", key="free_sub")
+            else:
+                subj = st.text_input("勉強する内容", placeholder="サイドバーで科目を登録できます", key="timer_sub")
 
-        if st.button("▶️ スタート", type="primary"):
-            if subj:
-                st.session_state["is_studying"] = True
-                st.session_state["start_time"] = time.time()
-                st.session_state["current_subject"] = subj
-                st.rerun()
-            else: st.warning("科目を選択してください")
-        
-        st.divider()
-        
-        # 手動記録フォーム (修正版)
-        st.subheader("✏️ 手動記録")
-        with st.expander("入力フォームを開く", expanded=True):
-            with st.form("manual", clear_on_submit=True):
-                c_date, c_time_h, c_time_m = st.columns([0.4, 0.3, 0.3])
-                m_date = c_date.date_input("日付", value=date.today())
-                mh = c_time_h.number_input("時間", 0, 24, 0)
-                mm = c_time_m.number_input("分", 0, 59, 0)
-                m_subj = st.text_input("教科 (Enterで記録)", placeholder="例: 数学")
-                
-                if st.form_submit_button("記録", type="primary"):
-                    total_m = (mh * 60) + mm
-                    if m_subj and total_m > 0:
-                        amt, nx, nc = add_study_log(current_user, m_subj, total_m, m_date)
-                        st.session_state["celebrate"] = True
-                        st.session_state["toast_msg"] = f"記録完了！ +{amt}XP & Coin"
-                        st.rerun()
-                    elif not m_subj:
-                        st.error("教科を入力してください")
-                    elif total_m <= 0:
-                        st.error("時間を入力してください")
+            if st.button("▶️ スタート", type="primary"):
+                if subj:
+                    st.session_state["is_studying"] = True
+                    st.session_state["start_time"] = time.time()
+                    st.session_state["current_subject"] = subj
+                    st.rerun()
+                else: st.warning("科目を選択してください")
+            
+            st.divider()
+            
+            # 手動記録フォーム
+            st.subheader("✏️ 手動記録")
+            with st.expander("入力フォームを開く", expanded=True):
+                with st.form("manual", clear_on_submit=True):
+                    c_date, c_time_h, c_time_m = st.columns([0.4, 0.3, 0.3])
+                    m_date = c_date.date_input("日付", value=date.today())
+                    mh = c_time_h.number_input("時間", 0, 24, 0)
+                    mm = c_time_m.number_input("分", 0, 59, 0)
+                    m_subj = st.text_input("教科 (Enterで記録)", placeholder="例: 数学")
+                    
+                    if st.form_submit_button("記録", type="primary"):
+                        total_m = (mh * 60) + mm
+                        if m_subj and total_m > 0:
+                            amt, nx, nc = add_study_log(current_user, m_subj, total_m, m_date)
+                            st.session_state["celebrate"] = True
+                            st.session_state["toast_msg"] = f"記録完了！ +{amt}XP & Coin"
+                            st.rerun()
+                        elif not m_subj:
+                            st.error("教科を入力してください")
+                        elif total_m <= 0:
+                            st.error("時間を入力してください")
 
-        if not logs.empty:
-            st.markdown("---")
-            st.subheader("📖 最近の記録 (削除可能)")
-            recent_logs = logs.head(5)
-            for _, row in recent_logs.iterrows():
-                rc1, rc2, rc3 = st.columns([0.5, 0.3, 0.2])
-                rc1.write(f"**{row['subject']}**")
-                rc2.caption(f"{row['study_date']} / {row['duration_minutes']}分")
-                if rc3.button("🗑️", key=f"del_{row['id']}"):
-                    if delete_study_log(row['id'], current_user, row['duration_minutes']):
-                        st.warning(f"削除しました (-{row['duration_minutes']} XP/Coin)")
-                        time.sleep(1)
-                        st.rerun()
+            if not logs.empty:
+                st.markdown("---")
+                st.subheader("📖 最近の記録 (削除可能)")
+                recent_logs = logs.head(5)
+                for _, row in recent_logs.iterrows():
+                    rc1, rc2, rc3 = st.columns([0.5, 0.3, 0.2])
+                    rc1.write(f"**{row['subject']}**")
+                    rc2.caption(f"{row['study_date']} / {row['duration_minutes']}分")
+                    if rc3.button("🗑️", key=f"del_{row['id']}"):
+                        if delete_study_log(row['id'], current_user, row['duration_minutes']):
+                            st.warning(f"削除しました (-{row['duration_minutes']} XP/Coin)")
+                            time.sleep(1)
+                            st.rerun()
 
         with col_s2:
             render_daily_task_list(tasks, "timer_list")
@@ -614,28 +612,6 @@ def main():
                     play_gacha(current_user, 100)
                     st.success(f"🎉 {won}！"); st.balloons(); time.sleep(1); st.rerun()
                 else: st.error("コイン不足")
-
-    # === タブ6: 科目管理 ===
-    with t6:
-        st.subheader("📚 勉強科目管理")
-
-        new_subj = st.text_input("新しい科目を追加")
-        if st.button("追加"):
-            if new_subj:
-                if add_subject_db(current_user, new_subj): st.success("追加しました"); st.rerun()
-        
-        st.divider()
-
-        subjects = get_subjects(current_user)
-        if subjects:
-            for s in subjects:
-                c1, c2 = st.columns([0.8, 0.2])
-                c1.write(f"**{s}**")
-                if c2.button(f"削除", key=f"del_subj_{s}"):
-                    delete_subject_db(current_user, s)
-                    st.rerun()
-        else:
-            st.info("まだ科目が登録されていません")
 
 if __name__ == "__main__":
     main()

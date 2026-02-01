@@ -45,8 +45,9 @@ def image_to_base64(img):
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# --- デザイン適用関数 ---
-def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, bg_opacity=0.4):
+# --- デザイン適用関数 (標準に戻す) ---
+def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_opacity=0.4):
+    # フォント設定
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -57,87 +58,63 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
-    # 背景CSS設定
-    bg_style = """
-        background-color: #000000 !important;
-        background-image: none !important;
-    """
-    
+    # 背景設定
+    bg_css = ""
     if wallpaper == "カスタム" and custom_data:
-        bg_style = f"""
-            background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("data:image/png;base64,{custom_data}") !important;
-            background-attachment: fixed !important;
-            background-size: cover !important;
-            background-position: center !important;
+        bg_css = f"""
+            background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("data:image/png;base64,{custom_data}");
+            background-attachment: fixed; background-size: cover; background-position: center;
         """
-    elif wallpaper != "真っ黒":
+    elif wallpaper == "真っ黒":
+        bg_css = "background-color: #000000;"
+    else:
         wallpapers = {
             "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
             "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
             "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
-            "サイバー": "1535295972055-1c762f4483e5"
+            "サイバー": "1535295972055-1c762f4483e5", "シンプル": ""
         }
-        if wallpaper in wallpapers:
-            img_id = wallpapers[wallpaper]
+        if wallpaper not in wallpapers: wallpaper = "草原"
+        
+        img_id = wallpapers.get(wallpaper, "")
+        if img_id:
             bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
-            bg_style = f"""
-                background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}") !important;
-                background-attachment: fixed !important;
-                background-size: cover !important;
+            bg_css = f"""
+                background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}");
+                background-attachment: fixed; background-size: cover;
             """
 
     st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    /* アプリ全体の背景 */
-    [data-testid="stAppViewContainer"], .stApp {{
-        {bg_style}
-    }}
+    .stApp {{ {bg_css} }}
     
-    /* ヘッダー透明化 */
-    [data-testid="stHeader"] {{
-        background-color: rgba(0,0,0,0);
-    }}
-
-    /* ★サイドバー修正: 見出しとラベルだけ白くする（入力欄の中身は触らない） */
-    [data-testid="stSidebar"] {{
-        background-color: #1a1a1a !important;
-        border-right: 1px solid #333;
-    }}
-    [data-testid="stSidebar"] h1, 
-    [data-testid="stSidebar"] h2, 
-    [data-testid="stSidebar"] h3, 
-    [data-testid="stSidebar"] p, 
-    [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] .stMarkdown {{
-        color: #ffffff !important;
-    }}
-    /* 入力ボックス内のテキスト色を黒（またはブラウザ標準）に戻す */
-    [data-testid="stSidebar"] input, 
-    [data-testid="stSidebar"] select, 
-    [data-testid="stSidebar"] div[data-baseweb="select"] span {{
-        color: inherit !important; 
-    }}
-
-    /* メイン画面のフォント設定 */
+    /* フォント適用（文字色はブラウザ標準に任せることで視認性を確保） */
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
-    /* メインエリアの文字は白 */
-    .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
-        color: #ffffff !important; 
-        text-shadow: none; 
+    
+    /* 特定のテキストのみ白くして読みやすくする（背景があるため） */
+    .stMarkdown, .stText, h1, h2, h3, p, span {{ 
+        color: #ffffff; 
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.8); 
     }}
     
+    /* 入力フォーム内の文字色は黒に戻す */
+    input, textarea, select, div[role="listbox"] {{
+        color: #000000 !important;
+        text-shadow: none !important;
+    }}
+
     /* カードコンテナ */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
-        background-color: rgba(30, 30, 30, 0.9) !important;
+        background-color: rgba(30, 30, 30, 0.85); /* 半透明の黒背景 */
         border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.15);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
     }}
 
     /* ランキングカード */
     .ranking-card {{
-        background: linear-gradient(90deg, rgba(60,60,60,0.6), rgba(40,40,40,0.6));
+        background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
         border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
         border: 1px solid rgba(255,255,255,0.2);
     }}
@@ -145,20 +122,23 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
     .rank-info {{ flex-grow: 1; }}
     .rank-name {{ font-size: 1.2em; font-weight: bold; color: #fff; }}
     .rank-title {{ font-size: 0.85em; color: #FFD700; }}
-    .rank-score {{ font-size: 1.4em; font-weight: bold; color: #00FF00; }}
+    .rank-score {{ font-size: 1.4em; font-weight: bold; color: #00FF00; text-shadow: 0 0 10px rgba(0,255,0,0.5); }}
 
     /* ショップアイテム */
     .shop-title {{ font-size: 1.1em; font-weight: bold; color: #fff; margin-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom:3px; }}
     .shop-price {{ font-size: 1.0em; color: #FFD700; font-weight: bold; margin-bottom: 8px; }}
     .shop-owned {{ color: #00FF00; border: 1px solid #00FF00; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
 
-    /* HUD */
+    /* ステータスバー */
     .status-bar {{
-        background: #111111;
-        padding: 15px; border-radius: 15px; border: 1px solid #444;
+        background: linear-gradient(90deg, #1a1a1a, #2d2d2d);
+        padding: 15px; border-radius: 15px; border: 2px solid #444;
         display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
+        box-shadow: 0 0 15px rgba(0,0,0,0.8);
     }}
-    .stat-val {{ font-size: 1.6em; font-weight: bold; color: #fff; }}
+    .stat-item {{ text-align: center; }}
+    .stat-label {{ font-size: 0.7em; color: #aaa; letter-spacing: 1px; }}
+    .stat-val {{ font-size: 1.6em; font-weight: bold; color: #fff; text-shadow: 0 0 5px rgba(255,255,255,0.5); }}
     
     button[kind="primary"] {{
         background: linear-gradient(45deg, #FF4B4B, #FF914D) !important;
@@ -182,12 +162,13 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
+        # ★初期設定: 壁紙="草原"に戻す
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
             "xp": 0, "coins": 0, 
             "unlocked_themes": "標準", "current_theme": "標準",
             "current_title": "見習い", "unlocked_titles": "見習い", 
-            "current_wallpaper": "真っ黒", "unlocked_wallpapers": "真っ黒,草原", 
+            "current_wallpaper": "草原", "unlocked_wallpapers": "草原", 
             "current_bgm": "なし", "unlocked_bgm": "なし", 
             "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
             "custom_bg_data": None
@@ -306,26 +287,25 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # 自動移行: 草原→真っ黒
-    if user.get('current_wallpaper') == "草原" and "真っ黒" not in user.get('unlocked_wallpapers', ''):
-        supabase.table("users").update({
-            "current_wallpaper": "真っ黒", 
-            "unlocked_wallpapers": user.get('unlocked_wallpapers', '') + ",真っ黒"
-        }).eq("username", user['username']).execute()
-        user['current_wallpaper'] = "真っ黒"
+    # ★重要: 「真っ黒」の設定になってしまっている人を「草原」に戻す（救済措置）
+    if user.get('current_wallpaper') == "真っ黒":
+        supabase.table("users").update({"current_wallpaper": "草原"}).eq("username", user['username']).execute()
+        user['current_wallpaper'] = "草原"
+        st.toast("🎨 見やすいデザインに戻しました！")
+        time.sleep(0.5)
         st.rerun()
 
     # デザイン適用
-    apply_design(user.get('current_theme', '標準'), user.get('current_wallpaper', '真っ黒'), user.get('custom_bg_data'))
+    apply_design(user.get('current_theme', '標準'), user.get('current_wallpaper', '草原'), user.get('custom_bg_data'))
 
-    # BGM再生 (強制再生ボタン付き)
+    # BGM再生
     if st.session_state["is_studying"]:
         st.empty()
         bgm_key = user.get('current_bgm', 'なし')
         if bgm_key != 'なし' and BGM_DATA.get(bgm_key):
             bgm_info = BGM_DATA[bgm_key]
-            st.warning("🎵 音が鳴らない場合は再生ボタンを押してください")
             st.audio(bgm_info["url"], format=bgm_info["type"], loop=True, autoplay=True)
+            st.caption(f"🎵 Now Playing: {bgm_key}")
             
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
@@ -348,9 +328,10 @@ def main():
     with st.sidebar:
         st.subheader("⚙️ 設定")
         
-        # 壁紙設定 (真っ黒、プリセット、カスタム)
+        # 壁紙設定 (標準に戻したので真っ黒は削除)
         walls = user['unlocked_wallpapers'].split(',')
-        if "真っ黒" not in walls: walls.insert(0, "真っ黒")
+        # もしリストに「真っ黒」が含まれていたら、表示上は無視するか削除して扱う
+        if "真っ黒" in walls: walls.remove("真っ黒")
         
         if user.get('custom_wallpaper_unlocked'):
             bg_mode = st.radio("壁紙モード", ["プリセット", "カスタム画像"], horizontal=True, label_visibility="collapsed")
@@ -366,14 +347,15 @@ def main():
                         st.success("更新しました！"); time.sleep(1); st.rerun()
                 elif user.get('current_wallpaper') == 'カスタム': st.success("カスタム画像適用中")
             else:
-                current_w = user.get('current_wallpaper', '真っ黒')
-                if current_w == 'カスタム': current_w = "真っ黒"
+                current_w = user.get('current_wallpaper', '草原')
+                if current_w == 'カスタム' or current_w == '真っ黒': current_w = "草原"
                 new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
                 if new_w != user.get('current_wallpaper'):
                     supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
                     st.rerun()
         else:
-            current_w = user.get('current_wallpaper', '真っ黒')
+            current_w = user.get('current_wallpaper', '草原')
+            if current_w == '真っ黒': current_w = "草原"
             new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
             if new_w != user.get('current_wallpaper'):
                 supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()

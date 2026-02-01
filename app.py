@@ -14,6 +14,16 @@ st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理�
 # --- 日本時間 (JST) の定義 ---
 JST = timezone(timedelta(hours=9))
 
+# --- BGMデータ ---
+BGM_DATA = {
+    "なし": None,
+    "雨の音": "https://cdn.pixabay.com/audio/2022/05/17/audio_49448373b3.mp3",
+    "焚き火": "https://cdn.pixabay.com/audio/2022/01/18/audio_8db1f115a9.mp3",
+    "カフェ": "https://cdn.pixabay.com/audio/2021/08/09/audio_0dcdd5871f.mp3",
+    "川のせせらぎ": "https://cdn.pixabay.com/audio/2022/02/07/audio_6590920188.mp3",
+    "ホワイトノイズ": "https://cdn.pixabay.com/audio/2022/11/04/audio_30c2937666.mp3"
+}
+
 # --- Supabase接続設定 ---
 @st.cache_resource
 def init_supabase():
@@ -28,6 +38,7 @@ supabase = init_supabase()
 
 # --- デザイン適用関数 ---
 def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
+    # フォント設定
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -56,15 +67,19 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
     .stApp {{ {bg_css} }}
-    html, body, [class*="css"] {{ font-family: {font_family} !important; color: #ffffff; }}
-    .stMarkdown, .stText, h1, h2, h3, p, span, div {{ color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }}
     
+    /* フォント適用 */
+    html, body, [class*="css"], button, input, textarea, div {{ font-family: {font_family} !important; color: #ffffff; }}
+    .stMarkdown, .stText, h1, h2, h3, p, span {{ color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }}
+    
+    /* カードコンテナ */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: rgba(30, 30, 30, 0.85) !important;
         border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.15);
         box-shadow: 0 4px 15px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
     }}
 
+    /* ランキングカード */
     .ranking-card {{
         background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
         border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
@@ -77,10 +92,12 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     .rank-title {{ font-size: 0.85em; color: #FFD700; }}
     .rank-score {{ font-size: 1.4em; font-weight: bold; color: #00FF00; text-shadow: 0 0 10px rgba(0,255,0,0.5); }}
 
+    /* ショップアイテムカード */
     .shop-title {{ font-size: 1.1em; font-weight: bold; color: #fff; margin-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom:3px; }}
     .shop-price {{ font-size: 1.0em; color: #FFD700; font-weight: bold; margin-bottom: 8px; }}
     .shop-owned {{ color: #00FF00; border: 1px solid #00FF00; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
 
+    /* ステータスバー (HUD) */
     .status-bar {{
         background: linear-gradient(90deg, #1a1a1a, #2d2d2d);
         padding: 15px; border-radius: 15px; border: 2px solid #444;
@@ -114,9 +131,10 @@ def login_user(username, password):
 def add_user(username, password, nickname):
     try:
         data = {"username": username, "password": make_hashes(password), "nickname": nickname,
-                "xp": 0, "coins": 0, "unlocked_themes": "標準", "current_title": "見習い",
-                "unlocked_titles": "見習い", "current_wallpaper": "草原", "unlocked_wallpapers": "草原",
-                "custom_title_unlocked": False}
+                "xp": 0, "coins": 0, "unlocked_themes": "標準", "current_theme": "標準",
+                "current_title": "見習い", "unlocked_titles": "見習い", 
+                "current_wallpaper": "草原", "unlocked_wallpapers": "草原",
+                "current_bgm": "なし", "unlocked_bgm": "なし", "custom_title_unlocked": False}
         supabase.table("users").insert(data).execute()
         return True
     except: return False
@@ -231,17 +249,20 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # デザイン適用
-    apply_design(user.get('unlocked_themes', '標準').split(',')[0], user.get('current_wallpaper', '草原'))
+    # デザイン適用 (★フォント機能復活)
+    apply_design(user.get('current_theme', '標準'), user.get('current_wallpaper', '草原'))
 
-    # ★ 集中モード (待機画面)
+    # BGM再生
     if st.session_state["is_studying"]:
         st.empty()
+        bgm = user.get('current_bgm', 'なし')
+        if bgm != 'なし' and BGM_DATA.get(bgm):
+            st.audio(BGM_DATA[bgm], format="audio/mp3", loop=True, autoplay=True)
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
         return
 
-    # ★ HUD
+    # HUD
     level = (user['xp'] // 100) + 1
     next_xp = level * 100
     st.markdown(f"""
@@ -257,10 +278,27 @@ def main():
     # サイドバー
     with st.sidebar:
         st.subheader("⚙️ 設定")
+        
+        # 壁紙設定
         walls = user['unlocked_wallpapers'].split(',')
-        new_w = st.selectbox("壁紙設定", walls, index=walls.index(user.get('current_wallpaper', '草原')) if user.get('current_wallpaper') in walls else 0)
+        new_w = st.selectbox("壁紙", walls, index=walls.index(user.get('current_wallpaper', '草原')) if user.get('current_wallpaper') in walls else 0)
         if new_w != user.get('current_wallpaper'):
             supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
+            st.rerun()
+        
+        # ★フォント設定 (復活！)
+        themes = user.get('unlocked_themes', '標準').split(',')
+        new_t = st.selectbox("フォント", themes, index=themes.index(user.get('current_theme', '標準')) if user.get('current_theme') in themes else 0)
+        if new_t != user.get('current_theme'):
+            supabase.table("users").update({"current_theme": new_t}).eq("username", user['username']).execute()
+            st.rerun()
+
+        # BGM設定
+        bgms = user.get('unlocked_bgm', 'なし').split(',')
+        if 'なし' not in bgms: bgms.insert(0, 'なし')
+        new_b = st.selectbox("集中BGM", bgms, index=bgms.index(user.get('current_bgm', 'なし')) if user.get('current_bgm') in bgms else 0)
+        if new_b != user.get('current_bgm'):
+            supabase.table("users").update({"current_bgm": new_b}).eq("username", user['username']).execute()
             st.rerun()
             
         with st.expander("👑 称号コレクション"):
@@ -443,9 +481,33 @@ def main():
                 """, unsafe_allow_html=True)
         else: st.info("データなし")
 
-    with t5: # ショップ
+    with t5: # ショップ (★フォント復活)
         st.write("アイテムを購入してカスタマイズしよう！")
         
+        # フォントショップ
+        st.markdown("### 🅰️ フォント")
+        font_items = [
+            ("ピクセル風", 500), ("手書き風", 800), ("ポップ", 1000), 
+            ("明朝体", 1200), ("筆文字", 1500)
+        ]
+        cols = st.columns(3)
+        my_fonts = user.get('unlocked_themes', '標準').split(',')
+        for i, (n, p) in enumerate(font_items):
+            with cols[i % 3]:
+                with st.container(border=True):
+                    st.markdown(f"<div class='shop-title'>{n}</div>", unsafe_allow_html=True)
+                    if n in my_fonts:
+                        st.markdown(f"<span class='shop-owned'>所有済み</span>", unsafe_allow_html=True)
+                        st.button("設定へ", disabled=True, key=f"df_{n}")
+                    else:
+                        st.markdown(f"<div class='shop-price'>{p} G</div>", unsafe_allow_html=True)
+                        if st.button("購入", key=f"buy_f_{n}", use_container_width=True):
+                            if user['coins'] >= p:
+                                nl = user['unlocked_themes'] + f",{n}"
+                                supabase.table("users").update({"coins": user['coins']-p, "unlocked_themes": nl}).eq("username", user['username']).execute()
+                                st.balloons(); st.rerun()
+                            else: st.error("コイン不足")
+
         st.markdown("### 🖼️ 壁紙")
         items = [("夕焼け", 500), ("夜空", 800), ("ダンジョン", 1200), ("王宮", 2000)]
         cols = st.columns(2)
@@ -458,10 +520,30 @@ def main():
                         st.button("設定へ", disabled=True, key=f"d_{n}")
                     else:
                         st.markdown(f"<div class='shop-price'>{p} G</div>", unsafe_allow_html=True)
-                        if st.button("購入する", key=f"buy_w_{n}", use_container_width=True):
+                        if st.button("購入", key=f"buy_w_{n}", use_container_width=True):
                             if user['coins'] >= p:
                                 nl = user['unlocked_wallpapers'] + f",{n}"
                                 supabase.table("users").update({"coins": user['coins']-p, "unlocked_wallpapers": nl}).eq("username", user['username']).execute()
+                                st.balloons(); st.rerun()
+                            else: st.error("コイン不足")
+
+        st.markdown("### 🎵 BGM")
+        items = [("雨の音", 300), ("焚き火", 500), ("カフェ", 800)]
+        cols = st.columns(3)
+        my_bgms = user.get('unlocked_bgm', 'なし')
+        for i, (n, p) in enumerate(items):
+            with cols[i % 3]:
+                with st.container(border=True):
+                    st.markdown(f"<div class='shop-title'>{n}</div>", unsafe_allow_html=True)
+                    if n in my_bgms:
+                        st.markdown(f"<span class='shop-owned'>所有済み</span>", unsafe_allow_html=True)
+                        st.button("設定へ", disabled=True, key=f"db_{n}")
+                    else:
+                        st.markdown(f"<div class='shop-price'>{p} G</div>", unsafe_allow_html=True)
+                        if st.button("購入", key=f"buy_b_{n}", use_container_width=True):
+                            if user['coins'] >= p:
+                                nl = my_bgms + f",{n}"
+                                supabase.table("users").update({"coins": user['coins']-p, "unlocked_bgm": nl}).eq("username", user['username']).execute()
                                 st.balloons(); st.rerun()
                             else: st.error("コイン不足")
 

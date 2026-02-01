@@ -100,19 +100,29 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
         background-color: rgba(0,0,0,0);
     }}
 
-    /* ★サイドバーの背景を強制的に黒くする (ブラウザ設定対策) */
+    /* ★サイドバーの視認性修正★ */
     [data-testid="stSidebar"] {{
-        background-color: #1a1a1a !important;
+        background-color: #1a1a1a !important; /* 背景は黒系 */
         border-right: 1px solid #333;
     }}
-    /* サイドバー内の文字色を白に強制 */
-    [data-testid="stSidebar"] * {{
+    /* ラベルや見出しのみ白くする（入力ボックス内の文字色はブラウザ標準に任せる） */
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] .stMarkdown,
+    [data-testid="stSidebar"] .stExpander {{
         color: #ffffff !important;
     }}
 
-    /* フォント設定 & 全体の文字色 */
-    html, body, [class*="css"] {{ font-family: {font_family} !important; color: #ffffff; }}
-    .stMarkdown, .stText, h1, h2, h3, p, span, div {{ color: #ffffff !important; text-shadow: none; }}
+    /* メイン画面のフォント設定 */
+    html, body, [class*="css"] {{ font-family: {font_family} !important; }}
+    /* メインエリアの文字は白 */
+    .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
+        color: #ffffff !important; 
+        text-shadow: none; 
+    }}
     
     /* カードコンテナ */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
@@ -151,7 +161,6 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
         border: none !important; box-shadow: 0 4px 10px rgba(255, 75, 75, 0.4); font-weight: bold !important;
     }}
     
-    /* グラフ用色調整 */
     canvas {{ filter: invert(1) hue-rotate(180deg); }}
     </style>
     """, unsafe_allow_html=True)
@@ -169,6 +178,7 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
+        # ★初期設定: 壁紙="真っ黒"
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
             "xp": 0, "coins": 0, 
@@ -305,7 +315,7 @@ def main():
     # デザイン適用
     apply_design(user.get('current_theme', '標準'), user.get('current_wallpaper', '真っ黒'), user.get('custom_bg_data'))
 
-    # BGM再生 (強制再生ボタン付き)
+    # BGM再生
     if st.session_state["is_studying"]:
         st.empty()
         bgm_key = user.get('current_bgm', 'なし')
@@ -424,7 +434,7 @@ def main():
                 events.append({"title": f"📝 {r['task_name']}", "start": r['due_date'], "color": color})
         if not logs.empty:
             for _, r in logs.iterrows():
-                d_str = str(r['study_date'])[:10]
+                d_str = str(r['study_date']).split("T")[0]
                 events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": d_str, "color": "#00CC00"})
 
         with c1:
@@ -436,9 +446,10 @@ def main():
             sel_date_raw = st.session_state.get("selected_date", str(date.today()))
             display_date = sel_date_raw.split("T")[0]
             st.markdown(f"### 📌 {display_date}")
+            
             day_mins = 0
             if not logs.empty:
-                logs['short_date'] = logs['study_date'].astype(str).str[:10]
+                logs['short_date'] = logs['study_date'].astype(str).str.split("T").str[0]
                 day_logs = logs[logs['short_date'] == display_date]
                 day_mins = day_logs['duration_minutes'].sum()
                 st.info(f"📚 **勉強時間: {day_mins} 分**")
@@ -495,7 +506,7 @@ def main():
         if not logs.empty:
             for _, r in logs.head(5).iterrows():
                 lc1, lc2 = st.columns([0.8, 0.2])
-                d_str = str(r['study_date'])[:10]
+                d_str = str(r['study_date']).split("T")[0]
                 lc1.write(f"・{r['subject']} ({r['duration_minutes']}分) - {d_str}")
                 if lc2.button("削除", key=f"dl_{r['id']}"):
                     delete_study_log(r['id'], user['username'], r['duration_minutes']); st.rerun()

@@ -578,7 +578,7 @@ def main():
                         if user['coins'] >= 9999:
                             supabase.table("users").update({"coins": user['coins']-9999, "custom_title_unlocked": True}).eq("username", user['username']).execute()
                             st.balloons(); st.rerun()
-                        else: st.error("不足")
+                        else: st.error("コイン不足")
 
     with t6: # 科目
         new_s = st.text_input("科目追加")
@@ -592,3 +592,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

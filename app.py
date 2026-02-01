@@ -14,14 +14,14 @@ st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理�
 # --- 日本時間 (JST) の定義 ---
 JST = timezone(timedelta(hours=9))
 
-# --- BGMデータ (MP3) ---
+# --- BGMデータ (安定したMP3ソースに変更) ---
 BGM_DATA = {
     "なし": None,
-    "雨の音": "https://cdn.pixabay.com/audio/2022/05/17/audio_49448373b3.mp3",
-    "焚き火": "https://cdn.pixabay.com/audio/2022/01/18/audio_8db1f115a9.mp3",
-    "カフェ": "https://cdn.pixabay.com/audio/2021/08/09/audio_0dcdd5871f.mp3",
-    "川のせせらぎ": "https://cdn.pixabay.com/audio/2022/02/07/audio_6590920188.mp3",
-    "ホワイトノイズ": "https://cdn.pixabay.com/audio/2022/11/04/audio_30c2937666.mp3"
+    "雨の音": "https://upload.wikimedia.org/wikipedia/commons/2/29/Thunder_storm_and_rain_sounds.ogg", # OGGは多くのブラウザで動作
+    "焚き火": "https://upload.wikimedia.org/wikipedia/commons/e/e3/Campfire_sound_effect.ogg",
+    "カフェ": "https://upload.wikimedia.org/wikipedia/commons/5/52/Cafeteria_noise.ogg",
+    "川のせせらぎ": "https://upload.wikimedia.org/wikipedia/commons/5/54/River_Snoring_Forest_Nature_Sounds.ogg",
+    "ホワイトノイズ": "https://upload.wikimedia.org/wikipedia/commons/c/c4/Radio_Static.ogg"
 }
 
 # --- Supabase接続設定 ---
@@ -69,14 +69,12 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     html, body, [class*="css"] {{ font-family: {font_family} !important; color: #ffffff; }}
     .stMarkdown, .stText, h1, h2, h3, p, span, div {{ color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }}
     
-    /* カードコンテナ */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: rgba(30, 30, 30, 0.85) !important;
         border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.15);
         box-shadow: 0 4px 15px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
     }}
 
-    /* ランキングカード */
     .ranking-card {{
         background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
         border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
@@ -89,12 +87,10 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
     .rank-title {{ font-size: 0.85em; color: #FFD700; }}
     .rank-score {{ font-size: 1.4em; font-weight: bold; color: #00FF00; text-shadow: 0 0 10px rgba(0,255,0,0.5); }}
 
-    /* ショップアイテム */
     .shop-title {{ font-size: 1.1em; font-weight: bold; color: #fff; margin-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom:3px; }}
     .shop-price {{ font-size: 1.0em; color: #FFD700; font-weight: bold; margin-bottom: 8px; }}
     .shop-owned {{ color: #00FF00; border: 1px solid #00FF00; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
 
-    /* ステータスバー */
     .status-bar {{
         background: linear-gradient(90deg, #1a1a1a, #2d2d2d);
         padding: 15px; border-radius: 15px; border: 2px solid #444;
@@ -128,9 +124,8 @@ def login_user(username, password):
 def add_user(username, password, nickname):
     try:
         data = {"username": username, "password": make_hashes(password), "nickname": nickname,
-                "xp": 0, "coins": 0, "unlocked_themes": "標準", "current_theme": "標準",
-                "current_title": "見習い", "unlocked_titles": "見習い", 
-                "current_wallpaper": "草原", "unlocked_wallpapers": "草原",
+                "xp": 0, "coins": 0, "unlocked_themes": "標準", "current_title": "見習い",
+                "unlocked_titles": "見習い", "current_wallpaper": "草原", "unlocked_wallpapers": "草原",
                 "current_bgm": "なし", "unlocked_bgm": "なし", "custom_title_unlocked": False}
         supabase.table("users").insert(data).execute()
         return True
@@ -193,22 +188,6 @@ def complete_task(tid, u):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": ud['xp']+10, "coins": ud['coins']+10}).eq("username", u).execute()
 
-# --- ★ BGM強制再生用関数 (HTML埋め込み) ---
-def play_bgm_html(bgm_url):
-    if bgm_url:
-        # autoplayとloop属性をつけたaudioタグを直接埋め込む
-        # volumeはJavaScriptで制御 (0.2 = 20%)
-        html_code = f"""
-        <audio autoplay loop id="bgm_audio">
-            <source src="{bgm_url}" type="audio/mp3">
-        </audio>
-        <script>
-            var audio = document.getElementById("bgm_audio");
-            audio.volume = 0.2; 
-        </script>
-        """
-        st.markdown(html_code, unsafe_allow_html=True)
-
 # --- タイマー更新フラグメント ---
 @st.fragment(run_every=1)
 def show_timer_fragment(user_name):
@@ -265,15 +244,16 @@ def main():
     # デザイン適用
     apply_design(user.get('current_theme', '標準'), user.get('current_wallpaper', '草原'))
 
-    # ★ 集中モード (待機画面)
+    # ★ 集中モード (BGMプレイヤー表示版)
     if st.session_state["is_studying"]:
         st.empty()
         
-        # BGM再生 (HTML埋め込み方式)
+        # BGMプレイヤーをここに配置 (自動再生がダメなら手動で押せるようにする)
         bgm_name = user.get('current_bgm', 'なし')
         if bgm_name != 'なし' and BGM_DATA.get(bgm_name):
-            play_bgm_html(BGM_DATA[bgm_name])
-            st.caption(f"🎵 Now Playing: {bgm_name} (音が鳴らない場合は画面をクリックしてください)")
+            # 安定のため st.audio をそのまま使用。autoplay=True にするが、ダメなら手動で押せる
+            st.warning("🎵 BGMが流れない場合は、下の再生ボタン「▶」を押してください")
+            st.audio(BGM_DATA[bgm_name], format="audio/ogg", loop=True, autoplay=True)
 
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
@@ -295,10 +275,8 @@ def main():
     # サイドバー
     with st.sidebar:
         st.subheader("⚙️ 設定")
-        
-        # 壁紙設定
         walls = user['unlocked_wallpapers'].split(',')
-        new_w = st.selectbox("壁紙", walls, index=walls.index(user.get('current_wallpaper', '草原')) if user.get('current_wallpaper') in walls else 0)
+        new_w = st.selectbox("壁紙設定", walls, index=walls.index(user.get('current_wallpaper', '草原')) if user.get('current_wallpaper') in walls else 0)
         if new_w != user.get('current_wallpaper'):
             supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
             st.rerun()
@@ -313,7 +291,7 @@ def main():
         # BGM設定
         bgms = user.get('unlocked_bgm', 'なし').split(',')
         if 'なし' not in bgms: bgms.insert(0, 'なし')
-        new_b = st.selectbox("集中BGM", bgms, index=bgms.index(user.get('current_bgm', 'なし')) if user.get('current_bgm') in bgms else 0)
+        new_b = st.selectbox("集中BGM設定", bgms, index=bgms.index(user.get('current_bgm', 'なし')) if user.get('current_bgm') in bgms else 0)
         if new_b != user.get('current_bgm'):
             supabase.table("users").update({"current_bgm": new_b}).eq("username", user['username']).execute()
             st.rerun()
@@ -498,7 +476,7 @@ def main():
                 """, unsafe_allow_html=True)
         else: st.info("データなし")
 
-    with t5: # ショップ (フォント購入機能あり)
+    with t5: # ショップ
         st.write("アイテムを購入してカスタマイズしよう！")
         
         # フォントショップ

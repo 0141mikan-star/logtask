@@ -9,7 +9,7 @@ import altair as alt
 import io
 import base64
 from PIL import Image
-import hashlib  # ★ここが重要です！
+import hashlib
 
 # ページ設定
 st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide")
@@ -46,7 +46,7 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # --- デザイン適用関数 ---
-def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_opacity=0.4):
+def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, bg_opacity=0.4):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -57,8 +57,12 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_o
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
-    bg_css = "background-color: #1E1E1E;"
-    if wallpaper == "カスタム" and custom_data:
+    # 背景CSSの生成
+    bg_css = "background-color: #000000;" # デフォルトは真っ黒
+    
+    if wallpaper == "真っ黒":
+        bg_css = "background-color: #000000;"
+    elif wallpaper == "カスタム" and custom_data:
         bg_css = f"""
             background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("data:image/png;base64,{custom_data}");
             background-attachment: fixed; background-size: cover; background-position: center;
@@ -68,11 +72,11 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_o
             "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
             "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
             "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
-            "サイバー": "1535295972055-1c762f4483e5", "シンプル": ""
+            "サイバー": "1535295972055-1c762f4483e5"
         }
-        if wallpaper not in wallpapers: wallpaper = "草原"
-        img_id = wallpapers.get(wallpaper, "")
-        if img_id:
+        # 指定された壁紙が辞書にある場合のみ画像適用
+        if wallpaper in wallpapers:
+            img_id = wallpapers[wallpaper]
             bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
             bg_css = f"""
                 background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}");
@@ -82,16 +86,23 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_o
     st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
+    
     .stApp {{ {bg_css} }}
+    
+    /* 全体フォント設定 */
     html, body, [class*="css"] {{ font-family: {font_family} !important; color: #ffffff; }}
     .stMarkdown, .stText, h1, h2, h3, p, span, div {{ color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }}
+    
+    /* カードコンテナ */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
-        background-color: rgba(30, 30, 30, 0.85) !important;
+        background-color: rgba(20, 20, 20, 0.9) !important;
         border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.15);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.8); backdrop-filter: blur(5px);
     }}
+
+    /* ランキングカード */
     .ranking-card {{
-        background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+        background: linear-gradient(90deg, rgba(50,50,50,0.5), rgba(30,30,30,0.5));
         border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
         border: 1px solid rgba(255,255,255,0.2);
     }}
@@ -100,30 +111,33 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_o
     .rank-name {{ font-size: 1.2em; font-weight: bold; color: #fff; }}
     .rank-title {{ font-size: 0.85em; color: #FFD700; }}
     .rank-score {{ font-size: 1.4em; font-weight: bold; color: #00FF00; text-shadow: 0 0 10px rgba(0,255,0,0.5); }}
+
+    /* ショップアイテム */
     .shop-title {{ font-size: 1.1em; font-weight: bold; color: #fff; margin-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom:3px; }}
     .shop-price {{ font-size: 1.0em; color: #FFD700; font-weight: bold; margin-bottom: 8px; }}
     .shop-owned {{ color: #00FF00; border: 1px solid #00FF00; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
+
+    /* HUD */
     .status-bar {{
-        background: linear-gradient(90deg, #1a1a1a, #2d2d2d);
-        padding: 15px; border-radius: 15px; border: 2px solid #444;
+        background: linear-gradient(90deg, #000000, #1a1a1a);
+        padding: 15px; border-radius: 15px; border: 2px solid #333;
         display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
-        box-shadow: 0 0 15px rgba(0,0,0,0.8);
+        box-shadow: 0 0 15px rgba(0,0,0,1.0);
     }}
-    .stat-val {{ font-size: 1.6em; font-weight: bold; color: #fff; text-shadow: 0 0 5px rgba(255,255,255,0.5); }}
+    .stat-val {{ font-size: 1.6em; font-weight: bold; color: #fff; }}
+    
     button[kind="primary"] {{
         background: linear-gradient(45deg, #FF4B4B, #FF914D) !important;
         border: none !important; box-shadow: 0 4px 10px rgba(255, 75, 75, 0.4); font-weight: bold !important;
     }}
+    
     canvas {{ filter: invert(1) hue-rotate(180deg); }}
     </style>
     """, unsafe_allow_html=True)
 
 # --- 認証・DB操作 ---
-def make_hashes(password):
-    return hashlib.sha256(str.encode(password)).hexdigest()
-
-def check_hashes(password, hashed_text):
-    return make_hashes(password) == hashed_text
+def make_hashes(password): return hashlib.sha256(str.encode(password)).hexdigest()
+def check_hashes(password, hashed_text): return make_hashes(password) == hashed_text
 
 def login_user(username, password):
     try:
@@ -134,12 +148,13 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
+        # ★初期壁紙を「真っ黒」に設定
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
             "xp": 0, "coins": 0, 
             "unlocked_themes": "標準", "current_theme": "標準",
             "current_title": "見習い", "unlocked_titles": "見習い", 
-            "current_wallpaper": "草原", "unlocked_wallpapers": "草原",
+            "current_wallpaper": "真っ黒", "unlocked_wallpapers": "真っ黒,草原", 
             "current_bgm": "なし", "unlocked_bgm": "なし", 
             "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
             "custom_bg_data": None
@@ -204,7 +219,7 @@ def complete_task(tid, u):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": ud['xp']+10, "coins": ud['coins']+10}).eq("username", u).execute()
 
-# --- タイマー更新 ---
+# --- タイマー更新フラグメント ---
 @st.fragment(run_every=1)
 def show_timer_fragment(user_name):
     now = time.time()
@@ -242,10 +257,8 @@ def main():
             n = st.text_input("ニックネーム")
             if st.button("登録"):
                 success, msg = add_user(u, p, n)
-                if success:
-                    st.success(msg)
-                else:
-                    st.error(msg)
+                if success: st.success(msg)
+                else: st.error(msg)
         else:
             if st.button("ログイン"):
                 res, msg = login_user(u, p)
@@ -260,10 +273,10 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # デザイン適用
-    apply_design(user.get('current_theme', '標準'), user.get('current_wallpaper', '草原'), user.get('custom_bg_data'))
+    # デザイン適用 (★真っ黒対応)
+    apply_design(user.get('current_theme', '標準'), user.get('current_wallpaper', '真っ黒'), user.get('custom_bg_data'))
 
-    # BGM再生
+    # BGM再生 (強制再生ボタン付き)
     if st.session_state["is_studying"]:
         st.empty()
         bgm_key = user.get('current_bgm', 'なし')
@@ -293,8 +306,11 @@ def main():
     with st.sidebar:
         st.subheader("⚙️ 設定")
         
-        # 壁紙設定
+        # 壁紙設定 (真っ黒、プリセット、カスタム)
         walls = user['unlocked_wallpapers'].split(',')
+        # リストに「真っ黒」がなければ追加 (既存ユーザー互換)
+        if "真っ黒" not in walls: walls.insert(0, "真っ黒")
+        
         if user.get('custom_wallpaper_unlocked'):
             bg_mode = st.radio("壁紙モード", ["プリセット", "カスタム画像"], horizontal=True, label_visibility="collapsed")
             if bg_mode == "カスタム画像":
@@ -309,12 +325,15 @@ def main():
                         st.success("更新しました！"); time.sleep(1); st.rerun()
                 elif user.get('current_wallpaper') == 'カスタム': st.success("カスタム画像適用中")
             else:
-                new_w = st.selectbox("壁紙", walls, index=walls.index(user.get('current_wallpaper', '草原')) if user.get('current_wallpaper') in walls else 0)
+                current_w = user.get('current_wallpaper', '真っ黒')
+                if current_w == 'カスタム': current_w = "真っ黒"
+                new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
                 if new_w != user.get('current_wallpaper'):
                     supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
                     st.rerun()
         else:
-            new_w = st.selectbox("壁紙", walls, index=walls.index(user.get('current_wallpaper', '草原')) if user.get('current_wallpaper') in walls else 0)
+            current_w = user.get('current_wallpaper', '真っ黒')
+            new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
             if new_w != user.get('current_wallpaper'):
                 supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
                 st.rerun()
@@ -337,6 +356,7 @@ def main():
         with st.expander("👑 称号コレクション"):
             my_titles = user.get('unlocked_titles', '見習い').split(',')
             current = user.get('current_title', '見習い')
+            
             if user.get('custom_title_unlocked'):
                 tab_list, tab_custom = st.tabs(["📜 リスト", "✏️ 自由入力"])
                 with tab_list:
@@ -365,7 +385,7 @@ def main():
 
     t1, t2, t3, t4, t5, t6 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ", "📚 科目"])
 
-    with t1: # ToDo & Calendar
+    with t1: # ToDo
         c1, c2 = st.columns([0.6, 0.4])
         tasks = get_tasks(user['username'])
         logs = get_study_logs(user['username'])
@@ -573,22 +593,19 @@ def main():
             with st.container(border=True):
                 st.markdown("<div class='shop-title'>🎲 称号ガチャ</div>", unsafe_allow_html=True)
                 st.markdown("<div class='shop-price'>100 G</div>", unsafe_allow_html=True)
-                st.caption("ランダムな称号をゲット！")
                 if st.button("ガチャを回す", type="primary", use_container_width=True):
                     if user['coins'] >= 100:
                         got = random.choice(["駆け出し", "努力家", "集中王", "夜更かし", "天才", "覚醒者", "大賢者", "神童"])
                         current = user.get('unlocked_titles', '')
                         if got not in current: current += f",{got}"
                         supabase.table("users").update({"coins": user['coins']-100, "unlocked_titles": current, "current_title": got}).eq("username", user['username']).execute()
-                        st.toast(f"🎉 称号『{got}』を獲得しました！")
-                        st.balloons(); time.sleep(1); st.rerun()
+                        st.toast(f"🎉 称号『{got}』を獲得しました！"); st.balloons(); time.sleep(1); st.rerun()
                     else: st.error("コイン不足")
         
         with c2:
             with st.container(border=True):
                 st.markdown("<div class='shop-title'>👑 自由称号パス</div>", unsafe_allow_html=True)
                 st.markdown("<div class='shop-price'>9999 G</div>", unsafe_allow_html=True)
-                st.caption("好きな称号を自由に設定可能！")
                 if user.get('custom_title_unlocked'):
                     st.button("✅ 購入済み", disabled=True, use_container_width=True, key="done_pass")
                 else:

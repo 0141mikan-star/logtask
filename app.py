@@ -106,7 +106,6 @@ def apply_design(user_theme="標準", wallpaper="草原", bg_opacity=0.4):
         border: none !important; box-shadow: 0 4px 10px rgba(255, 75, 75, 0.4); font-weight: bold !important;
     }}
     
-    /* グラフ用色調整 */
     canvas {{ filter: invert(1) hue-rotate(180deg); }}
     </style>
     """, unsafe_allow_html=True)
@@ -284,15 +283,30 @@ def main():
             supabase.table("users").update({"current_bgm": new_b}).eq("username", user['username']).execute()
             st.rerun()
             
-        with st.expander("👑 称号変更"):
+        with st.expander("👑 称号コレクション"):
             my_titles = user.get('unlocked_titles', '見習い').split(',')
+            
+            # リスト表示（バッジ風）
+            st.markdown("##### 📜 獲得済み")
+            html_titles = "".join([f"<span style='background:rgba(255,255,255,0.1); border:1px solid #FFD700; padding:2px 8px; border-radius:10px; margin:3px; display:inline-block; font-size:0.8em; color:#fff;'>{t}</span>" for t in my_titles])
+            st.markdown(html_titles, unsafe_allow_html=True)
+            
+            st.divider()
+            st.markdown("##### ✏️ 装備変更")
             if user.get('custom_title_unlocked'):
-                custom_t = st.text_input("自由入力", value=user.get('current_title'))
-                if st.button("変更", key="c_custom"):
-                    supabase.table("users").update({"current_title": custom_t}).eq("username", user['username']).execute()
-                    st.rerun()
+                mode = st.radio("モード", ["リスト選択", "自由入力"], horizontal=True)
+                if mode == "自由入力":
+                    custom_t = st.text_input("称号を入力", value=user.get('current_title'))
+                    if st.button("変更", key="c_custom"):
+                        supabase.table("users").update({"current_title": custom_t}).eq("username", user['username']).execute()
+                        st.rerun()
+                else:
+                    sel_t = st.selectbox("リスト", my_titles)
+                    if st.button("変更", key="c_list"):
+                        supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
+                        st.rerun()
             else:
-                sel_t = st.selectbox("リスト", my_titles)
+                sel_t = st.selectbox("リストから選択", my_titles)
                 if st.button("変更", key="c_list"):
                     supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
                     st.rerun()
@@ -398,11 +412,10 @@ def main():
                     delete_study_log(r['id'], user['username'], r['duration_minutes'])
                     st.rerun()
 
-    with t3: # 分析 (修正)
+    with t3: # 分析
         st.subheader("📊 学習データ分析")
         if not logs.empty:
             logs['study_date'] = pd.to_datetime(logs['study_date'])
-            # タイムゾーンをNaiveに揃える
             today = pd.Timestamp.now(JST).normalize().tz_localize(None)
             
             total_min = logs['duration_minutes'].sum()
@@ -453,7 +466,7 @@ def main():
                 """, unsafe_allow_html=True)
         else: st.info("データなし")
 
-    with t5: # ショップ
+    with t5: # ショップ (豪華版)
         st.write("アイテムを購入してカスタマイズしよう！")
         
         st.markdown("### 🖼️ 壁紙")

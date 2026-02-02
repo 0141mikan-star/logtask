@@ -36,7 +36,7 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # --- デザイン適用関数 ---
-def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_opacity=0.5, container_opacity=0.9):
+def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, bg_opacity=0.5, container_opacity=0.9):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -50,7 +50,6 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_o
     # 背景CSS設定
     bg_style = ""
     
-    # bg_opacity を使って背景の暗さを調整
     if wallpaper == "カスタム" and custom_data:
         bg_style = f"""
             background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("data:image/png;base64,{custom_data}") !important;
@@ -61,22 +60,26 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_o
     elif wallpaper == "真っ黒":
         bg_style = "background-color: #000000 !important;"
     else:
-        # デフォルトは草原
+        # デフォルトは真っ黒だが、もし他の壁紙が選ばれた場合
         wallpapers = {
             "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
             "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
             "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
             "サイバー": "1535295972055-1c762f4483e5"
         }
-        target_wp = wallpaper if wallpaper in wallpapers else "草原"
-        img_id = wallpapers[target_wp]
-        bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
+        # 指定がない場合は真っ黒
+        target_wp = wallpaper if wallpaper in wallpapers else "真っ黒"
         
-        bg_style = f"""
-            background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}") !important;
-            background-attachment: fixed !important;
-            background-size: cover !important;
-        """
+        if target_wp == "真っ黒":
+             bg_style = "background-color: #000000 !important;"
+        else:
+            img_id = wallpapers[target_wp]
+            bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
+            bg_style = f"""
+                background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}") !important;
+                background-attachment: fixed !important;
+                background-size: cover !important;
+            """
 
     st.markdown(f"""
     <style>
@@ -176,6 +179,7 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
+        # ★初期設定: 壁紙="真っ黒"
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
             "xp": 0, "coins": 0, 
@@ -323,7 +327,7 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # 自動移行: 初期壁紙を真っ黒に修正
+    # 自動移行: 「草原」になってしまっているユーザーを「真っ黒」に修正（救済措置）
     if user.get('current_wallpaper') == "草原" and "真っ黒" not in user.get('unlocked_wallpapers', ''):
         supabase.table("users").update({
             "current_wallpaper": "真っ黒", 
@@ -348,7 +352,6 @@ def main():
         st.subheader("⚙️ 設定")
         
         st.markdown("##### 🎨 表示調整")
-        # ★引数名を apply_design に合わせて修正★
         bg_darkness = st.slider("背景の暗さ", 0.0, 1.0, 0.5, 0.1, help="0: 明るい, 1: 暗い")
         container_opacity = st.slider("ウィンドウ不透明度", 0.0, 1.0, 0.9, 0.1, help="0: 透明, 1: 濃い")
         st.divider()
@@ -365,8 +368,7 @@ def main():
 
         # 壁紙設定
         walls = user['unlocked_wallpapers'].split(',')
-        for garbage in ["真っ黒", "書斎"]:
-            if garbage in walls: walls.remove(garbage)
+        if "真っ黒" not in walls: walls.insert(0, "真っ黒")
         
         if user.get('custom_wallpaper_unlocked'):
             bg_mode = st.radio("壁紙モード", ["プリセット", "カスタム画像"], horizontal=True, label_visibility="collapsed")
@@ -382,15 +384,15 @@ def main():
                         st.success("更新しました！"); time.sleep(1); st.rerun()
                 elif user.get('current_wallpaper') == 'カスタム': st.success("カスタム画像適用中")
             else:
-                current_w = user.get('current_wallpaper', '草原')
-                if current_w not in walls: current_w = "草原"
+                current_w = user.get('current_wallpaper', '真っ黒')
+                if current_w == 'カスタム': current_w = "真っ黒"
                 new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
                 if new_w != user.get('current_wallpaper'):
                     supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
                     st.rerun()
         else:
-            current_w = user.get('current_wallpaper', '草原')
-            if current_w not in walls: current_w = "草原"
+            current_w = user.get('current_wallpaper', '真っ黒')
+            if current_w not in walls: current_w = "真っ黒"
             new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
             if new_w != user.get('current_wallpaper'):
                 supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
@@ -429,12 +431,12 @@ def main():
 
         if st.button("ログアウト"): st.session_state["logged_in"] = False; st.rerun()
 
-    # デザイン適用 (修正した引数名で渡す)
+    # デザイン適用
     apply_design(
         user.get('current_theme', '標準'), 
-        user.get('current_wallpaper', '草原'), 
+        user.get('current_wallpaper', '真っ黒'), 
         user.get('custom_bg_data'),
-        bg_opacity=bg_darkness, # ←ここを修正しました
+        bg_opacity=bg_darkness,
         container_opacity=container_opacity
     )
 
@@ -628,7 +630,7 @@ def main():
                 """, unsafe_allow_html=True)
         else: st.info("データなし")
 
-    with t5: # ショップ
+    with t5: # ショップ (BGM完全削除)
         st.write("アイテムを購入してカスタマイズしよう！")
         
         st.markdown("### 🅰️ フォント")

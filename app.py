@@ -57,29 +57,28 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
             background-size: cover !important;
             background-position: center !important;
         """
-    elif wallpaper == "真っ黒":
-        bg_style = "background-color: #000000 !important;"
-    else:
-        # デフォルトは真っ黒だが、もし他の壁紙が選ばれた場合
+    elif wallpaper != "真っ黒":
+        # 真っ黒以外（画像がある場合）
         wallpapers = {
             "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
             "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
             "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
             "サイバー": "1535295972055-1c762f4483e5"
         }
-        # 指定がない場合は真っ黒
-        target_wp = wallpaper if wallpaper in wallpapers else "真っ黒"
-        
-        if target_wp == "真っ黒":
-             bg_style = "background-color: #000000 !important;"
-        else:
-            img_id = wallpapers[target_wp]
+        # 指定された壁紙がリストにない場合は「真っ黒」扱いにする
+        if wallpaper in wallpapers:
+            img_id = wallpapers[wallpaper]
             bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
             bg_style = f"""
                 background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}") !important;
                 background-attachment: fixed !important;
                 background-size: cover !important;
             """
+        else:
+            bg_style = "background-color: #000000 !important;"
+    else:
+        # 真っ黒の場合
+        bg_style = "background-color: #000000 !important;"
 
     st.markdown(f"""
     <style>
@@ -105,18 +104,37 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
     [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown {{
         color: #ffffff !important;
     }}
-    /* SVGアイコン（矢印など）を白くする */
-    [data-testid="stSidebar"] svg {{
+    /* アイコン類を白く */
+    [data-testid="stSidebar"] svg, [data-testid="stSidebar"] span {{
         fill: #ffffff !important;
         color: #ffffff !important;
     }}
-    /* 入力フォームは標準色 */
-    [data-testid="stSidebar"] input, [data-testid="stSidebar"] select, [data-testid="stSidebar"] div[data-baseweb="select"] span {{
-        color: inherit !important; 
+
+    /* ★視認性改善: 入力フォーム（テキストボックス、セレクトボックス）を白背景・黒文字に固定 */
+    input, textarea, select {{
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #ccc !important;
+    }}
+    /* セレクトボックスの選択肢表示部分 */
+    div[data-baseweb="select"] > div {{
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }}
+    div[data-baseweb="select"] span {{
+        color: #000000 !important;
+    }}
+    /* ドロップダウンメニューの中身 */
+    ul[role="listbox"] {{
+        background-color: #ffffff !important;
+    }}
+    li[role="option"] {{
+        color: #000000 !important;
     }}
 
     /* メイン画面フォント */
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
+    /* メインエリアの文字は白、影付きで見やすく */
     .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
         color: #ffffff !important; 
         text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
@@ -179,13 +197,13 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
-        # ★初期設定: 壁紙="真っ黒"
+        # ★初期設定: 壁紙="真っ黒"（草原は削除）
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
             "xp": 0, "coins": 0, 
             "unlocked_themes": "標準", "current_theme": "標準",
             "current_title": "見習い", "unlocked_titles": "見習い", 
-            "current_wallpaper": "真っ黒", "unlocked_wallpapers": "真っ黒", 
+            "current_wallpaper": "真っ黒", "unlocked_wallpapers": "真っ黒", # 草原は最初持っていない
             "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
             "custom_bg_data": None,
             "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None
@@ -327,15 +345,6 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # 自動移行: 「草原」になってしまっているユーザーを「真っ黒」に修正（救済措置）
-    if user.get('current_wallpaper') == "草原" and "真っ黒" not in user.get('unlocked_wallpapers', ''):
-        supabase.table("users").update({
-            "current_wallpaper": "真っ黒", 
-            "unlocked_wallpapers": user.get('unlocked_wallpapers', '') + ",真っ黒"
-        }).eq("username", user['username']).execute()
-        user['current_wallpaper'] = "真っ黒"
-        st.rerun()
-
     today_str = str(date.today())
     if user.get('last_login_date') != today_str:
         new_coins = user['coins'] + 50
@@ -392,7 +401,9 @@ def main():
                     st.rerun()
         else:
             current_w = user.get('current_wallpaper', '真っ黒')
+            # もし持っていない壁紙が設定されていたらデフォルトに戻す
             if current_w not in walls: current_w = "真っ黒"
+            
             new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
             if new_w != user.get('current_wallpaper'):
                 supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
@@ -630,7 +641,7 @@ def main():
                 """, unsafe_allow_html=True)
         else: st.info("データなし")
 
-    with t5: # ショップ (BGM完全削除)
+    with t5: # ショップ
         st.write("アイテムを購入してカスタマイズしよう！")
         
         st.markdown("### 🅰️ フォント")
@@ -654,7 +665,8 @@ def main():
                             else: st.error("コイン不足")
 
         st.markdown("### 🖼️ 壁紙")
-        items = [("夕焼け", 500), ("夜空", 800), ("ダンジョン", 1200), ("王宮", 2000)]
+        # ★草原をショップに追加★
+        items = [("草原", 500), ("夕焼け", 500), ("夜空", 800), ("ダンジョン", 1200), ("王宮", 2000)]
         cols = st.columns(2)
         for i, (n, p) in enumerate(items):
             with cols[i % 2]:

@@ -67,7 +67,6 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_o
             "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
             "サイバー": "1535295972055-1c762f4483e5"
         }
-        # 指定がない場合は草原
         target_wp = wallpaper if wallpaper in wallpapers else "草原"
         img_id = wallpapers[target_wp]
         bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
@@ -102,7 +101,7 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_o
     [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown {{
         color: #ffffff !important;
     }}
-    /* 入力フォームは標準色（黒文字が見えるように） */
+    /* 入力フォームは標準色 */
     [data-testid="stSidebar"] input, [data-testid="stSidebar"] select, [data-testid="stSidebar"] div[data-baseweb="select"] span {{
         color: inherit !important; 
     }}
@@ -171,14 +170,12 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
-        # ★BGMデータを完全削除し、初期壁紙を「草原」に設定★
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
             "xp": 0, "coins": 0, 
             "unlocked_themes": "標準", "current_theme": "標準",
             "current_title": "見習い", "unlocked_titles": "見習い", 
             "current_wallpaper": "草原", "unlocked_wallpapers": "草原", 
-            # BGM関連は完全に削除済み
             "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
             "custom_bg_data": None,
             "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None
@@ -217,32 +214,25 @@ def add_subject_db(u, s): supabase.table("subjects").insert({"username": u, "sub
 def delete_subject_db(u, s): supabase.table("subjects").delete().eq("username", u).eq("subject_name", s).execute()
 
 def add_study_log(u, s, m, d):
-    # ログ追加
     supabase.table("study_logs").insert({"username": u, "subject": s, "duration_minutes": m, "study_date": str(d)}).execute()
-    
     ud = get_user_data(u)
     if not ud: return m, 0, 0, False
 
-    # 本日の合計時間を計算
     today_str = str(date.today())
     logs = supabase.table("study_logs").select("duration_minutes").eq("username", u).eq("study_date", today_str).execute()
     total_today = sum([l['duration_minutes'] for l in logs.data]) if logs.data else m
     
-    # 基本報酬加算
     new_xp = ud['xp'] + m
     new_coins = ud['coins'] + m
     
-    # 目標達成チェック
     goal_reached = False
     goal = ud.get('daily_goal', 60)
     last_reward = ud.get('last_goal_reward_date')
     
     if last_reward != today_str and total_today >= goal:
-        new_coins += 100 # ボーナス
+        new_coins += 100 
         supabase.table("users").update({
-            "xp": new_xp, 
-            "coins": new_coins,
-            "last_goal_reward_date": today_str
+            "xp": new_xp, "coins": new_coins, "last_goal_reward_date": today_str
         }).eq("username", u).execute()
         goal_reached = True
     else:
@@ -357,6 +347,9 @@ def main():
 
     # 本日の勉強時間取得
     logs_df = get_study_logs(user['username'])
+    # ★ここに tasks を定義してエラー回避★
+    tasks = get_tasks(user['username'])
+    
     today_mins = 0
     if not logs_df.empty:
         logs_df['d'] = logs_df['study_date'].astype(str).str.split("T").str[0]
@@ -404,7 +397,6 @@ def main():
 
         # 壁紙設定 (草原、プリセット、カスタム)
         walls = user['unlocked_wallpapers'].split(',')
-        # 不要なものをリストから消す
         for garbage in ["真っ黒", "書斎"]:
             if garbage in walls: walls.remove(garbage)
         
@@ -617,7 +609,7 @@ def main():
                 """, unsafe_allow_html=True)
         else: st.info("データなし")
 
-    with t5: # ショップ (BGM削除済み)
+    with t5: # ショップ (BGM完全削除)
         st.write("アイテムを購入してカスタマイズしよう！")
         
         st.markdown("### 🅰️ フォント")

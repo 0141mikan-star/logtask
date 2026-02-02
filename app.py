@@ -36,7 +36,7 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # --- デザイン適用関数 ---
-def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, bg_opacity=0.4):
+def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, overlay_opacity=0.5, container_opacity=0.9):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -48,33 +48,34 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
     font_family = fonts.get(user_theme, "sans-serif")
     
     # 背景CSS設定
-    bg_style = """
-        background-color: #000000 !important;
-        background-image: none !important;
-    """
+    bg_style = ""
     
     if wallpaper == "カスタム" and custom_data:
         bg_style = f"""
-            background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("data:image/png;base64,{custom_data}") !important;
+            background-image: linear-gradient(rgba(0,0,0,{overlay_opacity}), rgba(0,0,0,{overlay_opacity})), url("data:image/png;base64,{custom_data}") !important;
             background-attachment: fixed !important;
             background-size: cover !important;
             background-position: center !important;
         """
-    elif wallpaper != "真っ黒":
+    elif wallpaper == "真っ黒":
+        bg_style = "background-color: #000000 !important;"
+    else:
+        # デフォルトは草原
         wallpapers = {
             "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
             "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
             "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
             "サイバー": "1535295972055-1c762f4483e5"
         }
-        if wallpaper in wallpapers:
-            img_id = wallpapers[wallpaper]
-            bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
-            bg_style = f"""
-                background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}") !important;
-                background-attachment: fixed !important;
-                background-size: cover !important;
-            """
+        target_wp = wallpaper if wallpaper in wallpapers else "草原"
+        img_id = wallpapers[target_wp]
+        bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
+        
+        bg_style = f"""
+            background-image: linear-gradient(rgba(0,0,0,{overlay_opacity}), rgba(0,0,0,{overlay_opacity})), url("{bg_url}") !important;
+            background-attachment: fixed !important;
+            background-size: cover !important;
+        """
 
     st.markdown(f"""
     <style>
@@ -90,38 +91,49 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, b
         background-color: rgba(0,0,0,0);
     }}
 
-    /* サイドバー修正 */
+    /* --- サイドバー視認性修正 --- */
     [data-testid="stSidebar"] {{
-        background-color: #1a1a1a !important;
+        background-color: #1a1a1a !important; /* 濃いグレー */
         border-right: 1px solid #333;
     }}
-    /* テキストは白 */
-    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
-    [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown {{
+    /* サイドバー内のテキスト全般を白く */
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] div, 
+    [data-testid="stSidebar"] label, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{
         color: #ffffff !important;
     }}
-    /* 入力フォームは標準色 */
-    [data-testid="stSidebar"] input, [data-testid="stSidebar"] select, [data-testid="stSidebar"] div[data-baseweb="select"] span {{
-        color: inherit !important; 
+    /* 矢印アイコン（SVG）を白く塗りつぶす */
+    [data-testid="stSidebar"] svg {{
+        fill: #ffffff !important;
+        color: #ffffff !important;
+    }}
+    /* 入力フォームの中身は標準色（黒文字等）で見やすく */
+    [data-testid="stSidebar"] input, [data-testid="stSidebar"] select {{
+        color: #000000 !important;
+        background-color: #ffffff !important;
+    }}
+    /* プルダウンの選択肢など */
+    div[data-baseweb="select"] span {{
+        color: #000000 !important;
     }}
 
-    /* メイン画面フォント */
+    /* --- メイン画面フォント --- */
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
+    /* メインエリアの文字は白、影付きで見やすく */
     .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
         color: #ffffff !important; 
         text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
     }}
     
-    /* カードコンテナ */
+    /* --- カードコンテナ (透明度調整可能) --- */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
-        background-color: rgba(30, 30, 30, 0.85);
+        background-color: rgba(30, 30, 30, {container_opacity}) !important;
         border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.15);
         box-shadow: 0 4px 15px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
     }}
 
     /* ランキングカード */
     .ranking-card {{
-        background: linear-gradient(90deg, rgba(60,60,60,0.6), rgba(40,40,40,0.6));
+        background: linear-gradient(90deg, rgba(60,60,60,{container_opacity}), rgba(40,40,40,{container_opacity}));
         border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
         border: 1px solid rgba(255,255,255,0.2);
     }}
@@ -169,13 +181,12 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
-        # ★初期設定: 壁紙="真っ黒"
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
             "xp": 0, "coins": 0, 
             "unlocked_themes": "標準", "current_theme": "標準",
             "current_title": "見習い", "unlocked_titles": "見習い", 
-            "current_wallpaper": "真っ黒", "unlocked_wallpapers": "真っ黒", 
+            "current_wallpaper": "草原", "unlocked_wallpapers": "草原", 
             "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
             "custom_bg_data": None,
             "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None
@@ -230,7 +241,7 @@ def add_study_log(u, s, m, d):
     last_reward = ud.get('last_goal_reward_date')
     
     if last_reward != today_str and total_today >= goal:
-        new_coins += 100 
+        new_coins += 100
         supabase.table("users").update({
             "xp": new_xp, "coins": new_coins, "last_goal_reward_date": today_str
         }).eq("username", u).execute()
@@ -317,16 +328,12 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # 自動移行: 初期壁紙を真っ黒に修正
-    if user.get('current_wallpaper') == "草原" and "真っ黒" not in user.get('unlocked_wallpapers', ''):
-        supabase.table("users").update({
-            "current_wallpaper": "真っ黒", 
-            "unlocked_wallpapers": user.get('unlocked_wallpapers', '') + ",真っ黒"
-        }).eq("username", user['username']).execute()
-        user['current_wallpaper'] = "真っ黒"
+    # 自動移行
+    if user.get('current_wallpaper') == "真っ黒":
+        supabase.table("users").update({"current_wallpaper": "草原"}).eq("username", user['username']).execute()
+        user['current_wallpaper'] = "草原"
         st.rerun()
 
-    # ★ログインボーナス判定★
     today_str = str(date.today())
     if user.get('last_login_date') != today_str:
         new_coins = user['coins'] + 50
@@ -338,56 +345,16 @@ def main():
         time.sleep(1)
         user['coins'] = new_coins
 
-    # デザイン適用
-    apply_design(user.get('current_theme', '標準'), user.get('current_wallpaper', '真っ黒'), user.get('custom_bg_data'))
-
-    # ★ 集中モード (BGM無し)
-    if st.session_state["is_studying"]:
-        st.empty()
-        st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
-        show_timer_fragment(user['username'])
-        return
-
-    # 本日の勉強時間取得
-    logs_df = get_study_logs(user['username'])
-    # タスク取得
-    tasks = get_tasks(user['username'])
-    
-    today_mins = 0
-    if not logs_df.empty:
-        logs_df['d'] = logs_df['study_date'].astype(str).str.split("T").str[0]
-        today_mins = logs_df[logs_df['d'] == str(date.today())]['duration_minutes'].sum()
-
-    # ★HUD
-    level = (user['xp'] // 100) + 1
-    next_xp = level * 100
-    goal = user.get('daily_goal', 60)
-    goal_progress = min(1.0, today_mins / goal) if goal > 0 else 0
-    
-    st.markdown(f"""
-    <div class="status-bar">
-        <div class="stat-item"><div class="stat-label">PLAYER</div><div class="stat-val" style="font-size:1.2em;">{user['nickname']}</div><div style="font-size:0.7em; color:gold;">{user.get('current_title', '見習い')}</div></div>
-        <div class="stat-item"><div class="stat-label">LEVEL</div><div class="stat-val" style="color:#00e5ff;">{level}</div></div>
-        <div class="stat-item"><div class="stat-label">XP</div><div class="stat-val">{user['xp']} <span style="font-size:0.5em; color:#888;">/ {next_xp}</span></div></div>
-        <div class="stat-item"><div class="stat-label">COIN</div><div class="stat-val" style="color:#FFD700;">{user['coins']} G</div></div>
-        <div class="stat-item" style="border-left:1px solid #444; padding-left:15px;">
-            <div class="stat-label">TODAY'S GOAL</div>
-            <div class="stat-val" style="color:#ff9900;">{today_mins} <span style="font-size:0.5em; color:#888;">/ {goal} min</span></div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.progress(goal_progress)
-    if today_mins >= goal and goal > 0:
-        if user.get('last_goal_reward_date') == str(date.today()):
-             st.caption("✅ 今日の目標達成済み！ボーナス獲得済み")
-        else:
-             st.caption("🔥 あと少しで目標達成！")
-
-    # サイドバー
+    # サイドバー (設定調整)
     with st.sidebar:
         st.subheader("⚙️ 設定")
         
+        st.markdown("##### 🎨 表示調整")
+        # ★ここで明るさと不透明度を調整可能にする★
+        bg_darkness = st.slider("背景の暗さ", 0.0, 1.0, 0.5, 0.1, help="0: 明るい, 1: 暗い")
+        container_opacity = st.slider("ウィンドウ不透明度", 0.0, 1.0, 0.9, 0.1, help="0: 透明, 1: 濃い")
+        st.divider()
+
         # 目標設定
         st.markdown("##### 🎯 1日の目標")
         new_goal = st.number_input("目標時間(分)", min_value=10, max_value=600, value=user.get('daily_goal', 60), step=10)
@@ -398,10 +365,10 @@ def main():
         
         st.divider()
 
-        # 壁紙設定 (真っ黒、プリセット、カスタム)
+        # 壁紙設定
         walls = user['unlocked_wallpapers'].split(',')
-        if "真っ黒" not in walls: walls.insert(0, "真っ黒")
-        if "草原" in walls: walls.remove("草原")
+        for garbage in ["真っ黒", "書斎"]:
+            if garbage in walls: walls.remove(garbage)
         
         if user.get('custom_wallpaper_unlocked'):
             bg_mode = st.radio("壁紙モード", ["プリセット", "カスタム画像"], horizontal=True, label_visibility="collapsed")
@@ -417,15 +384,15 @@ def main():
                         st.success("更新しました！"); time.sleep(1); st.rerun()
                 elif user.get('current_wallpaper') == 'カスタム': st.success("カスタム画像適用中")
             else:
-                current_w = user.get('current_wallpaper', '真っ黒')
-                if current_w not in walls: current_w = "真っ黒"
+                current_w = user.get('current_wallpaper', '草原')
+                if current_w not in walls: current_w = "草原"
                 new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
                 if new_w != user.get('current_wallpaper'):
                     supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
                     st.rerun()
         else:
-            current_w = user.get('current_wallpaper', '真っ黒')
-            if current_w not in walls: current_w = "真っ黒"
+            current_w = user.get('current_wallpaper', '草原')
+            if current_w not in walls: current_w = "草原"
             new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
             if new_w != user.get('current_wallpaper'):
                 supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
@@ -463,6 +430,57 @@ def main():
                     st.toast("装備を変更しました！"); time.sleep(1); st.rerun()
 
         if st.button("ログアウト"): st.session_state["logged_in"] = False; st.rerun()
+
+    # デザイン適用 (サイドバーのスライダー値を渡す)
+    apply_design(
+        user.get('current_theme', '標準'), 
+        user.get('current_wallpaper', '草原'), 
+        user.get('custom_bg_data'),
+        bg_opacity=bg_darkness, # スライダーの値
+        container_opacity=container_opacity # スライダーの値
+    )
+
+    # ★ 集中モード (BGM無し)
+    if st.session_state["is_studying"]:
+        st.empty()
+        st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
+        show_timer_fragment(user['username'])
+        return
+
+    # 本日の勉強時間取得
+    logs_df = get_study_logs(user['username'])
+    tasks = get_tasks(user['username'])
+    
+    today_mins = 0
+    if not logs_df.empty:
+        logs_df['d'] = logs_df['study_date'].astype(str).str.split("T").str[0]
+        today_mins = logs_df[logs_df['d'] == str(date.today())]['duration_minutes'].sum()
+
+    # ★HUD
+    level = (user['xp'] // 100) + 1
+    next_xp = level * 100
+    goal = user.get('daily_goal', 60)
+    goal_progress = min(1.0, today_mins / goal) if goal > 0 else 0
+    
+    st.markdown(f"""
+    <div class="status-bar">
+        <div class="stat-item"><div class="stat-label">PLAYER</div><div class="stat-val" style="font-size:1.2em;">{user['nickname']}</div><div style="font-size:0.7em; color:gold;">{user.get('current_title', '見習い')}</div></div>
+        <div class="stat-item"><div class="stat-label">LEVEL</div><div class="stat-val" style="color:#00e5ff;">{level}</div></div>
+        <div class="stat-item"><div class="stat-label">XP</div><div class="stat-val">{user['xp']} <span style="font-size:0.5em; color:#888;">/ {next_xp}</span></div></div>
+        <div class="stat-item"><div class="stat-label">COIN</div><div class="stat-val" style="color:#FFD700;">{user['coins']} G</div></div>
+        <div class="stat-item" style="border-left:1px solid #444; padding-left:15px;">
+            <div class="stat-label">TODAY'S GOAL</div>
+            <div class="stat-val" style="color:#ff9900;">{today_mins} <span style="font-size:0.5em; color:#888;">/ {goal} min</span></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.progress(goal_progress)
+    if today_mins >= goal and goal > 0:
+        if user.get('last_goal_reward_date') == str(date.today()):
+             st.caption("✅ 今日の目標達成済み！ボーナス獲得済み")
+        else:
+             st.caption("🔥 あと少しで目標達成！")
 
     # メイン画面
     if st.session_state.get("celebrate"): st.balloons(); st.session_state["celebrate"] = False
@@ -612,7 +630,7 @@ def main():
                 """, unsafe_allow_html=True)
         else: st.info("データなし")
 
-    with t5: # ショップ (BGM削除)
+    with t5: # ショップ (BGM完全削除)
         st.write("アイテムを購入してカスタマイズしよう！")
         
         st.markdown("### 🅰️ フォント")

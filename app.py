@@ -99,17 +99,17 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None,
         background-color: {sidebar_bg_color} !important;
         border-right: 1px solid rgba(255,255,255,0.1);
     }}
-    /* ★サイドバー文字色★ */
+    /* ★サイドバー文字色（ユーザー指定）★ */
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
     [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown {{
         color: {sidebar_text_color} !important;
     }}
-    /* SVGアイコン色 */
+    /* SVGアイコン色（ユーザー指定） */
     [data-testid="stSidebar"] svg {{
         fill: {sidebar_text_color} !important;
         color: {sidebar_text_color} !important;
     }}
-    /* 入力フォーム（白背景・黒文字固定） */
+    /* 入力フォーム（白背景・黒文字固定で見やすく） */
     [data-testid="stSidebar"] input, [data-testid="stSidebar"] select, [data-testid="stSidebar"] div[data-baseweb="select"] span {{
         color: #000000 !important; 
         background-color: #ffffff !important;
@@ -160,7 +160,7 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None,
 
     /* HUD */
     .status-bar {{
-        background: linear-gradient(90deg, #1a1a1a, #2d2d2d);
+        background: linear-gradient(90deg, {sidebar_bg_color}, #2d2d2d);
         padding: 15px; border-radius: 15px; border: 1px solid #444;
         display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
         box-shadow: 0 0 15px rgba(0,0,0,0.8);
@@ -201,7 +201,7 @@ def login_user(username, password):
         return False, "IDまたはパスワードが違います"
     except Exception as e: return False, f"エラー: {e}"
 
-def add_user(username, password, nickname):
+def add_user(username, password, nickname, initial_color_code, initial_text_color):
     try:
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
@@ -212,8 +212,10 @@ def add_user(username, password, nickname):
             "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
             "custom_bg_data": None,
             "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None,
-            "current_sidebar_color": "#1a1a1a", "unlocked_sidebar_colors": "#1a1a1a",
-            "main_text_color": "#ffffff", "sidebar_text_color": "#ffffff", "accent_color": "#FFD700"
+            "current_sidebar_color": initial_color_code, "unlocked_sidebar_colors": "#1a1a1a,#ffffff",
+            "main_text_color": "#ffffff", 
+            "sidebar_text_color": initial_text_color, # 初期文字色
+            "accent_color": "#FFD700"
         }
         supabase.table("users").insert(data).execute()
         return True, "登録成功"
@@ -334,8 +336,17 @@ def main():
         p = st.text_input("パスワード", type="password")
         if mode == "新規登録":
             n = st.text_input("ニックネーム")
+            # 初期サイドバーカラーを選択（文字色も自動でいい感じにする）
+            init_color = st.radio("最初のテーマカラー", ["ブラック (黒)", "ホワイト (白)"], horizontal=True)
+            if init_color == "ブラック (黒)":
+                init_bg = "#1a1a1a"
+                init_txt = "#ffffff"
+            else:
+                init_bg = "#ffffff"
+                init_txt = "#000000"
+            
             if st.button("登録"):
-                success, msg = add_user(u, p, n)
+                success, msg = add_user(u, p, n, init_bg, init_txt)
                 if success: st.success(msg)
                 else: st.error(msg)
         else:
@@ -400,6 +411,8 @@ def main():
         
         # カラー設定(サイドバー背景)
         my_colors = user.get('unlocked_sidebar_colors', '#1a1a1a').split(',')
+        if '#ffffff' not in my_colors: my_colors.append('#ffffff') # 白を追加
+        
         color_options = {code: name for code, name in COLOR_PALETTE.items() if code in my_colors}
         if not color_options: color_options = {"#1a1a1a": "ブラック (黒)"}
         
@@ -507,7 +520,7 @@ def main():
         accent_color=user.get('accent_color', '#FFD700')
     )
 
-    # ★ 集中モード (BGM無し)
+    # ★ 集中モード
     if st.session_state["is_studying"]:
         st.empty()
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)

@@ -10,6 +10,7 @@ import io
 import base64
 from PIL import Image
 import hashlib
+import extra_streamlit_components as stx # ★追加: Cookie管理用
 
 # ページ設定
 st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide")
@@ -29,6 +30,13 @@ def init_supabase():
 
 supabase = init_supabase()
 
+# --- Cookieマネージャーの初期化 (キャッシュして再利用) ---
+@st.cache_resource(experimental_allow_widgets=True)
+def get_manager():
+    return stx.CookieManager()
+
+cookie_manager = get_manager()
+
 # --- 画像処理関数 ---
 def image_to_base64(img):
     buffered = io.BytesIO()
@@ -37,8 +45,8 @@ def image_to_base64(img):
 
 # --- デザイン適用関数 ---
 def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None, 
-                 bg_opacity=0.5, container_opacity=0.9, 
-                 main_text_color="#000000", accent_color="#FFD700"):
+                 bg_opacity=0.5, container_opacity=0.9, sidebar_bg_color="#ffffff",
+                 main_text_color="#000000", sidebar_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -49,11 +57,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
-    # サイドバーは常に白、文字は黒
-    sidebar_bg_color = "#ffffff"
-    sidebar_text_color = "#000000"
-
-    # --- 自動判定ロジック (メイン画面用) ---
+    # 自動判定ロジック
     if main_text_color.lower() == "#ffffff":
         card_bg_color = f"rgba(30, 30, 30, {container_opacity})"
         shadow_color = "rgba(0,0,0,0.9)"
@@ -100,51 +104,46 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    /* アプリ全体の背景 */
-    [data-testid="stAppViewContainer"], .stApp {{
-        {bg_style}
-    }}
-    
-    /* ヘッダー透明化 */
-    [data-testid="stHeader"] {{
-        background-color: rgba(0,0,0,0);
-    }}
+    [data-testid="stAppViewContainer"], .stApp {{ {bg_style} }}
+    [data-testid="stHeader"] {{ background-color: rgba(0,0,0,0); }}
 
-    /* --- サイドバー（白固定） --- */
+    /* サイドバー */
     [data-testid="stSidebar"] {{
-        background-color: #ffffff !important;
-        border-right: 1px solid #e0e0e0;
+        background-color: {sidebar_bg_color} !important;
+        border-right: 1px solid rgba(128,128,128,0.2);
     }}
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
     [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown {{
-        color: #000000 !important;
+        color: {sidebar_text_color} !important;
     }}
     [data-testid="stSidebar"] svg {{
-        fill: #000000 !important;
-        color: #000000 !important;
+        fill: {sidebar_text_color} !important;
+        color: {sidebar_text_color} !important;
     }}
-    
-    /* ★ご要望箇所：サイドバーの数値入力欄（目標時間）を赤枠で囲う */
+    /* サイドバー入力フォーム */
+    [data-testid="stSidebar"] input, [data-testid="stSidebar"] select {{
+        color: #000000 !important; 
+        background-color: #ffffff !important;
+    }}
+    /* 目標設定の赤枠 */
     [data-testid="stSidebar"] div[data-baseweb="input"] {{
-        border: 2px solid #FF4B4B !important; /* 赤い枠線 */
-        background-color: #FFF0F0 !important; /* うっすら赤い背景 */
+        border: 2px solid #FF4B4B !important;
+        background-color: #FFF0F0 !important;
         border-radius: 8px !important;
     }}
-    /* 入力文字色 */
     [data-testid="stSidebar"] input {{
         color: #000000 !important;
         background-color: transparent !important;
     }}
 
-    /* --- メイン画面の入力フォーム --- */
+    /* メイン画面入力フォーム */
     .stMarkdown label, div[data-testid="stForm"] label, .stTextInput label, .stNumberInput label, .stSelectbox label {{
         color: {main_text_color} !important;
         font-weight: bold !important;
         text-shadow: 1px 1px 2px {shadow_color};
     }}
     
-    /* メインエリアの入力ボックス（通常スタイル） */
-    .main input, .main textarea, .main select {{
+    input, textarea, select {{
         background-color: #ffffff !important;
         color: #000000 !important;
         border: 1px solid #ccc !important;
@@ -153,16 +152,14 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
     div[data-baseweb="base-input"] {{ background-color: #ffffff !important; }}
 
-    /* メイン画面フォント */
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
     
-    /* メインエリア文字色 */
     .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
         color: {main_text_color} !important; 
         text-shadow: 1px 1px 2px {shadow_color};
     }}
     
-    /* --- カードコンテナ --- */
+    /* カードコンテナ */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: {card_bg_color} !important;
         border-radius: 15px; padding: 20px; border: 1px solid rgba(128,128,128,0.2);
@@ -181,7 +178,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     .rank-title {{ font-size: 0.85em; color: {accent_color}; }}
     .rank-score {{ font-size: 1.4em; font-weight: bold; color: {accent_color}; }}
 
-    /* ショップアイテム */
+    /* ショップ */
     .shop-title {{ font-size: 1.1em; font-weight: bold; color: {main_text_color}; margin-bottom: 5px; border-bottom: 1px solid rgba(128,128,128,0.3); padding-bottom:3px; }}
     .shop-price {{ font-size: 1.0em; color: {accent_color}; font-weight: bold; margin-bottom: 8px; }}
     .shop-owned {{ color: {main_text_color}; border: 1px solid {main_text_color}; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
@@ -197,7 +194,6 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     .stat-label {{ font-size: 0.7em; color: {main_text_color}; opacity: 0.8; letter-spacing: 1px; }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_color}; }}
     
-    /* ボタン */
     button[kind="primary"] {{
         background: {accent_color} !important;
         border: none !important; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-weight: bold !important;
@@ -207,6 +203,16 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     canvas {{ filter: invert(0) hue-rotate(0deg); }}
     </style>
     """, unsafe_allow_html=True)
+
+# --- カラーパレット定義 ---
+COLOR_PALETTE = {
+    "#ffffff": "ホワイト (白)",
+    "#1a1a1a": "ブラック (黒)",
+    "#001f3f": "ミッドナイト",
+    "#3d0000": "クリムゾン",
+    "#003300": "ディープグリーン",
+    "#2c003e": "ロイヤルパープル",
+}
 
 # --- 認証・DB操作 ---
 def make_hashes(password): return hashlib.sha256(str.encode(password)).hexdigest()
@@ -221,7 +227,6 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
-        # ★初期設定: 全てホワイトベース★
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
             "xp": 0, "coins": 0, 
@@ -231,10 +236,8 @@ def add_user(username, password, nickname):
             "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
             "custom_bg_data": None,
             "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None,
-            "current_sidebar_color": "#ffffff", "unlocked_sidebar_colors": "#ffffff", 
-            "main_text_color": "#000000", 
-            "sidebar_text_color": "#000000",
-            "accent_color": "#FFD700"
+            "current_sidebar_color": "#ffffff", "unlocked_sidebar_colors": "#ffffff,#1a1a1a",
+            "main_text_color": "#000000", "sidebar_text_color": "#000000", "accent_color": "#FFD700"
         }
         supabase.table("users").insert(data).execute()
         return True, "登録成功"
@@ -348,6 +351,22 @@ def main():
     if "logged_in" not in st.session_state: 
         st.session_state.update({"logged_in": False, "username": "", "is_studying": False, "start_time": None, "celebrate": False, "toast_msg": None, "selected_date": str(date.today())})
 
+    # 自動ログイン判定 (Cookie)
+    if not st.session_state["logged_in"]:
+        auth_cookie = cookie_manager.get('logtask_auth')
+        if auth_cookie:
+            try:
+                # user:hash の形式で保存されていると仮定
+                c_user, c_hash = auth_cookie.split(":", 1)
+                res = supabase.table("users").select("password").eq("username", c_user).execute()
+                # パスワードハッシュが一致すればログインとみなす
+                if res.data and res.data[0]["password"] == c_hash:
+                    st.session_state["logged_in"] = True
+                    st.session_state["username"] = c_user
+                    st.rerun()
+            except:
+                pass # クッキーが不正なら何もしない
+
     if not st.session_state["logged_in"]:
         st.title("🛡️ ログイン")
         mode = st.selectbox("モード", ["ログイン", "新規登録"])
@@ -363,6 +382,9 @@ def main():
             if st.button("ログイン"):
                 res, msg = login_user(u, p)
                 if res:
+                    # ログイン成功時にCookieセット (有効期限7日)
+                    p_hash = make_hashes(p)
+                    cookie_manager.set('logtask_auth', f"{u}:{p_hash}", expires_at=datetime.now() + timedelta(days=7))
                     st.session_state["logged_in"] = True
                     st.session_state["username"] = u
                     st.rerun()
@@ -373,7 +395,7 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # 自動移行（既存ユーザーに真っ白を持たせる）
+    # 自動移行（初期化）
     if "真っ白" not in user.get('unlocked_wallpapers', ''):
         supabase.table("users").update({
             "unlocked_wallpapers": user.get('unlocked_wallpapers', '') + ",真っ白"
@@ -421,7 +443,6 @@ def main():
 
         # 目標設定
         st.markdown("##### 🎯 1日の目標")
-        # ★ここが赤枠になるターゲット要素★
         new_goal = st.number_input("目標時間(分)", min_value=10, max_value=600, value=user.get('daily_goal', 60), step=10)
         if new_goal != user.get('daily_goal', 60):
             if st.button("目標を保存"):
@@ -493,7 +514,10 @@ def main():
                     supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
                     st.toast("装備を変更しました！"); time.sleep(1); st.rerun()
 
-        if st.button("ログアウト"): st.session_state["logged_in"] = False; st.rerun()
+        if st.button("ログアウト"):
+            cookie_manager.delete('logtask_auth')
+            st.session_state["logged_in"] = False
+            st.rerun()
 
     # デザイン適用
     apply_design(
@@ -707,7 +731,7 @@ def main():
                     """, unsafe_allow_html=True)
             else: st.info("データなし")
 
-    with t5: # ショップ
+    with t5: # ショップ (BGM完全削除)
         st.write("アイテムを購入してカスタマイズしよう！")
         
         st.markdown("### 🅰️ フォント")

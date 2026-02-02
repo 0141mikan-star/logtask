@@ -99,12 +99,12 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None,
         background-color: {sidebar_bg_color} !important;
         border-right: 1px solid rgba(255,255,255,0.1);
     }}
-    /* ★サイドバー文字色（ユーザー指定）★ */
+    /* ★サイドバー文字色★ */
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
     [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown {{
         color: {sidebar_text_color} !important;
     }}
-    /* SVGアイコン色（ユーザー指定） */
+    /* SVGアイコン色 */
     [data-testid="stSidebar"] svg {{
         fill: {sidebar_text_color} !important;
         color: {sidebar_text_color} !important;
@@ -128,13 +128,13 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None,
     /* メイン画面フォント */
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
     
-    /* ★メインエリア文字色★ */
+    /* ★メインエリア文字色（影を強化）★ */
     .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
         color: {main_text_color} !important; 
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.9); /* 影を濃くしました */
     }}
     
-    /* カードコンテナ */
+    /* カードコンテナ（ここに文字が乗ると見やすくなる） */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: rgba(30, 30, 30, {container_opacity}) !important;
         border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.15);
@@ -173,14 +173,14 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None,
     button[kind="primary"] {{
         background: {accent_color} !important;
         border: none !important; box-shadow: 0 4px 10px rgba(0,0,0,0.4); font-weight: bold !important;
-        color: #000000 !important; /* ボタン文字は黒で見やすく */
+        color: #000000 !important;
     }}
     
     canvas {{ filter: invert(1) hue-rotate(180deg); }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- カラーパレット定義（サイドバー背景用） ---
+# --- カラーパレット定義 ---
 COLOR_PALETTE = {
     "#1a1a1a": "ブラック (黒)",
     "#ffffff": "ホワイト (白)",
@@ -214,7 +214,7 @@ def add_user(username, password, nickname, initial_color_code, initial_text_colo
             "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None,
             "current_sidebar_color": initial_color_code, "unlocked_sidebar_colors": "#1a1a1a,#ffffff",
             "main_text_color": "#ffffff", 
-            "sidebar_text_color": initial_text_color, # 初期文字色
+            "sidebar_text_color": initial_text_color,
             "accent_color": "#FFD700"
         }
         supabase.table("users").insert(data).execute()
@@ -336,7 +336,7 @@ def main():
         p = st.text_input("パスワード", type="password")
         if mode == "新規登録":
             n = st.text_input("ニックネーム")
-            # 初期サイドバーカラーを選択（文字色も自動でいい感じにする）
+            # 初期サイドバーカラーを選択
             init_color = st.radio("最初のテーマカラー", ["ブラック (黒)", "ホワイト (白)"], horizontal=True)
             if init_color == "ブラック (黒)":
                 init_bg = "#1a1a1a"
@@ -382,6 +382,19 @@ def main():
         st.toast("🎁 ログインボーナス！ +50コイン GET！", icon="🎁")
         time.sleep(1)
         user['coins'] = new_coins
+
+    # デザイン適用
+    apply_design(
+        user.get('current_theme', '標準'), 
+        user.get('current_wallpaper', '真っ黒'), 
+        user.get('custom_bg_data'),
+        bg_opacity=bg_darkness,
+        container_opacity=container_opacity,
+        sidebar_bg_color=user.get('current_sidebar_color', '#1a1a1a'),
+        main_text_color=user.get('main_text_color', '#ffffff'),
+        sidebar_text_color=user.get('sidebar_text_color', '#ffffff'),
+        accent_color=user.get('accent_color', '#FFD700')
+    )
 
     # サイドバー (設定)
     with st.sidebar:
@@ -507,20 +520,7 @@ def main():
 
         if st.button("ログアウト"): st.session_state["logged_in"] = False; st.rerun()
 
-    # デザイン適用
-    apply_design(
-        user.get('current_theme', '標準'), 
-        user.get('current_wallpaper', '真っ黒'), 
-        user.get('custom_bg_data'),
-        bg_opacity=bg_darkness,
-        container_opacity=container_opacity,
-        sidebar_bg_color=user.get('current_sidebar_color', '#1a1a1a'),
-        main_text_color=user.get('main_text_color', '#ffffff'),
-        sidebar_text_color=user.get('sidebar_text_color', '#ffffff'),
-        accent_color=user.get('accent_color', '#FFD700')
-    )
-
-    # ★ 集中モード
+    # ★ 集中モード (BGM無し)
     if st.session_state["is_studying"]:
         st.empty()
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
@@ -590,132 +590,138 @@ def main():
                 events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": d_str, "color": "#00CC00"})
 
         with c1:
-            st.subheader("📅 カレンダー")
-            cal = calendar(events=events, options={"initialView": "dayGridMonth", "height": 500}, callbacks=['dateClick'])
-            if cal.get('dateClick'): st.session_state["selected_date"] = cal['dateClick']['date']
+            with st.container(border=True): # ★ここをコンテナ化して見やすく
+                st.subheader("📅 カレンダー")
+                cal = calendar(events=events, options={"initialView": "dayGridMonth", "height": 500}, callbacks=['dateClick'])
+                if cal.get('dateClick'): st.session_state["selected_date"] = cal['dateClick']['date']
         
         with c2:
-            sel_date_raw = st.session_state.get("selected_date", str(date.today()))
-            display_date = sel_date_raw.split("T")[0]
-            st.markdown(f"### 📌 {display_date}")
-            
-            day_mins_sel = 0
-            if not logs_df.empty:
-                day_logs = logs_df[logs_df['d'] == display_date]
-                day_mins_sel = day_logs['duration_minutes'].sum()
-                st.info(f"📚 **勉強時間: {day_mins_sel} 分**")
-            
-            st.write("📝 **タスク**")
-            if not tasks.empty:
-                day_tasks = tasks[tasks['due_date'] == display_date]
-                if not day_tasks.empty:
-                    for _, task in day_tasks.iterrows():
-                        if task['status'] == "未完了":
-                            if st.button(f"完了: {task['task_name']}", key=f"do_{task['id']}"):
-                                complete_task(task['id'], user['username']); st.rerun()
-                        else: st.write(f"✅ {task['task_name']}")
-                else: st.caption("タスクなし")
-            
-            st.divider()
-            with st.form("quick_add"):
-                tn = st.text_input("タスク追加")
-                if st.form_submit_button("追加"):
-                    add_task(user['username'], tn, display_date, "中"); st.rerun()
+            with st.container(border=True): # ★ここをコンテナ化して見やすく
+                sel_date_raw = st.session_state.get("selected_date", str(date.today()))
+                display_date = sel_date_raw.split("T")[0]
+                st.markdown(f"### 📌 {display_date}")
+                
+                day_mins_sel = 0
+                if not logs_df.empty:
+                    day_logs = logs_df[logs_df['d'] == display_date]
+                    day_mins_sel = day_logs['duration_minutes'].sum()
+                    st.info(f"📚 **勉強時間: {day_mins_sel} 分**")
+                
+                st.write("📝 **タスク**")
+                if not tasks.empty:
+                    day_tasks = tasks[tasks['due_date'] == display_date]
+                    if not day_tasks.empty:
+                        for _, task in day_tasks.iterrows():
+                            if task['status'] == "未完了":
+                                if st.button(f"完了: {task['task_name']}", key=f"do_{task['id']}"):
+                                    complete_task(task['id'], user['username']); st.rerun()
+                            else: st.write(f"✅ {task['task_name']}")
+                    else: st.caption("タスクなし")
+                
+                st.divider()
+                with st.form("quick_add"):
+                    tn = st.text_input("タスク追加")
+                    if st.form_submit_button("追加"):
+                        add_task(user['username'], tn, display_date, "中"); st.rerun()
 
     with t2: # タイマー
         c1, c2 = st.columns([1, 1])
         with c1:
-            st.subheader("🔥 集中モード")
-            subs = get_subjects(user['username'])
-            s_name = st.selectbox("科目", subs + ["その他"])
-            if s_name == "その他": s_name = st.text_input("科目名入力")
-            if st.button("スタート", type="primary", use_container_width=True):
-                if s_name:
-                    st.session_state["is_studying"] = True
-                    st.session_state["start_time"] = time.time()
-                    st.session_state["current_subject"] = s_name
-                    st.rerun()
-        with c2:
-            st.subheader("✏️ 手動記録")
-            with st.form("manual_log"):
-                md = st.date_input("日付")
-                col_h, col_m = st.columns(2)
-                with col_h: h = st.number_input("時間 (h)", 0, 23, 0)
-                with col_m: m = st.number_input("分 (m)", 0, 59, 0)
-                ms = st.text_input("科目", value=s_name if s_name != "その他" else "")
-                if st.form_submit_button("記録"):
-                    total_min = h * 60 + m
-                    if total_min > 0:
-                        _, _, _, reached = add_study_log(user['username'], ms, total_min, md)
-                        st.session_state["toast_msg"] = "記録しました！"
-                        st.session_state["celebrate"] = True
-                        if reached:
-                            st.session_state["goal_reached_msg"] = "🎉 目標達成！ +100コイン！"
+            with st.container(border=True): # ★ここをコンテナ化して見やすく
+                st.subheader("🔥 集中モード")
+                subs = get_subjects(user['username'])
+                s_name = st.selectbox("科目", subs + ["その他"])
+                if s_name == "その他": s_name = st.text_input("科目名入力")
+                if st.button("スタート", type="primary", use_container_width=True):
+                    if s_name:
+                        st.session_state["is_studying"] = True
+                        st.session_state["start_time"] = time.time()
+                        st.session_state["current_subject"] = s_name
                         st.rerun()
-                    else: st.error("時間を入力してください")
+        with c2:
+            with st.container(border=True): # ★ここをコンテナ化して見やすく
+                st.subheader("✏️ 手動記録")
+                with st.form("manual_log"):
+                    md = st.date_input("日付")
+                    col_h, col_m = st.columns(2)
+                    with col_h: h = st.number_input("時間 (h)", 0, 23, 0)
+                    with col_m: m = st.number_input("分 (m)", 0, 59, 0)
+                    ms = st.text_input("科目", value=s_name if s_name != "その他" else "")
+                    if st.form_submit_button("記録"):
+                        total_min = h * 60 + m
+                        if total_min > 0:
+                            _, _, _, reached = add_study_log(user['username'], ms, total_min, md)
+                            st.session_state["toast_msg"] = "記録しました！"
+                            st.session_state["celebrate"] = True
+                            if reached:
+                                st.session_state["goal_reached_msg"] = "🎉 目標達成！ +100コイン！"
+                            st.rerun()
+                        else: st.error("時間を入力してください")
         
-        st.divider()
-        st.write("📖 **最近の記録**")
-        if not logs_df.empty:
-            for _, r in logs_df.head(5).iterrows():
-                lc1, lc2 = st.columns([0.8, 0.2])
-                d_str = str(r['study_date']).split("T")[0]
-                lc1.write(f"・{r['subject']} ({r['duration_minutes']}分) - {d_str}")
-                if lc2.button("削除", key=f"dl_{r['id']}"):
-                    delete_study_log(r['id'], user['username'], r['duration_minutes']); st.rerun()
+        with st.container(border=True): # ★ここをコンテナ化して見やすく
+            st.write("📖 **最近の記録**")
+            if not logs_df.empty:
+                for _, r in logs_df.head(5).iterrows():
+                    lc1, lc2 = st.columns([0.8, 0.2])
+                    d_str = str(r['study_date']).split("T")[0]
+                    lc1.write(f"・{r['subject']} ({r['duration_minutes']}分) - {d_str}")
+                    if lc2.button("削除", key=f"dl_{r['id']}"):
+                        delete_study_log(r['id'], user['username'], r['duration_minutes']); st.rerun()
 
     with t3: # 分析
-        st.subheader("📊 学習データ分析")
-        if not logs_df.empty:
-            k1, k2 = st.columns(2)
-            total_all = logs_df['duration_minutes'].sum()
-            k1.metric("総勉強時間", f"{total_all//60}時間{total_all%60}分")
-            k2.metric("今日の勉強時間", f"{today_mins}分")
-            
-            st.markdown("##### 📅 過去7日間の推移")
-            logs_df['dt'] = pd.to_datetime(logs_df['study_date'])
-            last_7 = pd.Timestamp.now(JST).normalize().tz_localize(None) - pd.Timedelta(days=6)
-            recent = logs_df[logs_df['dt'] >= last_7].copy()
-            if not recent.empty:
-                chart = alt.Chart(recent).mark_bar().encode(
-                    x=alt.X('dt:T', title='日付', axis=alt.Axis(format='%m/%d')),
-                    y=alt.Y('duration_minutes:Q', title='時間(分)'),
-                    color=alt.Color('subject:N', title='科目'),
-                    tooltip=['study_date', 'subject', 'duration_minutes']
+        with st.container(border=True): # ★ここをコンテナ化して見やすく
+            st.subheader("📊 学習データ分析")
+            if not logs_df.empty:
+                k1, k2 = st.columns(2)
+                total_all = logs_df['duration_minutes'].sum()
+                k1.metric("総勉強時間", f"{total_all//60}時間{total_all%60}分")
+                k2.metric("今日の勉強時間", f"{today_mins}分")
+                
+                st.markdown("##### 📅 過去7日間の推移")
+                logs_df['dt'] = pd.to_datetime(logs_df['study_date'])
+                last_7 = pd.Timestamp.now(JST).normalize().tz_localize(None) - pd.Timedelta(days=6)
+                recent = logs_df[logs_df['dt'] >= last_7].copy()
+                if not recent.empty:
+                    chart = alt.Chart(recent).mark_bar().encode(
+                        x=alt.X('dt:T', title='日付', axis=alt.Axis(format='%m/%d')),
+                        y=alt.Y('duration_minutes:Q', title='時間(分)'),
+                        color=alt.Color('subject:N', title='科目'),
+                        tooltip=['study_date', 'subject', 'duration_minutes']
+                    ).properties(height=300)
+                    st.altair_chart(chart, use_container_width=True)
+                else: st.info("直近のデータがありません")
+                
+                st.markdown("##### 📚 科目比率")
+                sub_dist = logs_df.groupby('subject')['duration_minutes'].sum().reset_index()
+                pie = alt.Chart(sub_dist).mark_arc(innerRadius=50).encode(
+                    theta=alt.Theta(field="duration_minutes", type="quantitative"),
+                    color=alt.Color(field="subject", type="nominal"),
+                    tooltip=['subject', 'duration_minutes']
                 ).properties(height=300)
-                st.altair_chart(chart, use_container_width=True)
-            else: st.info("直近のデータがありません")
-            
-            st.markdown("##### 📚 科目比率")
-            sub_dist = logs_df.groupby('subject')['duration_minutes'].sum().reset_index()
-            pie = alt.Chart(sub_dist).mark_arc(innerRadius=50).encode(
-                theta=alt.Theta(field="duration_minutes", type="quantitative"),
-                color=alt.Color(field="subject", type="nominal"),
-                tooltip=['subject', 'duration_minutes']
-            ).properties(height=300)
-            st.altair_chart(pie, use_container_width=True)
-        else: st.info("データがありません")
+                st.altair_chart(pie, use_container_width=True)
+            else: st.info("データがありません")
 
     with t4: # ランキング
-        st.subheader("🏆 週間ランキング")
-        df_rank = get_weekly_ranking()
-        if not df_rank.empty:
-            for i, row in df_rank.iterrows():
-                rank = i + 1
-                medal = "🥇" if rank==1 else "🥈" if rank==2 else "🥉" if rank==3 else f"{rank}位"
-                st.markdown(f"""
-                <div class="ranking-card">
-                    <div class="rank-medal" style="color: {'#FFD700' if rank==1 else '#C0C0C0' if rank==2 else '#CD7F32' if rank==3 else '#fff'};">{medal}</div>
-                    <div class="rank-info">
-                        <div class="rank-name">{row['nickname']}</div>
-                        <div class="rank-title">👑 {row.get('current_title', '見習い')}</div>
+        with st.container(border=True): # ★ここをコンテナ化して見やすく
+            st.subheader("🏆 週間ランキング")
+            df_rank = get_weekly_ranking()
+            if not df_rank.empty:
+                for i, row in df_rank.iterrows():
+                    rank = i + 1
+                    medal = "🥇" if rank==1 else "🥈" if rank==2 else "🥉" if rank==3 else f"{rank}位"
+                    st.markdown(f"""
+                    <div class="ranking-card">
+                        <div class="rank-medal" style="color: {'#FFD700' if rank==1 else '#C0C0C0' if rank==2 else '#CD7F32' if rank==3 else '#fff'};">{medal}</div>
+                        <div class="rank-info">
+                            <div class="rank-name">{row['nickname']}</div>
+                            <div class="rank-title">👑 {row.get('current_title', '見習い')}</div>
+                        </div>
+                        <div class="rank-score">{int(row['duration_minutes'])} min</div>
                     </div>
-                    <div class="rank-score">{int(row['duration_minutes'])} min</div>
-                </div>
-                """, unsafe_allow_html=True)
-        else: st.info("データなし")
+                    """, unsafe_allow_html=True)
+            else: st.info("データなし")
 
-    with t5: # ショップ (BGM削除)
+    with t5: # ショップ (BGM完全削除)
         st.write("アイテムを購入してカスタマイズしよう！")
         
         st.markdown("### 🅰️ フォント")

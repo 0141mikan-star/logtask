@@ -36,7 +36,7 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # --- デザイン適用関数 ---
-def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, overlay_opacity=0.5, container_opacity=0.9):
+def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_opacity=0.5, container_opacity=0.9):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -50,9 +50,10 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, over
     # 背景CSS設定
     bg_style = ""
     
+    # bg_opacity を使って背景の暗さを調整
     if wallpaper == "カスタム" and custom_data:
         bg_style = f"""
-            background-image: linear-gradient(rgba(0,0,0,{overlay_opacity}), rgba(0,0,0,{overlay_opacity})), url("data:image/png;base64,{custom_data}") !important;
+            background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("data:image/png;base64,{custom_data}") !important;
             background-attachment: fixed !important;
             background-size: cover !important;
             background-position: center !important;
@@ -72,7 +73,7 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, over
         bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
         
         bg_style = f"""
-            background-image: linear-gradient(rgba(0,0,0,{overlay_opacity}), rgba(0,0,0,{overlay_opacity})), url("{bg_url}") !important;
+            background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}") !important;
             background-attachment: fixed !important;
             background-size: cover !important;
         """
@@ -91,40 +92,34 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, over
         background-color: rgba(0,0,0,0);
     }}
 
-    /* --- サイドバー視認性修正 --- */
+    /* サイドバー修正 */
     [data-testid="stSidebar"] {{
-        background-color: #1a1a1a !important; /* 濃いグレー */
+        background-color: #1a1a1a !important;
         border-right: 1px solid #333;
     }}
-    /* サイドバー内のテキスト全般を白く */
-    [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] div, 
-    [data-testid="stSidebar"] label, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{
+    /* テキストは白 */
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown {{
         color: #ffffff !important;
     }}
-    /* 矢印アイコン（SVG）を白く塗りつぶす */
+    /* SVGアイコン（矢印など）を白くする */
     [data-testid="stSidebar"] svg {{
         fill: #ffffff !important;
         color: #ffffff !important;
     }}
-    /* 入力フォームの中身は標準色（黒文字等）で見やすく */
-    [data-testid="stSidebar"] input, [data-testid="stSidebar"] select {{
-        color: #000000 !important;
-        background-color: #ffffff !important;
-    }}
-    /* プルダウンの選択肢など */
-    div[data-baseweb="select"] span {{
-        color: #000000 !important;
+    /* 入力フォームは標準色 */
+    [data-testid="stSidebar"] input, [data-testid="stSidebar"] select, [data-testid="stSidebar"] div[data-baseweb="select"] span {{
+        color: inherit !important; 
     }}
 
-    /* --- メイン画面フォント --- */
+    /* メイン画面フォント */
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
-    /* メインエリアの文字は白、影付きで見やすく */
     .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
         color: #ffffff !important; 
         text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
     }}
     
-    /* --- カードコンテナ (透明度調整可能) --- */
+    /* カードコンテナ（透明度調整） */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: rgba(30, 30, 30, {container_opacity}) !important;
         border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.15);
@@ -186,7 +181,7 @@ def add_user(username, password, nickname):
             "xp": 0, "coins": 0, 
             "unlocked_themes": "標準", "current_theme": "標準",
             "current_title": "見習い", "unlocked_titles": "見習い", 
-            "current_wallpaper": "草原", "unlocked_wallpapers": "草原", 
+            "current_wallpaper": "真っ黒", "unlocked_wallpapers": "真っ黒", 
             "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
             "custom_bg_data": None,
             "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None
@@ -241,7 +236,7 @@ def add_study_log(u, s, m, d):
     last_reward = ud.get('last_goal_reward_date')
     
     if last_reward != today_str and total_today >= goal:
-        new_coins += 100
+        new_coins += 100 
         supabase.table("users").update({
             "xp": new_xp, "coins": new_coins, "last_goal_reward_date": today_str
         }).eq("username", u).execute()
@@ -328,10 +323,13 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # 自動移行
-    if user.get('current_wallpaper') == "真っ黒":
-        supabase.table("users").update({"current_wallpaper": "草原"}).eq("username", user['username']).execute()
-        user['current_wallpaper'] = "草原"
+    # 自動移行: 初期壁紙を真っ黒に修正
+    if user.get('current_wallpaper') == "草原" and "真っ黒" not in user.get('unlocked_wallpapers', ''):
+        supabase.table("users").update({
+            "current_wallpaper": "真っ黒", 
+            "unlocked_wallpapers": user.get('unlocked_wallpapers', '') + ",真っ黒"
+        }).eq("username", user['username']).execute()
+        user['current_wallpaper'] = "真っ黒"
         st.rerun()
 
     today_str = str(date.today())
@@ -350,7 +348,7 @@ def main():
         st.subheader("⚙️ 設定")
         
         st.markdown("##### 🎨 表示調整")
-        # ★ここで明るさと不透明度を調整可能にする★
+        # ★引数名を apply_design に合わせて修正★
         bg_darkness = st.slider("背景の暗さ", 0.0, 1.0, 0.5, 0.1, help="0: 明るい, 1: 暗い")
         container_opacity = st.slider("ウィンドウ不透明度", 0.0, 1.0, 0.9, 0.1, help="0: 透明, 1: 濃い")
         st.divider()
@@ -431,13 +429,13 @@ def main():
 
         if st.button("ログアウト"): st.session_state["logged_in"] = False; st.rerun()
 
-    # デザイン適用 (サイドバーのスライダー値を渡す)
+    # デザイン適用 (修正した引数名で渡す)
     apply_design(
         user.get('current_theme', '標準'), 
         user.get('current_wallpaper', '草原'), 
         user.get('custom_bg_data'),
-        bg_opacity=bg_darkness, # スライダーの値
-        container_opacity=container_opacity # スライダーの値
+        bg_opacity=bg_darkness, # ←ここを修正しました
+        container_opacity=container_opacity
     )
 
     # ★ 集中モード (BGM無し)
@@ -630,7 +628,7 @@ def main():
                 """, unsafe_allow_html=True)
         else: st.info("データなし")
 
-    with t5: # ショップ (BGM完全削除)
+    with t5: # ショップ
         st.write("アイテムを購入してカスタマイズしよう！")
         
         st.markdown("### 🅰️ フォント")

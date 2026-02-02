@@ -37,8 +37,8 @@ def image_to_base64(img):
 
 # --- デザイン適用関数 ---
 def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None, 
-                 bg_opacity=0.5, container_opacity=0.9, sidebar_bg_color="#ffffff",
-                 main_text_color="#000000", sidebar_text_color="#000000", accent_color="#FFD700"):
+                 bg_opacity=0.5, container_opacity=0.9, 
+                 main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -49,9 +49,11 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
-    # --- 自動判定ロジック ---
-    # メイン文字色が「白」系ならカード背景は「黒」
-    # メイン文字色が「黒」系ならカード背景は「白」
+    # サイドバーは常に白、文字は黒
+    sidebar_bg_color = "#ffffff"
+    sidebar_text_color = "#000000"
+
+    # --- 自動判定ロジック (メイン画面用) ---
     if main_text_color.lower() == "#ffffff":
         card_bg_color = f"rgba(30, 30, 30, {container_opacity})"
         shadow_color = "rgba(0,0,0,0.9)"
@@ -108,34 +110,41 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
         background-color: rgba(0,0,0,0);
     }}
 
-    /* サイドバー */
+    /* --- サイドバー（白固定） --- */
     [data-testid="stSidebar"] {{
-        background-color: {sidebar_bg_color} !important;
-        border-right: 1px solid rgba(128,128,128,0.2);
+        background-color: #ffffff !important;
+        border-right: 1px solid #e0e0e0;
     }}
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
     [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown {{
-        color: {sidebar_text_color} !important;
+        color: #000000 !important;
     }}
     [data-testid="stSidebar"] svg {{
-        fill: {sidebar_text_color} !important;
-        color: {sidebar_text_color} !important;
+        fill: #000000 !important;
+        color: #000000 !important;
     }}
-    /* サイドバー内の入力フォーム */
-    [data-testid="stSidebar"] input, [data-testid="stSidebar"] select {{
-        color: #000000 !important; 
-        background-color: #ffffff !important;
+    
+    /* ★ご要望箇所：サイドバーの数値入力欄（目標時間）を赤枠で囲う */
+    [data-testid="stSidebar"] div[data-baseweb="input"] {{
+        border: 2px solid #FF4B4B !important; /* 赤い枠線 */
+        background-color: #FFF0F0 !important; /* うっすら赤い背景 */
+        border-radius: 8px !important;
+    }}
+    /* 入力文字色 */
+    [data-testid="stSidebar"] input {{
+        color: #000000 !important;
+        background-color: transparent !important;
     }}
 
-    /* --- メイン画面の入力フォーム改善 --- */
+    /* --- メイン画面の入力フォーム --- */
     .stMarkdown label, div[data-testid="stForm"] label, .stTextInput label, .stNumberInput label, .stSelectbox label {{
         color: {main_text_color} !important;
         font-weight: bold !important;
-        font-size: 1.1em !important;
         text-shadow: 1px 1px 2px {shadow_color};
     }}
     
-    input, textarea, select {{
+    /* メインエリアの入力ボックス（通常スタイル） */
+    .main input, .main textarea, .main select {{
         background-color: #ffffff !important;
         color: #000000 !important;
         border: 1px solid #ccc !important;
@@ -199,16 +208,6 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     </style>
     """, unsafe_allow_html=True)
 
-# --- カラーパレット定義 ---
-COLOR_PALETTE = {
-    "#ffffff": "ホワイト (白)",
-    "#1a1a1a": "ブラック (黒)",
-    "#001f3f": "ミッドナイト",
-    "#3d0000": "クリムゾン",
-    "#003300": "ディープグリーン",
-    "#2c003e": "ロイヤルパープル",
-}
-
 # --- 認証・DB操作 ---
 def make_hashes(password): return hashlib.sha256(str.encode(password)).hexdigest()
 def check_hashes(password, hashed_text): return make_hashes(password) == hashed_text
@@ -222,7 +221,7 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
-        # ★初期設定: 真っ白のみ (サイドバーも白)★
+        # ★初期設定: 全てホワイトベース★
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
             "xp": 0, "coins": 0, 
@@ -232,7 +231,7 @@ def add_user(username, password, nickname):
             "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
             "custom_bg_data": None,
             "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None,
-            "current_sidebar_color": "#ffffff", "unlocked_sidebar_colors": "#ffffff,#1a1a1a", # 白と黒は持たせておく
+            "current_sidebar_color": "#ffffff", "unlocked_sidebar_colors": "#ffffff", 
             "main_text_color": "#000000", 
             "sidebar_text_color": "#000000",
             "accent_color": "#FFD700"
@@ -402,17 +401,14 @@ def main():
         
         with st.expander("🎨 文字色カスタマイズ"):
             cur_main = user.get('main_text_color', '#000000')
-            cur_side = user.get('sidebar_text_color', '#000000')
             cur_acc = user.get('accent_color', '#FFD700')
             
             new_main = st.color_picker("メイン文字色", cur_main)
-            new_side = st.color_picker("サイドバー文字色", cur_side)
             new_acc = st.color_picker("アクセント色（強調）", cur_acc)
             
-            if new_main != cur_main or new_side != cur_side or new_acc != cur_acc:
+            if new_main != cur_main or new_acc != cur_acc:
                 supabase.table("users").update({
                     "main_text_color": new_main,
-                    "sidebar_text_color": new_side,
                     "accent_color": new_acc
                 }).eq("username", user['username']).execute()
                 st.rerun()
@@ -421,31 +417,11 @@ def main():
         bg_darkness = st.slider("背景の暗さ (画像時)", 0.0, 1.0, 0.5, 0.1, help="0: 明るい, 1: 暗い")
         container_opacity = st.slider("ウィンドウ不透明度", 0.0, 1.0, 0.9, 0.1, help="0: 透明, 1: 濃い")
         
-        # カラー設定(サイドバー背景)
-        my_colors = user.get('unlocked_sidebar_colors', '#ffffff').split(',')
-        if '#1a1a1a' not in my_colors: my_colors.append('#1a1a1a') # 黒も予備で持たせる
-        
-        color_options = {code: name for code, name in COLOR_PALETTE.items() if code in my_colors}
-        if not color_options: color_options = {"#ffffff": "ホワイト (白)"}
-        
-        current_c_code = user.get('current_sidebar_color', '#ffffff')
-        if current_c_code not in color_options: current_c_code = "#ffffff"
-        
-        selected_color_name = st.selectbox(
-            "サイドバー背景色", 
-            list(color_options.values()), 
-            index=list(color_options.keys()).index(current_c_code) if current_c_code in color_options else 0
-        )
-        new_color_code = [k for k, v in color_options.items() if v == selected_color_name][0]
-
-        if new_color_code != current_c_code:
-            supabase.table("users").update({"current_sidebar_color": new_color_code}).eq("username", user['username']).execute()
-            st.rerun()
-
         st.divider()
 
         # 目標設定
         st.markdown("##### 🎯 1日の目標")
+        # ★ここが赤枠になるターゲット要素★
         new_goal = st.number_input("目標時間(分)", min_value=10, max_value=600, value=user.get('daily_goal', 60), step=10)
         if new_goal != user.get('daily_goal', 60):
             if st.button("目標を保存"):
@@ -480,9 +456,7 @@ def main():
                     st.rerun()
         else:
             current_w = user.get('current_wallpaper', '真っ白')
-            # もし持っていない壁紙が設定されていたらデフォルトに戻す
             if current_w not in walls: current_w = "真っ白"
-            
             new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
             if new_w != user.get('current_wallpaper'):
                 supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
@@ -528,9 +502,7 @@ def main():
         user.get('custom_bg_data'),
         bg_opacity=bg_darkness,
         container_opacity=container_opacity,
-        sidebar_bg_color=user.get('current_sidebar_color', '#ffffff'),
         main_text_color=user.get('main_text_color', '#000000'),
-        sidebar_text_color=user.get('sidebar_text_color', '#000000'),
         accent_color=user.get('accent_color', '#FFD700')
     )
 
@@ -556,13 +528,13 @@ def main():
     goal = user.get('daily_goal', 60)
     goal_progress = min(1.0, today_mins / goal) if goal > 0 else 0
     
-    # HUDの色もカスタムカラーに合わせる
-    hud_bg = user.get('current_sidebar_color', '#ffffff')
+    # HUD
+    card_bg_color = f"rgba(255, 255, 255, {container_opacity})" if user.get('main_text_color', '#000000').lower() != "#ffffff" else f"rgba(30, 30, 30, {container_opacity})"
     acc = user.get('accent_color', '#FFD700')
     main_txt = user.get('main_text_color', '#000000')
     
     st.markdown(f"""
-    <div class="status-bar" style="background: linear-gradient(90deg, {hud_bg}, {hud_bg});">
+    <div class="status-bar">
         <div class="stat-item"><div class="stat-label">PLAYER</div><div class="stat-val" style="font-size:1.2em; color:{main_txt};">{user['nickname']}</div><div style="font-size:0.7em; color:{acc};">{user.get('current_title', '見習い')}</div></div>
         <div class="stat-item"><div class="stat-label">LEVEL</div><div class="stat-val" style="color:#00e5ff;">{level}</div></div>
         <div class="stat-item"><div class="stat-label">XP</div><div class="stat-val" style="color:{main_txt};">{user['xp']} <span style="font-size:0.5em; opacity:0.7;">/ {next_xp}</span></div></div>
@@ -735,7 +707,7 @@ def main():
                     """, unsafe_allow_html=True)
             else: st.info("データなし")
 
-    with t5: # ショップ (BGM完全削除)
+    with t5: # ショップ
         st.write("アイテムを購入してカスタマイズしよう！")
         
         st.markdown("### 🅰️ フォント")

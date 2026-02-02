@@ -36,9 +36,9 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # --- デザイン適用関数 ---
-def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None, 
-                 bg_opacity=0.5, container_opacity=0.9, sidebar_bg_color="#1a1a1a",
-                 main_text_color="#ffffff", sidebar_text_color="#ffffff", accent_color="#FFD700"):
+def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None, 
+                 bg_opacity=0.5, container_opacity=0.9, sidebar_bg_color="#ffffff",
+                 main_text_color="#000000", sidebar_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -54,13 +54,15 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None,
     
     if wallpaper == "カスタム" and custom_data:
         bg_style = f"""
-            background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("data:image/png;base64,{custom_data}") !important;
+            background-image: linear-gradient(rgba(255,255,255,{bg_opacity}), rgba(255,255,255,{bg_opacity})), url("data:image/png;base64,{custom_data}") !important;
             background-attachment: fixed !important;
             background-size: cover !important;
             background-position: center !important;
         """
     elif wallpaper == "真っ黒":
         bg_style = "background-color: #000000 !important;"
+    elif wallpaper == "真っ白":
+        bg_style = "background-color: #ffffff !important;"
     else:
         wallpapers = {
             "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
@@ -68,8 +70,11 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None,
             "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
             "サイバー": "1535295972055-1c762f4483e5"
         }
-        target_wp = wallpaper if wallpaper in wallpapers else "真っ黒"
-        if target_wp == "真っ黒":
+        target_wp = wallpaper if wallpaper in wallpapers else "真っ白"
+        
+        if target_wp == "真っ白":
+             bg_style = "background-color: #ffffff !important;"
+        elif target_wp == "真っ黒":
              bg_style = "background-color: #000000 !important;"
         else:
             img_id = wallpapers[target_wp]
@@ -97,9 +102,9 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None,
     /* サイドバー修正 */
     [data-testid="stSidebar"] {{
         background-color: {sidebar_bg_color} !important;
-        border-right: 1px solid rgba(255,255,255,0.1);
+        border-right: 1px solid rgba(128,128,128,0.2);
     }}
-    /* ★サイドバー文字色★ */
+    /* サイドバー文字色 */
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
     [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown {{
         color: {sidebar_text_color} !important;
@@ -109,7 +114,7 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None,
         fill: {sidebar_text_color} !important;
         color: {sidebar_text_color} !important;
     }}
-    /* 入力フォーム（白背景・黒文字固定で見やすく） */
+    /* 入力フォーム（白背景・黒文字固定） */
     [data-testid="stSidebar"] input, [data-testid="stSidebar"] select, [data-testid="stSidebar"] div[data-baseweb="select"] span {{
         color: #000000 !important; 
         background-color: #ffffff !important;
@@ -128,24 +133,26 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None,
     /* メイン画面フォント */
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
     
-    /* ★メインエリア文字色（影を強化）★ */
+    /* メインエリア文字色 */
     .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
         color: {main_text_color} !important; 
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.9);
+        text-shadow: 1px 1px 2px rgba(128,128,128,0.2); /* 影を少し薄くして白背景でも汚くならないように */
     }}
     
-    /* カードコンテナ（ここに文字が乗ると見やすくなる） */
+    /* カードコンテナ（白背景なら白っぽく、黒背景なら黒っぽく見せるために調整） */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
-        background-color: rgba(30, 30, 30, {container_opacity}) !important;
-        border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.15);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
+        background-color: {sidebar_bg_color} !important; /* サイドバーと同じ色をベースにする */
+        opacity: {container_opacity};
+        border-radius: 15px; padding: 20px; border: 1px solid rgba(128,128,128,0.2);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); backdrop-filter: blur(5px);
     }}
 
     /* ランキングカード */
     .ranking-card {{
-        background: linear-gradient(90deg, rgba(60,60,60,{container_opacity}), rgba(40,40,40,{container_opacity}));
+        background: linear-gradient(90deg, {sidebar_bg_color}, {sidebar_bg_color});
+        opacity: {container_opacity};
         border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
-        border: 1px solid rgba(255,255,255,0.2);
+        border: 1px solid rgba(128,128,128,0.2);
     }}
     .rank-medal {{ font-size: 28px; width: 60px; text-align: center; color: {accent_color} !important; }}
     .rank-info {{ flex-grow: 1; }}
@@ -154,29 +161,29 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None,
     .rank-score {{ font-size: 1.4em; font-weight: bold; color: {accent_color}; }}
 
     /* ショップアイテム */
-    .shop-title {{ font-size: 1.1em; font-weight: bold; color: {main_text_color}; margin-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom:3px; }}
+    .shop-title {{ font-size: 1.1em; font-weight: bold; color: {main_text_color}; margin-bottom: 5px; border-bottom: 1px solid rgba(128,128,128,0.3); padding-bottom:3px; }}
     .shop-price {{ font-size: 1.0em; color: {accent_color}; font-weight: bold; margin-bottom: 8px; }}
-    .shop-owned {{ color: #00FF00; border: 1px solid #00FF00; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
+    .shop-owned {{ color: {main_text_color}; border: 1px solid {main_text_color}; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
 
     /* HUD */
     .status-bar {{
-        background: linear-gradient(90deg, {sidebar_bg_color}, #2d2d2d);
-        padding: 15px; border-radius: 15px; border: 1px solid #444;
+        background: linear-gradient(90deg, {sidebar_bg_color}, {sidebar_bg_color});
+        padding: 15px; border-radius: 15px; border: 1px solid rgba(128,128,128,0.3);
         display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
-        box-shadow: 0 0 15px rgba(0,0,0,0.8);
+        box-shadow: 0 0 15px rgba(0,0,0,0.1);
     }}
     .stat-item {{ text-align: center; }}
-    .stat-label {{ font-size: 0.7em; color: #aaa; letter-spacing: 1px; }}
+    .stat-label {{ font-size: 0.7em; color: {main_text_color}; opacity: 0.7; letter-spacing: 1px; }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_color}; }}
     
     /* ボタンのアクセントカラー適用 */
     button[kind="primary"] {{
         background: {accent_color} !important;
-        border: none !important; box-shadow: 0 4px 10px rgba(0,0,0,0.4); font-weight: bold !important;
+        border: none !important; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-weight: bold !important;
         color: #000000 !important;
     }}
     
-    canvas {{ filter: invert(1) hue-rotate(180deg); }}
+    canvas {{ filter: invert(0) hue-rotate(0deg); }} /* グラフの色反転を解除 */
     </style>
     """, unsafe_allow_html=True)
 
@@ -201,19 +208,20 @@ def login_user(username, password):
         return False, "IDまたはパスワードが違います"
     except Exception as e: return False, f"エラー: {e}"
 
-def add_user(username, password, nickname, initial_color_code, initial_text_color):
+def add_user(username, password, nickname, initial_color_code, initial_text_color, initial_wallpaper):
     try:
         data = {
             "username": username, "password": make_hashes(password), "nickname": nickname,
             "xp": 0, "coins": 0, 
             "unlocked_themes": "標準", "current_theme": "標準",
             "current_title": "見習い", "unlocked_titles": "見習い", 
-            "current_wallpaper": "真っ黒", "unlocked_wallpapers": "真っ黒", 
+            "current_wallpaper": initial_wallpaper, 
+            "unlocked_wallpapers": "真っ黒,真っ白", 
             "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
             "custom_bg_data": None,
             "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None,
             "current_sidebar_color": initial_color_code, "unlocked_sidebar_colors": "#1a1a1a,#ffffff",
-            "main_text_color": "#ffffff", 
+            "main_text_color": initial_text_color, 
             "sidebar_text_color": initial_text_color,
             "accent_color": "#FFD700"
         }
@@ -307,7 +315,7 @@ def show_timer_fragment(user_name):
     h, m, s = elapsed // 3600, (elapsed % 3600) // 60, elapsed % 60
     
     st.markdown(f"""
-    <div style="text-align: center; font-size: 6em; font-weight: bold; color: #00FF00; text-shadow: 0 0 20px #00FF00; margin-bottom: 20px;">
+    <div style="text-align: center; font-size: 6em; font-weight: bold; margin-bottom: 20px;">
         {h:02}:{m:02}:{s:02}
     </div>
     """, unsafe_allow_html=True)
@@ -336,17 +344,19 @@ def main():
         p = st.text_input("パスワード", type="password")
         if mode == "新規登録":
             n = st.text_input("ニックネーム")
-            # 初期サイドバーカラーを選択
-            init_color = st.radio("最初のテーマカラー", ["ブラック (黒)", "ホワイト (白)"], horizontal=True)
+            # ★初期設定: 白か黒か選べる
+            init_color = st.radio("最初のテーマ", ["ホワイト (白)", "ブラック (黒)"], horizontal=True)
             if init_color == "ブラック (黒)":
                 init_bg = "#1a1a1a"
                 init_txt = "#ffffff"
+                init_wall = "真っ黒"
             else:
                 init_bg = "#ffffff"
                 init_txt = "#000000"
+                init_wall = "真っ白"
             
             if st.button("登録"):
-                success, msg = add_user(u, p, n, init_bg, init_txt)
+                success, msg = add_user(u, p, n, init_bg, init_txt, init_wall)
                 if success: st.success(msg)
                 else: st.error(msg)
         else:
@@ -363,11 +373,11 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # 自動移行
+    # 自動移行（初期化）
     if user.get('current_wallpaper') == "草原" and "真っ黒" not in user.get('unlocked_wallpapers', ''):
         supabase.table("users").update({
             "current_wallpaper": "真っ黒", 
-            "unlocked_wallpapers": user.get('unlocked_wallpapers', '') + ",真っ黒"
+            "unlocked_wallpapers": user.get('unlocked_wallpapers', '') + ",真っ黒,真っ白"
         }).eq("username", user['username']).execute()
         user['current_wallpaper'] = "真っ黒"
         st.rerun()
@@ -383,7 +393,7 @@ def main():
         time.sleep(1)
         user['coins'] = new_coins
 
-    # ★安全策: サイドバーで変数を作る前に初期値を入れておく（エラー回避）★
+    # 変数初期化（エラー回避）
     bg_darkness = 0.5
     container_opacity = 0.9
 
@@ -410,13 +420,12 @@ def main():
                 st.rerun()
 
         st.markdown("##### 🎚️ 表示調整")
-        # ★ここで変数を上書き更新★
-        bg_darkness = st.slider("背景の暗さ", 0.0, 1.0, 0.5, 0.1, help="0: 明るい, 1: 暗い")
+        bg_darkness = st.slider("背景の暗さ (画像時)", 0.0, 1.0, 0.5, 0.1, help="0: 明るい, 1: 暗い")
         container_opacity = st.slider("ウィンドウ不透明度", 0.0, 1.0, 0.9, 0.1, help="0: 透明, 1: 濃い")
         
         # カラー設定(サイドバー背景)
         my_colors = user.get('unlocked_sidebar_colors', '#1a1a1a').split(',')
-        if '#ffffff' not in my_colors: my_colors.append('#ffffff') # 白を追加
+        if '#ffffff' not in my_colors: my_colors.append('#ffffff')
         
         color_options = {code: name for code, name in COLOR_PALETTE.items() if code in my_colors}
         if not color_options: color_options = {"#1a1a1a": "ブラック (黒)"}
@@ -450,6 +459,7 @@ def main():
         # 壁紙設定
         walls = user['unlocked_wallpapers'].split(',')
         if "真っ黒" not in walls: walls.insert(0, "真っ黒")
+        if "真っ白" not in walls: walls.insert(0, "真っ白")
         
         if user.get('custom_wallpaper_unlocked'):
             bg_mode = st.radio("壁紙モード", ["プリセット", "カスタム画像"], horizontal=True, label_visibility="collapsed")
@@ -525,7 +535,7 @@ def main():
         accent_color=user.get('accent_color', '#FFD700')
     )
 
-    # ★ 集中モード
+    # ★ 集中モード (BGM無し)
     if st.session_state["is_studying"]:
         st.empty()
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
@@ -553,12 +563,12 @@ def main():
     main_txt = user.get('main_text_color', '#ffffff')
     
     st.markdown(f"""
-    <div class="status-bar" style="background: linear-gradient(90deg, {hud_bg}, #2d2d2d);">
+    <div class="status-bar" style="background: linear-gradient(90deg, {hud_bg}, {hud_bg});">
         <div class="stat-item"><div class="stat-label">PLAYER</div><div class="stat-val" style="font-size:1.2em; color:{main_txt};">{user['nickname']}</div><div style="font-size:0.7em; color:{acc};">{user.get('current_title', '見習い')}</div></div>
         <div class="stat-item"><div class="stat-label">LEVEL</div><div class="stat-val" style="color:#00e5ff;">{level}</div></div>
         <div class="stat-item"><div class="stat-label">XP</div><div class="stat-val" style="color:{main_txt};">{user['xp']} <span style="font-size:0.5em; color:#888;">/ {next_xp}</span></div></div>
         <div class="stat-item"><div class="stat-label">COIN</div><div class="stat-val" style="color:{acc};">{user['coins']} G</div></div>
-        <div class="stat-item" style="border-left:1px solid #444; padding-left:15px;">
+        <div class="stat-item" style="border-left:1px solid #888; padding-left:15px;">
             <div class="stat-label">TODAY'S GOAL</div>
             <div class="stat-val" style="color:#ff9900;">{today_mins} <span style="font-size:0.5em; color:#888;">/ {goal} min</span></div>
         </div>
@@ -595,13 +605,13 @@ def main():
                 events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": d_str, "color": "#00CC00"})
 
         with c1:
-            with st.container(border=True): # ★ここをコンテナ化して見やすく
+            with st.container(border=True):
                 st.subheader("📅 カレンダー")
                 cal = calendar(events=events, options={"initialView": "dayGridMonth", "height": 500}, callbacks=['dateClick'])
                 if cal.get('dateClick'): st.session_state["selected_date"] = cal['dateClick']['date']
         
         with c2:
-            with st.container(border=True): # ★ここをコンテナ化して見やすく
+            with st.container(border=True):
                 sel_date_raw = st.session_state.get("selected_date", str(date.today()))
                 display_date = sel_date_raw.split("T")[0]
                 st.markdown(f"### 📌 {display_date}")
@@ -632,7 +642,7 @@ def main():
     with t2: # タイマー
         c1, c2 = st.columns([1, 1])
         with c1:
-            with st.container(border=True): # ★ここをコンテナ化して見やすく
+            with st.container(border=True):
                 st.subheader("🔥 集中モード")
                 subs = get_subjects(user['username'])
                 s_name = st.selectbox("科目", subs + ["その他"])
@@ -644,7 +654,7 @@ def main():
                         st.session_state["current_subject"] = s_name
                         st.rerun()
         with c2:
-            with st.container(border=True): # ★ここをコンテナ化して見やすく
+            with st.container(border=True):
                 st.subheader("✏️ 手動記録")
                 with st.form("manual_log"):
                     md = st.date_input("日付")
@@ -663,7 +673,7 @@ def main():
                             st.rerun()
                         else: st.error("時間を入力してください")
         
-        with st.container(border=True): # ★ここをコンテナ化して見やすく
+        with st.container(border=True):
             st.write("📖 **最近の記録**")
             if not logs_df.empty:
                 for _, r in logs_df.head(5).iterrows():
@@ -674,7 +684,7 @@ def main():
                         delete_study_log(r['id'], user['username'], r['duration_minutes']); st.rerun()
 
     with t3: # 分析
-        with st.container(border=True): # ★ここをコンテナ化して見やすく
+        with st.container(border=True):
             st.subheader("📊 学習データ分析")
             if not logs_df.empty:
                 k1, k2 = st.columns(2)
@@ -707,7 +717,7 @@ def main():
             else: st.info("データがありません")
 
     with t4: # ランキング
-        with st.container(border=True): # ★ここをコンテナ化して見やすく
+        with st.container(border=True):
             st.subheader("🏆 週間ランキング")
             df_rank = get_weekly_ranking()
             if not df_rank.empty:
@@ -726,7 +736,7 @@ def main():
                     """, unsafe_allow_html=True)
             else: st.info("データなし")
 
-    with t5: # ショップ (BGM完全削除)
+    with t5: # ショップ
         st.write("アイテムを購入してカスタマイズしよう！")
         
         st.markdown("### 🅰️ フォント")

@@ -60,14 +60,14 @@ def apply_design(user_theme="標準", wallpaper="草原", custom_data=None, bg_o
     elif wallpaper == "真っ黒":
         bg_style = "background-color: #000000 !important;"
     else:
-        # デフォルトは草原
+        # デフォルトは真っ黒
         wallpapers = {
             "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
             "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
             "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
             "サイバー": "1535295972055-1c762f4483e5"
         }
-        target_wp = wallpaper if wallpaper in wallpapers else "草原"
+        target_wp = wallpaper if wallpaper in wallpapers else "真っ黒"
         img_id = wallpapers[target_wp]
         bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
         
@@ -175,7 +175,7 @@ def add_user(username, password, nickname):
             "xp": 0, "coins": 0, 
             "unlocked_themes": "標準", "current_theme": "標準",
             "current_title": "見習い", "unlocked_titles": "見習い", 
-            "current_wallpaper": "草原", "unlocked_wallpapers": "草原", 
+            "current_wallpaper": "真っ黒", "unlocked_wallpapers": "真っ黒", 
             "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
             "custom_bg_data": None,
             "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None
@@ -703,3 +703,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

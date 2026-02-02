@@ -131,7 +131,7 @@ def apply_design(user_theme="標準", wallpaper="真っ黒", custom_data=None,
     /* ★メインエリア文字色（影を強化）★ */
     .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
         color: {main_text_color} !important; 
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.9); /* 影を濃くしました */
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.9);
     }}
     
     /* カードコンテナ（ここに文字が乗ると見やすくなる） */
@@ -383,18 +383,9 @@ def main():
         time.sleep(1)
         user['coins'] = new_coins
 
-    # デザイン適用
-    apply_design(
-        user.get('current_theme', '標準'), 
-        user.get('current_wallpaper', '真っ黒'), 
-        user.get('custom_bg_data'),
-        bg_opacity=bg_darkness,
-        container_opacity=container_opacity,
-        sidebar_bg_color=user.get('current_sidebar_color', '#1a1a1a'),
-        main_text_color=user.get('main_text_color', '#ffffff'),
-        sidebar_text_color=user.get('sidebar_text_color', '#ffffff'),
-        accent_color=user.get('accent_color', '#FFD700')
-    )
+    # ★安全策: サイドバーで変数を作る前に初期値を入れておく（エラー回避）★
+    bg_darkness = 0.5
+    container_opacity = 0.9
 
     # サイドバー (設定)
     with st.sidebar:
@@ -419,6 +410,7 @@ def main():
                 st.rerun()
 
         st.markdown("##### 🎚️ 表示調整")
+        # ★ここで変数を上書き更新★
         bg_darkness = st.slider("背景の暗さ", 0.0, 1.0, 0.5, 0.1, help="0: 明るい, 1: 暗い")
         container_opacity = st.slider("ウィンドウ不透明度", 0.0, 1.0, 0.9, 0.1, help="0: 透明, 1: 濃い")
         
@@ -520,7 +512,20 @@ def main():
 
         if st.button("ログアウト"): st.session_state["logged_in"] = False; st.rerun()
 
-    # ★ 集中モード (BGM無し)
+    # デザイン適用
+    apply_design(
+        user.get('current_theme', '標準'), 
+        user.get('current_wallpaper', '真っ黒'), 
+        user.get('custom_bg_data'),
+        bg_opacity=bg_darkness,
+        container_opacity=container_opacity,
+        sidebar_bg_color=user.get('current_sidebar_color', '#1a1a1a'),
+        main_text_color=user.get('main_text_color', '#ffffff'),
+        sidebar_text_color=user.get('sidebar_text_color', '#ffffff'),
+        accent_color=user.get('accent_color', '#FFD700')
+    )
+
+    # ★ 集中モード
     if st.session_state["is_studying"]:
         st.empty()
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)

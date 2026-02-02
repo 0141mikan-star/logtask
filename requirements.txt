@@ -1,4 +1,6 @@
 streamlit
 supabase
 pandas
+
 streamlit-calendar
+extra-streamlit-components

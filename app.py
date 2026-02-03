@@ -31,12 +31,8 @@ def init_supabase():
 supabase = init_supabase()
 
 # --- Cookieマネージャーの初期化 (修正済み) ---
-# ★ここが原因でした。引数を削除してシンプルにしています。
-@st.cache_resource
-def get_manager():
-    return stx.CookieManager()
-
-cookie_manager = get_manager()
+# エラー回避のため、キャッシュを使わず直接初期化します
+cookie_manager = stx.CookieManager(key="cookie_manager")
 
 # --- 画像処理関数 ---
 def image_to_base64(img):
@@ -105,15 +101,8 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    /* アプリ全体の背景 */
-    [data-testid="stAppViewContainer"], .stApp {{
-        {bg_style}
-    }}
-    
-    /* ヘッダー透明化 */
-    [data-testid="stHeader"] {{
-        background-color: rgba(0,0,0,0);
-    }}
+    [data-testid="stAppViewContainer"], .stApp {{ {bg_style} }}
+    [data-testid="stHeader"] {{ background-color: rgba(0,0,0,0); }}
 
     /* サイドバー */
     [data-testid="stSidebar"] {{
@@ -128,7 +117,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
         fill: {sidebar_text_color} !important;
         color: {sidebar_text_color} !important;
     }}
-    /* サイドバー内の入力フォーム */
+    /* サイドバー入力フォーム */
     [data-testid="stSidebar"] input, [data-testid="stSidebar"] select {{
         color: #000000 !important; 
         background-color: #ffffff !important;
@@ -144,7 +133,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
         background-color: transparent !important;
     }}
 
-    /* --- メイン画面の入力フォーム改善 --- */
+    /* メイン画面入力フォーム */
     .stMarkdown label, div[data-testid="stForm"] label, .stTextInput label, .stNumberInput label, .stSelectbox label {{
         color: {main_text_color} !important;
         font-weight: bold !important;
@@ -160,16 +149,14 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
     div[data-baseweb="base-input"] {{ background-color: #ffffff !important; }}
 
-    /* メイン画面フォント */
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
     
-    /* メインエリア文字色 */
     .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
         color: {main_text_color} !important; 
         text-shadow: 1px 1px 2px {shadow_color};
     }}
     
-    /* --- カードコンテナ --- */
+    /* カードコンテナ */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: {card_bg_color} !important;
         border-radius: 15px; padding: 20px; border: 1px solid rgba(128,128,128,0.2);
@@ -188,7 +175,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     .rank-title {{ font-size: 0.85em; color: {accent_color}; }}
     .rank-score {{ font-size: 1.4em; font-weight: bold; color: {accent_color}; }}
 
-    /* ショップアイテム */
+    /* ショップ */
     .shop-title {{ font-size: 1.1em; font-weight: bold; color: {main_text_color}; margin-bottom: 5px; border-bottom: 1px solid rgba(128,128,128,0.3); padding-bottom:3px; }}
     .shop-price {{ font-size: 1.0em; color: {accent_color}; font-weight: bold; margin-bottom: 8px; }}
     .shop-owned {{ color: {main_text_color}; border: 1px solid {main_text_color}; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
@@ -204,7 +191,6 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     .stat-label {{ font-size: 0.7em; color: {main_text_color}; opacity: 0.8; letter-spacing: 1px; }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_color}; }}
     
-    /* ボタン */
     button[kind="primary"] {{
         background: {accent_color} !important;
         border: none !important; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-weight: bold !important;
@@ -366,17 +352,17 @@ def main():
 
     # 自動ログイン判定
     if not st.session_state["logged_in"]:
-        auth_cookie = cookie_manager.get('logtask_auth')
-        if auth_cookie:
-            try:
+        try:
+            auth_cookie = cookie_manager.get('logtask_auth')
+            if auth_cookie:
                 c_user, c_hash = auth_cookie.split(":", 1)
                 res = supabase.table("users").select("password").eq("username", c_user).execute()
                 if res.data and res.data[0]["password"] == c_hash:
                     st.session_state["logged_in"] = True
                     st.session_state["username"] = c_user
                     st.rerun()
-            except:
-                pass
+        except:
+            pass
 
     if not st.session_state["logged_in"]:
         st.title("🛡️ ログイン")

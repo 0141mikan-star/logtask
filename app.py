@@ -30,7 +30,8 @@ def init_supabase():
 
 supabase = init_supabase()
 
-# --- Cookieマネージャーの初期化 (修正箇所: 引数を削除) ---
+# --- Cookieマネージャーの初期化 (修正済み) ---
+# ★ここが原因でした。引数を削除してシンプルにしています。
 @st.cache_resource
 def get_manager():
     return stx.CookieManager()
@@ -104,8 +105,15 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    [data-testid="stAppViewContainer"], .stApp {{ {bg_style} }}
-    [data-testid="stHeader"] {{ background-color: rgba(0,0,0,0); }}
+    /* アプリ全体の背景 */
+    [data-testid="stAppViewContainer"], .stApp {{
+        {bg_style}
+    }}
+    
+    /* ヘッダー透明化 */
+    [data-testid="stHeader"] {{
+        background-color: rgba(0,0,0,0);
+    }}
 
     /* サイドバー */
     [data-testid="stSidebar"] {{
@@ -120,7 +128,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
         fill: {sidebar_text_color} !important;
         color: {sidebar_text_color} !important;
     }}
-    /* サイドバー入力フォーム */
+    /* サイドバー内の入力フォーム */
     [data-testid="stSidebar"] input, [data-testid="stSidebar"] select {{
         color: #000000 !important; 
         background-color: #ffffff !important;
@@ -136,7 +144,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
         background-color: transparent !important;
     }}
 
-    /* メイン画面入力フォーム */
+    /* --- メイン画面の入力フォーム改善 --- */
     .stMarkdown label, div[data-testid="stForm"] label, .stTextInput label, .stNumberInput label, .stSelectbox label {{
         color: {main_text_color} !important;
         font-weight: bold !important;
@@ -152,14 +160,16 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
     div[data-baseweb="base-input"] {{ background-color: #ffffff !important; }}
 
+    /* メイン画面フォント */
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
     
+    /* メインエリア文字色 */
     .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
         color: {main_text_color} !important; 
         text-shadow: 1px 1px 2px {shadow_color};
     }}
     
-    /* カードコンテナ */
+    /* --- カードコンテナ --- */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: {card_bg_color} !important;
         border-radius: 15px; padding: 20px; border: 1px solid rgba(128,128,128,0.2);
@@ -178,7 +188,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     .rank-title {{ font-size: 0.85em; color: {accent_color}; }}
     .rank-score {{ font-size: 1.4em; font-weight: bold; color: {accent_color}; }}
 
-    /* ショップ */
+    /* ショップアイテム */
     .shop-title {{ font-size: 1.1em; font-weight: bold; color: {main_text_color}; margin-bottom: 5px; border-bottom: 1px solid rgba(128,128,128,0.3); padding-bottom:3px; }}
     .shop-price {{ font-size: 1.0em; color: {accent_color}; font-weight: bold; margin-bottom: 8px; }}
     .shop-owned {{ color: {main_text_color}; border: 1px solid {main_text_color}; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
@@ -194,6 +204,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     .stat-label {{ font-size: 0.7em; color: {main_text_color}; opacity: 0.8; letter-spacing: 1px; }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_color}; }}
     
+    /* ボタン */
     button[kind="primary"] {{
         background: {accent_color} !important;
         border: none !important; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-weight: bold !important;
@@ -440,7 +451,7 @@ def main():
         
         st.divider()
 
-        # 目標設定（赤枠付き）
+        # 目標設定
         st.markdown("##### 🎯 1日の目標")
         new_goal = st.number_input("目標時間(分)", min_value=10, max_value=600, value=user.get('daily_goal', 60), step=10)
         if new_goal != user.get('daily_goal', 60):

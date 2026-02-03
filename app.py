@@ -48,7 +48,7 @@ def show_event_info(title, start, color):
     st.write(f"📅 **日付:** {display_start}")
     st.markdown(f"🎨 **ラベル色:** <span style='color:{color}; font-size:1.5em;'>■</span>", unsafe_allow_html=True)
 
-# --- デザイン適用関数 (完全ホワイト固定版) ---
+# --- デザイン適用関数 ---
 def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
@@ -64,31 +64,25 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    /* 全体のフォントと背景色 */
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
     [data-testid="stAppViewContainer"], .stApp {{ background-color: #ffffff !important; }}
     [data-testid="stHeader"] {{ background-color: rgba(255,255,255,0.9); }}
 
-    /* サイドバー */
     [data-testid="stSidebar"] {{
         background-color: #ffffff !important;
         border-right: 1px solid #e0e0e0;
     }}
-    [data-testid="stSidebar"] * {{
-        color: #000000 !important;
-    }}
+    [data-testid="stSidebar"] * {{ color: #000000 !important; }}
     [data-testid="stSidebar"] div[data-baseweb="input"] {{
         border: 2px solid #FF4B4B !important;
         background-color: #FFF0F0 !important;
         border-radius: 8px !important;
     }}
 
-    /* メインエリアの文字色 */
     .main h1, .main h2, .main h3, .main p, .main span, .main label, .main div {{ 
         color: {main_text_color} !important; 
     }}
 
-    /* 入力フォーム */
     input, textarea, select {{
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -97,7 +91,6 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     }}
     div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
 
-    /* カードデザイン（影付きの白い箱） */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: #ffffff !important;
         border: 1px solid #e0e0e0;
@@ -106,14 +99,13 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }}
 
-    /* カレンダー表示の強制修正 */
     .fc {{
         background-color: #ffffff !important;
         color: #000000 !important;
         border: 1px solid #ddd !important;
         border-radius: 8px;
         padding: 10px;
-        min-height: 600px !important; /* 高さを強制確保 */
+        min-height: 600px !important;
         height: 600px !important;
     }}
     .fc-toolbar-title, .fc-col-header-cell-cushion, .fc-daygrid-day-number {{
@@ -122,14 +114,12 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     }}
     .fc-event-title {{ color: #ffffff !important; }}
     
-    /* ボタン */
     button[kind="primary"] {{
         background: {accent_color} !important;
         border: none !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-weight: bold !important;
         color: #000000 !important;
     }}
     
-    /* ランキング */
     .ranking-card {{
         background: #ffffff;
         border: 1px solid #e0e0e0;
@@ -139,7 +129,6 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     .rank-name {{ font-size: 1.2em; font-weight: bold; color: {main_text_color}; }}
     .rank-score {{ font-size: 1.4em; font-weight: bold; color: {accent_color}; }}
 
-    /* HUD */
     .status-bar {{
         background: #ffffff;
         border: 1px solid #e0e0e0;
@@ -327,7 +316,6 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # 自動移行（既存ユーザーのデータを修正）
     if user.get('current_wallpaper') != "真っ白":
         supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
         st.rerun()
@@ -346,44 +334,30 @@ def main():
     # サイドバー (設定)
     with st.sidebar:
         st.subheader("⚙️ 設定")
-        
         with st.expander("🎨 文字色カスタマイズ"):
             cur_main = user.get('main_text_color', '#000000')
             cur_acc = user.get('accent_color', '#FFD700')
-            
             new_main = st.color_picker("メイン文字色", cur_main)
             new_acc = st.color_picker("アクセント色（強調）", cur_acc)
-            
             if new_main != cur_main or new_acc != cur_acc:
-                supabase.table("users").update({
-                    "main_text_color": new_main,
-                    "accent_color": new_acc
-                }).eq("username", user['username']).execute()
+                supabase.table("users").update({"main_text_color": new_main, "accent_color": new_acc}).eq("username", user['username']).execute()
                 st.rerun()
-
         st.divider()
-
-        # 目標設定
         st.markdown("##### 🎯 1日の目標")
         new_goal = st.number_input("目標時間(分)", min_value=10, max_value=600, value=user.get('daily_goal', 60), step=10)
         if new_goal != user.get('daily_goal', 60):
             if st.button("目標を保存"):
                 supabase.table("users").update({"daily_goal": new_goal}).eq("username", user['username']).execute()
                 st.success("保存しました"); time.sleep(0.5); st.rerun()
-        
         st.divider()
-        
-        # フォント設定
         themes = user.get('unlocked_themes', '標準').split(',')
         new_t = st.selectbox("フォント", themes, index=themes.index(user.get('current_theme', '標準')) if user.get('current_theme') in themes else 0)
         if new_t != user.get('current_theme'):
             supabase.table("users").update({"current_theme": new_t}).eq("username", user['username']).execute()
             st.rerun()
-            
         with st.expander("👑 称号コレクション"):
             my_titles = user.get('unlocked_titles', '見習い').split(',')
             current = user.get('current_title', '見習い')
-            
             if user.get('custom_title_unlocked'):
                 tab_list, tab_custom = st.tabs(["📜 リスト", "✏️ 自由入力"])
                 with tab_list:
@@ -403,7 +377,6 @@ def main():
                 if st.button("装備", key="eq_only_list"):
                     supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
                     st.toast("装備を変更しました！"); time.sleep(1); st.rerun()
-
         if st.button("ログアウト"):
             cookie_manager.delete('logtask_auth')
             st.session_state["logged_in"] = False
@@ -423,7 +396,6 @@ def main():
         show_timer_fragment(user['username'])
         return
 
-    # 本日の勉強時間取得
     logs_df = get_study_logs(user['username'])
     tasks = get_tasks(user['username'])
     
@@ -432,12 +404,10 @@ def main():
         logs_df['d'] = logs_df['study_date'].astype(str).str.split("T").str[0]
         today_mins = logs_df[logs_df['d'] == str(date.today())]['duration_minutes'].sum()
 
-    # ★HUD
     level = (user['xp'] // 100) + 1
     next_xp = level * 100
     goal = user.get('daily_goal', 60)
     goal_progress = min(1.0, today_mins / goal) if goal > 0 else 0
-    
     acc = user.get('accent_color', '#FFD700')
     main_txt = user.get('main_text_color', '#000000')
     
@@ -453,7 +423,6 @@ def main():
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
     st.progress(goal_progress)
     if today_mins >= goal and goal > 0:
         if user.get('last_goal_reward_date') == str(date.today()):
@@ -461,7 +430,6 @@ def main():
         else:
              st.caption("🔥 あと少しで目標達成！")
 
-    # メイン画面
     if st.session_state.get("celebrate"): st.balloons(); st.session_state["celebrate"] = False
     if st.session_state.get("toast_msg"): st.toast(st.session_state["toast_msg"]); st.session_state["toast_msg"] = None
     if st.session_state.get("goal_reached_msg"):
@@ -471,7 +439,7 @@ def main():
 
     t1, t2, t3, t4, t5, t6 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ", "📚 科目"])
 
-    with t1: # ToDo & Calendar
+    with t1:
         c1, c2 = st.columns([0.6, 0.4])
         events = []
         if not tasks.empty:
@@ -500,15 +468,11 @@ def main():
                 }
                 cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar')
                 
+                # ★修正: 安全なキー取得
                 if cal.get('dateClick'):
-                    # ★修正: 安全にキーを取得 (iPad対応)
-                    click_data = cal['dateClick']
-                    selected = click_data.get('dateStr')
-                    if not selected:
-                        selected = click_data.get('date')
-                    
+                    click_data = cal.get('dateClick')
+                    selected = click_data.get('dateStr') or click_data.get('date')
                     if selected:
-                        # Tが含まれていたら日付部分だけ抽出
                         st.session_state["selected_date"] = selected.split("T")[0]
                 
                 if cal.get('eventClick'):
@@ -519,7 +483,6 @@ def main():
             with st.container(border=True):
                 raw_sel = st.session_state.get("selected_date", str(date.today()))
                 display_date = str(raw_sel).split("T")[0]
-                
                 st.markdown(f"### 📌 {display_date}")
                 
                 day_mins_sel = 0
@@ -547,11 +510,10 @@ def main():
                     except:
                         default_date = date.today()
                     task_date = st.date_input("期日", value=default_date)
-                    
                     if st.form_submit_button("追加"):
                         add_task(user['username'], tn, task_date, "中"); st.rerun()
 
-    with t2: # タイマー
+    with t2:
         c1, c2 = st.columns([1, 1])
         with c1:
             with st.container(border=True):
@@ -584,7 +546,6 @@ def main():
                                 st.session_state["goal_reached_msg"] = "🎉 目標達成！ +100コイン！"
                             st.rerun()
                         else: st.error("時間を入力してください")
-        
         with st.container(border=True):
             st.write("📖 **最近の記録**")
             if not logs_df.empty:
@@ -595,7 +556,7 @@ def main():
                     if lc2.button("削除", key=f"dl_{r['id']}"):
                         delete_study_log(r['id'], user['username'], r['duration_minutes']); st.rerun()
 
-    with t3: # 分析
+    with t3:
         with st.container(border=True):
             st.subheader("📊 学習データ分析")
             if not logs_df.empty:
@@ -603,7 +564,6 @@ def main():
                 total_all = logs_df['duration_minutes'].sum()
                 k1.metric("総勉強時間", f"{total_all//60}時間{total_all%60}分")
                 k2.metric("今日の勉強時間", f"{today_mins}分")
-                
                 st.markdown("##### 📅 過去7日間の推移")
                 logs_df['dt'] = pd.to_datetime(logs_df['study_date'])
                 last_7 = pd.Timestamp.now(JST).normalize().tz_localize(None) - pd.Timedelta(days=6)
@@ -617,7 +577,6 @@ def main():
                     ).properties(height=300)
                     st.altair_chart(chart, use_container_width=True)
                 else: st.info("直近のデータがありません")
-                
                 st.markdown("##### 📚 科目比率")
                 sub_dist = logs_df.groupby('subject')['duration_minutes'].sum().reset_index()
                 pie = alt.Chart(sub_dist).mark_arc(innerRadius=50).encode(
@@ -628,7 +587,7 @@ def main():
                 st.altair_chart(pie, use_container_width=True)
             else: st.info("データがありません")
 
-    with t4: # ランキング
+    with t4:
         with st.container(border=True):
             st.subheader("🏆 週間ランキング")
             df_rank = get_weekly_ranking()
@@ -648,9 +607,8 @@ def main():
                     """, unsafe_allow_html=True)
             else: st.info("データなし")
 
-    with t5: # ショップ (BGM完全削除)
+    with t5:
         st.write("アイテムを購入してカスタマイズしよう！")
-        
         st.markdown("### 🅰️ フォント")
         font_items = [("ピクセル風", 500), ("手書き風", 800), ("ポップ", 1000), ("明朝体", 1200), ("筆文字", 1500)]
         cols = st.columns(3)
@@ -670,7 +628,6 @@ def main():
                                 supabase.table("users").update({"coins": user['coins']-p, "unlocked_themes": nl}).eq("username", user['username']).execute()
                                 st.balloons(); st.rerun()
                             else: st.error("コイン不足")
-
         st.markdown("### 🖼️ 壁紙")
         items = [("真っ黒", 500), ("草原", 500), ("夕焼け", 500), ("夜空", 800), ("ダンジョン", 1200), ("王宮", 2000)]
         cols = st.columns(2)
@@ -689,7 +646,6 @@ def main():
                                 supabase.table("users").update({"coins": user['coins']-p, "unlocked_wallpapers": nl}).eq("username", user['username']).execute()
                                 st.balloons(); st.rerun()
                             else: st.error("コイン不足")
-
         st.markdown("### 💎 その他")
         c1, c2 = st.columns(2)
         with c1:
@@ -704,7 +660,6 @@ def main():
                         supabase.table("users").update({"coins": user['coins']-100, "unlocked_titles": current, "current_title": got}).eq("username", user['username']).execute()
                         st.toast(f"🎉 称号『{got}』を獲得しました！"); st.balloons(); time.sleep(1); st.rerun()
                     else: st.error("コイン不足")
-        
         with c2:
             with st.container(border=True):
                 st.markdown("<div class='shop-title'>👑 自由称号パス</div>", unsafe_allow_html=True)
@@ -717,7 +672,6 @@ def main():
                             supabase.table("users").update({"coins": user['coins']-9999, "custom_title_unlocked": True}).eq("username", user['username']).execute()
                             st.balloons(); st.rerun()
                         else: st.error("不足")
-                        
             with st.container(border=True):
                 st.markdown("<div class='shop-title'>🖼️ カスタム壁紙パス</div>", unsafe_allow_html=True)
                 st.markdown("<div class='shop-price'>9999 G</div>", unsafe_allow_html=True)
@@ -730,7 +684,7 @@ def main():
                             st.balloons(); st.rerun()
                         else: st.error("不足")
 
-    with t6: # 科目
+    with t6:
         new_s = st.text_input("科目追加")
         if st.button("追加"):
             if new_s: add_subject_db(user['username'], new_s); st.rerun()

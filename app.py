@@ -39,16 +39,140 @@ def image_to_base64(img):
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# --- イベント詳細表示ダイアログ ---
+# --- 認証・DB操作関数 ---
+def make_hashes(password): return hashlib.sha256(str.encode(password)).hexdigest()
+def check_hashes(password, hashed_text): return make_hashes(password) == hashed_text
+
+def login_user(username, password):
+    try:
+        res = supabase.table("users").select("password").eq("username", username).execute()
+        if res.data and check_hashes(password, res.data[0]["password"]): return True, "成功"
+        return False, "IDまたはパスワードが違います"
+    except Exception as e: return False, f"エラー: {e}"
+
+def add_user(username, password, nickname):
+    try:
+        data = {
+            "username": username, "password": make_hashes(password), "nickname": nickname,
+            "xp": 0, "coins": 0, 
+            "unlocked_themes": "標準", "current_theme": "標準",
+            "current_title": "見習い", "unlocked_titles": "見習い", 
+            "current_wallpaper": "真っ白", "unlocked_wallpapers": "真っ白", 
+            "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None,
+            "main_text_color": "#000000", 
+            "accent_color": "#FFD700"
+        }
+        supabase.table("users").insert(data).execute()
+        return True, "登録成功"
+    except Exception as e:
+        return False, f"SQLエラー: {e}"
+
+def get_user_data(username):
+    try:
+        res = supabase.table("users").select("*").eq("username", username).execute()
+        return res.data[0] if res.data else None
+    except: return None
+
+def get_study_logs(u):
+    res = supabase.table("study_logs").select("*").eq("username", u).order("created_at", desc=True).execute()
+    return pd.DataFrame(res.data) if res.data else pd.DataFrame()
+
+def get_tasks(u):
+    res = supabase.table("tasks").select("*").eq("username", u).order("due_date").execute()
+    return pd.DataFrame(res.data) if res.data else pd.DataFrame()
+
+def add_task(u, n, d, p): supabase.table("tasks").insert({"username": u, "task_name": n, "status": "未完了", "due_date": str(d), "priority": p}).execute()
+def delete_task(tid): supabase.table("tasks").delete().eq("id", tid).execute()
+
+def complete_task(tid, u):
+    # タスク完了処理
+    supabase.table("tasks").update({"status": "完了"}).eq("id", tid).execute()
+    ud = get_user_data(u)
+    if ud: supabase.table("users").update({"xp": ud['xp']+10, "coins": ud['coins']+10}).eq("username", u).execute()
+
+def add_study_log(u, s, m, d):
+    supabase.table("study_logs").insert({"username": u, "subject": s, "duration_minutes": m, "study_date": str(d)}).execute()
+    ud = get_user_data(u)
+    if not ud: return m, 0, 0, False
+    today_str = str(date.today())
+    logs = supabase.table("study_logs").select("duration_minutes").eq("username", u).eq("study_date", today_str).execute()
+    total_today = sum([l['duration_minutes'] for l in logs.data]) if logs.data else m
+    new_xp = ud['xp'] + m
+    new_coins = ud['coins'] + m
+    goal_reached = False
+    goal = ud.get('daily_goal', 60)
+    last_reward = ud.get('last_goal_reward_date')
+    if last_reward != today_str and total_today >= goal:
+        new_coins += 100
+        supabase.table("users").update({
+            "xp": new_xp, "coins": new_coins, "last_goal_reward_date": today_str
+        }).eq("username", u).execute()
+        goal_reached = True
+    else:
+        supabase.table("users").update({"xp": new_xp, "coins": new_coins}).eq("username", u).execute()
+    return m, new_xp, new_coins, goal_reached
+
+def delete_study_log(lid, u, m):
+    supabase.table("study_logs").delete().eq("id", lid).execute()
+    ud = get_user_data(u)
+    if ud: supabase.table("users").update({"xp": max(0, ud['xp']-m), "coins": max(0, ud['coins']-m)}).eq("username", u).execute()
+    return True
+
+def get_weekly_ranking():
+    start = (datetime.now(JST) - timedelta(days=7)).strftime('%Y-%m-%d')
+    try:
+        logs = supabase.table("study_logs").select("username, duration_minutes").gte("study_date", start).execute()
+        if not logs.data: return pd.DataFrame()
+        df = pd.DataFrame(logs.data).groupby('username').sum().reset_index()
+        users = supabase.table("users").select("username, nickname, current_title").execute()
+        df_users = pd.DataFrame(users.data)
+        merged = pd.merge(df, df_users, on='username', how='left')
+        return merged.sort_values('duration_minutes', ascending=False)
+    except: return pd.DataFrame()
+
+def get_subjects(username):
+    try:
+        res = supabase.table("subjects").select("subject_name").eq("username", username).execute()
+        return [r['subject_name'] for r in res.data]
+    except: return []
+
+def add_subject_db(u, s): supabase.table("subjects").insert({"username": u, "subject_name": s}).execute()
+def delete_subject_db(u, s): supabase.table("subjects").delete().eq("username", u).eq("subject_name", s).execute()
+
+# --- イベント詳細表示ダイアログ (機能強化: タスク完了ボタン付き) ---
 @st.dialog("📝 イベント詳細")
-def show_event_info(title, start, color):
+def show_event_info(event_data, username):
+    title = event_data['title']
+    start = event_data['start']
+    color = event_data.get('backgroundColor', '#888')
+    extended_props = event_data.get('extendedProps', {})
+    
+    # 日付表示の整形
     display_start = start.split("T")[0] if start else ""
+    
     st.markdown(f"### {title}")
     st.divider()
     st.write(f"📅 **日付:** {display_start}")
-    st.markdown(f"🎨 **ラベル色:** <span style='color:{color}; font-size:1.5em;'>■</span>", unsafe_allow_html=True)
+    
+    # タスクの場合、完了ボタンを表示
+    if extended_props.get('type') == 'task':
+        status = extended_props.get('status')
+        st.write(f"📌 **状態:** {status}")
+        
+        if status == '未完了':
+            # 完了ボタン
+            if st.button("✅ このタスクを完了にする", type="primary", use_container_width=True):
+                complete_task(event_data['id'], username)
+                st.session_state["celebrate"] = True # 風船用
+                st.rerun()
+        else:
+            st.success("✅ 完了済みです")
+            
+    elif extended_props.get('type') == 'log':
+        st.write("📚 **勉強記録**")
+        st.write("この記録は「手動記録」タブまたは「集中モード」から管理できます。")
 
-# --- デザイン適用関数 ---
+# --- デザイン適用関数 (完全ホワイト固定版) ---
 def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
@@ -99,6 +223,7 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }}
 
+    /* カレンダー表示 */
     .fc {{
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -139,110 +264,6 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     .stat-val {{ font-size: 1.6em; font-weight: bold; }}
     </style>
     """, unsafe_allow_html=True)
-
-# --- 認証・DB操作 ---
-def make_hashes(password): return hashlib.sha256(str.encode(password)).hexdigest()
-def check_hashes(password, hashed_text): return make_hashes(password) == hashed_text
-
-def login_user(username, password):
-    try:
-        res = supabase.table("users").select("password").eq("username", username).execute()
-        if res.data and check_hashes(password, res.data[0]["password"]): return True, "成功"
-        return False, "IDまたはパスワードが違います"
-    except Exception as e: return False, f"エラー: {e}"
-
-def add_user(username, password, nickname):
-    try:
-        data = {
-            "username": username, "password": make_hashes(password), "nickname": nickname,
-            "xp": 0, "coins": 0, 
-            "unlocked_themes": "標準", "current_theme": "標準",
-            "current_title": "見習い", "unlocked_titles": "見習い", 
-            "current_wallpaper": "真っ白", "unlocked_wallpapers": "真っ白", 
-            "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None,
-            "main_text_color": "#000000", 
-            "accent_color": "#FFD700"
-        }
-        supabase.table("users").insert(data).execute()
-        return True, "登録成功"
-    except Exception as e:
-        return False, f"SQLエラー: {e}"
-
-def get_user_data(username):
-    try:
-        res = supabase.table("users").select("*").eq("username", username).execute()
-        return res.data[0] if res.data else None
-    except: return None
-
-# --- その他DB操作 ---
-def get_weekly_ranking():
-    start = (datetime.now(JST) - timedelta(days=7)).strftime('%Y-%m-%d')
-    try:
-        logs = supabase.table("study_logs").select("username, duration_minutes").gte("study_date", start).execute()
-        if not logs.data: return pd.DataFrame()
-        df = pd.DataFrame(logs.data).groupby('username').sum().reset_index()
-        users = supabase.table("users").select("username, nickname, current_title").execute()
-        df_users = pd.DataFrame(users.data)
-        merged = pd.merge(df, df_users, on='username', how='left')
-        return merged.sort_values('duration_minutes', ascending=False)
-    except: return pd.DataFrame()
-
-def get_subjects(username):
-    try:
-        res = supabase.table("subjects").select("subject_name").eq("username", username).execute()
-        return [r['subject_name'] for r in res.data]
-    except: return []
-
-def add_subject_db(u, s): supabase.table("subjects").insert({"username": u, "subject_name": s}).execute()
-def delete_subject_db(u, s): supabase.table("subjects").delete().eq("username", u).eq("subject_name", s).execute()
-
-def add_study_log(u, s, m, d):
-    supabase.table("study_logs").insert({"username": u, "subject": s, "duration_minutes": m, "study_date": str(d)}).execute()
-    ud = get_user_data(u)
-    if not ud: return m, 0, 0, False
-
-    today_str = str(date.today())
-    logs = supabase.table("study_logs").select("duration_minutes").eq("username", u).eq("study_date", today_str).execute()
-    total_today = sum([l['duration_minutes'] for l in logs.data]) if logs.data else m
-    
-    new_xp = ud['xp'] + m
-    new_coins = ud['coins'] + m
-    
-    goal_reached = False
-    goal = ud.get('daily_goal', 60)
-    last_reward = ud.get('last_goal_reward_date')
-    
-    if last_reward != today_str and total_today >= goal:
-        new_coins += 100
-        supabase.table("users").update({
-            "xp": new_xp, "coins": new_coins, "last_goal_reward_date": today_str
-        }).eq("username", u).execute()
-        goal_reached = True
-    else:
-        supabase.table("users").update({"xp": new_xp, "coins": new_coins}).eq("username", u).execute()
-        
-    return m, new_xp, new_coins, goal_reached
-
-def delete_study_log(lid, u, m):
-    supabase.table("study_logs").delete().eq("id", lid).execute()
-    ud = get_user_data(u)
-    if ud: supabase.table("users").update({"xp": max(0, ud['xp']-m), "coins": max(0, ud['coins']-m)}).eq("username", u).execute()
-    return True
-
-def get_study_logs(u):
-    res = supabase.table("study_logs").select("*").eq("username", u).order("created_at", desc=True).execute()
-    return pd.DataFrame(res.data) if res.data else pd.DataFrame()
-
-def get_tasks(u):
-    res = supabase.table("tasks").select("*").eq("username", u).order("due_date").execute()
-    return pd.DataFrame(res.data) if res.data else pd.DataFrame()
-
-def add_task(u, n, d, p): supabase.table("tasks").insert({"username": u, "task_name": n, "status": "未完了", "due_date": str(d), "priority": p}).execute()
-def delete_task(tid): supabase.table("tasks").delete().eq("id", tid).execute()
-def complete_task(tid, u):
-    supabase.table("tasks").update({"status": "完了"}).eq("id", tid).execute()
-    ud = get_user_data(u)
-    if ud: supabase.table("users").update({"xp": ud['xp']+10, "coins": ud['coins']+10}).eq("username", u).execute()
 
 # --- タイマー更新フラグメント ---
 @st.fragment(run_every=1)
@@ -331,7 +352,6 @@ def main():
         time.sleep(1)
         user['coins'] = new_coins
 
-    # サイドバー (設定)
     with st.sidebar:
         st.subheader("⚙️ 設定")
         with st.expander("🎨 文字色カスタマイズ"):
@@ -382,14 +402,12 @@ def main():
             st.session_state["logged_in"] = False
             st.rerun()
 
-    # デザイン適用
     apply_design(
         user.get('current_theme', '標準'), 
         main_text_color=user.get('main_text_color', '#000000'),
         accent_color=user.get('accent_color', '#FFD700')
     )
 
-    # ★ 集中モード (BGM無し)
     if st.session_state["is_studying"]:
         st.empty()
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
@@ -446,11 +464,23 @@ def main():
             for _, r in tasks.iterrows():
                 if r['due_date']:
                     color = "#FF4B4B" if r['status'] == '未完了' else "#888"
-                    events.append({"title": f"📝 {r['task_name']}", "start": r['due_date'], "color": color})
+                    # IDとステータスをイベントに埋め込む
+                    events.append({
+                        "title": f"📝 {r['task_name']}", 
+                        "start": r['due_date'], 
+                        "color": color,
+                        "id": str(r['id']), # IDを追加
+                        "extendedProps": {"type": "task", "status": r['status']} # 属性を追加
+                    })
         if not logs_df.empty:
             for _, r in logs_df.iterrows():
                 d_str = str(r['study_date']).split("T")[0]
-                events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": d_str, "color": "#00CC00"})
+                events.append({
+                    "title": f"📖 {r['subject']} ({r['duration_minutes']}分)", 
+                    "start": d_str, 
+                    "color": "#00CC00",
+                    "extendedProps": {"type": "log"}
+                })
 
         with c1:
             with st.container(border=True):
@@ -468,16 +498,28 @@ def main():
                 }
                 cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar')
                 
-                # ★修正: 安全なキー取得
                 if cal.get('dateClick'):
+                    # ★修正: 日付ズレ防止 (UTC -> JST変換)
                     click_data = cal.get('dateClick')
-                    selected = click_data.get('dateStr') or click_data.get('date')
-                    if selected:
-                        st.session_state["selected_date"] = selected.split("T")[0]
+                    selected_str = click_data.get('dateStr')
+                    
+                    if selected_str:
+                        st.session_state["selected_date"] = selected_str
+                    else:
+                        # 日付文字列がない場合 (iPad等)、timestamp(UTC)から補正
+                        date_iso = click_data.get('date')
+                        if date_iso:
+                            try:
+                                dt_utc = datetime.fromisoformat(date_iso.replace("Z", "+00:00"))
+                                dt_jst = dt_utc + timedelta(hours=9)
+                                st.session_state["selected_date"] = str(dt_jst.date())
+                            except:
+                                pass
                 
+                # ★修正: イベントクリック時のポップアップ呼び出し
                 if cal.get('eventClick'):
                     e = cal['eventClick']['event']
-                    show_event_info(e['title'], e['start'], e.get('backgroundColor', '#888'))
+                    show_event_info(e, user['username'])
         
         with c2:
             with st.container(border=True):

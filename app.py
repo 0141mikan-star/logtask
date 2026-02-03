@@ -498,18 +498,18 @@ def main():
                     "initialView": "dayGridMonth",
                     "height": 600,
                 }
-                # key='calendar'を指定して初期表示を安定させる
                 cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar')
                 
                 if cal.get('dateClick'):
-                    # iPad対策 (dateStrがない場合はdateを使う)
+                    # ★修正: 安全にキーを取得 (iPad対応)
                     click_data = cal['dateClick']
-                    clicked_date = click_data.get('dateStr')
-                    if not clicked_date:
-                        clicked_date = click_data.get('date')
+                    selected = click_data.get('dateStr')
+                    if not selected:
+                        selected = click_data.get('date')
                     
-                    if clicked_date:
-                        st.session_state["selected_date"] = clicked_date
+                    if selected:
+                        # Tが含まれていたら日付部分だけ抽出
+                        st.session_state["selected_date"] = selected.split("T")[0]
                 
                 if cal.get('eventClick'):
                     e = cal['eventClick']['event']
@@ -518,11 +518,7 @@ def main():
         with c2:
             with st.container(border=True):
                 raw_sel = st.session_state.get("selected_date", str(date.today()))
-                # 文字列でもオブジェクトでも対応できるように変換
-                if isinstance(raw_sel, str):
-                    display_date = raw_sel.split("T")[0]
-                else:
-                    display_date = str(raw_sel).split("T")[0]
+                display_date = str(raw_sel).split("T")[0]
                 
                 st.markdown(f"### 📌 {display_date}")
                 
@@ -675,6 +671,25 @@ def main():
                                 st.balloons(); st.rerun()
                             else: st.error("コイン不足")
 
+        st.markdown("### 🖼️ 壁紙")
+        items = [("真っ黒", 500), ("草原", 500), ("夕焼け", 500), ("夜空", 800), ("ダンジョン", 1200), ("王宮", 2000)]
+        cols = st.columns(2)
+        for i, (n, p) in enumerate(items):
+            with cols[i % 2]:
+                with st.container(border=True):
+                    st.markdown(f"<div class='shop-title'>{n}</div>", unsafe_allow_html=True)
+                    if n in user['unlocked_wallpapers']:
+                        st.markdown(f"<span class='shop-owned'>所有済み</span>", unsafe_allow_html=True)
+                        st.button("設定へ", disabled=True, key=f"d_{n}")
+                    else:
+                        st.markdown(f"<div class='shop-price'>{p} G</div>", unsafe_allow_html=True)
+                        if st.button("購入", key=f"buy_w_{n}", use_container_width=True):
+                            if user['coins'] >= p:
+                                nl = user['unlocked_wallpapers'] + f",{n}"
+                                supabase.table("users").update({"coins": user['coins']-p, "unlocked_wallpapers": nl}).eq("username", user['username']).execute()
+                                st.balloons(); st.rerun()
+                            else: st.error("コイン不足")
+
         st.markdown("### 💎 その他")
         c1, c2 = st.columns(2)
         with c1:
@@ -700,6 +715,18 @@ def main():
                     if st.button("パスを購入", key="buy_pass", use_container_width=True):
                         if user['coins'] >= 9999:
                             supabase.table("users").update({"coins": user['coins']-9999, "custom_title_unlocked": True}).eq("username", user['username']).execute()
+                            st.balloons(); st.rerun()
+                        else: st.error("不足")
+                        
+            with st.container(border=True):
+                st.markdown("<div class='shop-title'>🖼️ カスタム壁紙パス</div>", unsafe_allow_html=True)
+                st.markdown("<div class='shop-price'>9999 G</div>", unsafe_allow_html=True)
+                if user.get('custom_wallpaper_unlocked'):
+                    st.button("✅ 購入済み", disabled=True, use_container_width=True, key="buy_wp_done")
+                else:
+                    if st.button("パスを購入", key="buy_wp_pass", use_container_width=True):
+                        if user['coins'] >= 9999:
+                            supabase.table("users").update({"coins": user['coins']-9999, "custom_wallpaper_unlocked": True}).eq("username", user['username']).execute()
                             st.balloons(); st.rerun()
                         else: st.error("不足")
 

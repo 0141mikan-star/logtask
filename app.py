@@ -18,6 +18,10 @@ st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理�
 # --- 日本時間 (JST) の定義 ---
 JST = timezone(timedelta(hours=9))
 
+# --- ヘルパー関数: 日本時間の今日を取得 ---
+def get_today_jst():
+    return datetime.now(JST).date()
+
 # --- Supabase接続設定 ---
 @st.cache_resource
 def init_supabase():
@@ -39,13 +43,12 @@ def image_to_base64(img):
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# --- BGM設定 (名前, URL, 価格) ---
-# ※ Lofi Girlは無料(0G)で初期開放
+# --- BGMリスト ---
 BGM_DATA = {
     "☕ Lofi Girl (Hip Hop)": {"url": "https://www.youtube.com/watch?v=jfKfPfyJRdk", "price": 0},
-    "🎹 癒やしのピアノ (Piano)": {"url": "https://www.youtube.com/watch?v=XULUBg_ZcAU", "price": 300}, # 変更: 安定したピアノBGM
+    "🎹 癒やしのピアノ (Piano)": {"url": "https://www.youtube.com/watch?v=XULUBg_ZcAU", "price": 300},
     "🌧️ 雨の音 (Rain)": {"url": "https://www.youtube.com/watch?v=mPZkdNFkNps", "price": 300},
-    "☕ カフェの雑音 (Cafe)": {"url": "https://www.youtube.com/watch?v=gaGrHUekGrc", "price": 300}, # 変更: 安定したカフェBGM
+    "☕ カフェの雑音 (Cafe)": {"url": "https://www.youtube.com/watch?v=gaGrHUekGrc", "price": 300},
     "🔥 焚き火の音 (Fireplace)": {"url": "https://www.youtube.com/watch?v=L_LUpnjgPso", "price": 500}
 }
 
@@ -54,7 +57,6 @@ BGM_DATA = {
 def show_event_info(event_data, username):
     title = event_data['title']
     start = event_data['start']
-    color = event_data.get('backgroundColor', '#888')
     extended_props = event_data.get('extendedProps', {})
     
     display_start = start.split("T")[0] if start else ""
@@ -74,9 +76,10 @@ def show_event_info(event_data, username):
         else:
             st.success("✅ 完了済みです")
     elif extended_props.get('type') == 'log':
-        st.write("📚 **勉強記録**")
+        st.write("📚 **勉強記録 (合計)**")
+        st.info("※同じ日の同じ科目はまとめて表示されています")
 
-# --- デザイン適用関数 ---
+# --- デザイン適用関数 (白固定・カレンダー強制表示) ---
 def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
@@ -92,10 +95,12 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
+    /* ベーススタイル */
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
     [data-testid="stAppViewContainer"], .stApp {{ background-color: #ffffff !important; }}
     [data-testid="stHeader"] {{ background-color: rgba(255,255,255,0.9); }}
 
+    /* サイドバー */
     [data-testid="stSidebar"] {{
         background-color: #ffffff !important;
         border-right: 1px solid #e0e0e0;
@@ -107,10 +112,12 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
         border-radius: 8px !important;
     }}
 
+    /* メインエリア */
     .main h1, .main h2, .main h3, .main p, .main span, .main label, .main div {{ 
         color: {main_text_color} !important; 
     }}
 
+    /* フォーム */
     input, textarea, select {{
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -119,6 +126,7 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     }}
     div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
 
+    /* カードコンテナ */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: #ffffff !important;
         border: 1px solid #e0e0e0;
@@ -127,14 +135,20 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }}
 
+    /* ★カレンダー表示の強制確保（最重要）★ */
+    iframe[title="streamlit_calendar.calendar"] {{
+        min-height: 600px !important;
+        height: 600px !important;
+        display: block !important;
+        visibility: visible !important;
+    }}
     .fc {{
         background-color: #ffffff !important;
         color: #000000 !important;
         border: 1px solid #ddd !important;
         border-radius: 8px;
         padding: 10px;
-        min-height: 600px !important;
-        height: 600px !important;
+        height: 100% !important; /* 親要素に合わせる */
     }}
     .fc-toolbar-title, .fc-col-header-cell-cushion, .fc-daygrid-day-number {{
         color: #000000 !important; 
@@ -142,12 +156,14 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     }}
     .fc-event-title {{ color: #ffffff !important; }}
     
+    /* ボタン */
     button[kind="primary"] {{
         background: {accent_color} !important;
         border: none !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-weight: bold !important;
         color: #000000 !important;
     }}
     
+    /* ランキング */
     .ranking-card {{
         background: #ffffff;
         border: 1px solid #e0e0e0;
@@ -157,6 +173,7 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     .rank-name {{ font-size: 1.2em; font-weight: bold; color: {main_text_color}; }}
     .rank-score {{ font-size: 1.4em; font-weight: bold; color: {accent_color}; }}
 
+    /* HUD */
     .status-bar {{
         background: #ffffff;
         border: 1px solid #e0e0e0;
@@ -227,7 +244,9 @@ def add_study_log(u, s, m, d):
     supabase.table("study_logs").insert({"username": u, "subject": s, "duration_minutes": m, "study_date": str(d)}).execute()
     ud = get_user_data(u)
     if not ud: return m, 0, 0, False
-    today_str = str(date.today())
+    
+    today_str = str(get_today_jst())
+    
     logs = supabase.table("study_logs").select("duration_minutes").eq("username", u).eq("study_date", today_str).execute()
     total_today = sum([l['duration_minutes'] for l in logs.data]) if logs.data else m
     new_xp = ud['xp'] + m
@@ -266,13 +285,12 @@ def complete_task(tid, u):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": ud['xp']+10, "coins": ud['coins']+10}).eq("username", u).execute()
 
-# --- タイマー更新フラグメント（一時停止機能付き） ---
+# --- タイマー更新フラグメント ---
 @st.fragment(run_every=1)
 def show_timer_fragment(user_name):
-    # セッションステートからタイマー情報を取得
     timer_running = st.session_state.get("timer_running", False)
     start_time = st.session_state.get("timer_start_time", time.time())
-    accumulated_time = st.session_state.get("timer_accumulated", 0) # 停止前の累積時間(秒)
+    accumulated_time = st.session_state.get("timer_accumulated", 0)
     
     current_elapsed = accumulated_time
     if timer_running:
@@ -280,7 +298,6 @@ def show_timer_fragment(user_name):
         
     h, m, s = current_elapsed // 3600, (current_elapsed % 3600) // 60, current_elapsed % 60
     
-    # 状態表示
     status_text = "🔥 集中 ..." if timer_running else "⏸️ 一時停止中"
     status_color = "#333" if timer_running else "#888"
     
@@ -294,28 +311,22 @@ def show_timer_fragment(user_name):
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
-        # 一時停止/再開ボタン
         if timer_running:
             if st.button("⏸️ 一時停止", use_container_width=True):
-                # 停止処理：現在までの経過時間を累積し、タイマーを止める
                 st.session_state["timer_accumulated"] = current_elapsed
                 st.session_state["timer_running"] = False
                 st.rerun()
         else:
             if st.button("▶️ 再開", use_container_width=True, type="primary"):
-                # 再開処理：開始時間を現在にリセットし、タイマーを動かす
                 st.session_state["timer_start_time"] = time.time()
                 st.session_state["timer_running"] = True
                 st.rerun()
         
-        st.write("") # スペース
-        
-        # 終了ボタン
+        st.write("")
         if st.button("⏹️ 終了して記録", use_container_width=True):
             duration = max(1, current_elapsed // 60)
-            _, _, _, reached = add_study_log(user_name, st.session_state.get("current_subject", "自習"), duration, date.today())
+            _, _, _, reached = add_study_log(user_name, st.session_state.get("current_subject", "自習"), duration, get_today_jst())
             
-            # ステート初期化
             st.session_state["is_studying"] = False
             st.session_state["timer_running"] = False
             st.session_state["timer_accumulated"] = 0
@@ -332,7 +343,8 @@ def show_timer_fragment(user_name):
 # --- メイン処理 ---
 def main():
     if "logged_in" not in st.session_state: 
-        st.session_state.update({"logged_in": False, "username": "", "is_studying": False, "timer_running": False, "timer_accumulated": 0, "celebrate": False, "toast_msg": None, "selected_date": str(date.today())})
+        today_jst_str = str(get_today_jst())
+        st.session_state.update({"logged_in": False, "username": "", "is_studying": False, "timer_running": False, "timer_accumulated": 0, "celebrate": False, "toast_msg": None, "selected_date": today_jst_str})
 
     # 自動ログイン
     if not st.session_state["logged_in"]:
@@ -379,7 +391,8 @@ def main():
         supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
         st.rerun()
 
-    today_str = str(date.today())
+    today_str = str(get_today_jst())
+    
     if user.get('last_login_date') != today_str:
         new_coins = user['coins'] + 50
         supabase.table("users").update({
@@ -390,7 +403,6 @@ def main():
         time.sleep(1)
         user['coins'] = new_coins
 
-    # サイドバー
     with st.sidebar:
         st.subheader("⚙️ 設定")
         with st.expander("🎨 文字色カスタマイズ"):
@@ -409,15 +421,33 @@ def main():
                 supabase.table("users").update({"daily_goal": new_goal}).eq("username", user['username']).execute()
                 st.success("保存しました"); time.sleep(0.5); st.rerun()
         st.divider()
-        
+        themes = user.get('unlocked_themes', '標準').split(',')
+        new_t = st.selectbox("フォント", themes, index=themes.index(user.get('current_theme', '標準')) if user.get('current_theme') in themes else 0)
+        if new_t != user.get('current_theme'):
+            supabase.table("users").update({"current_theme": new_t}).eq("username", user['username']).execute()
+            st.rerun()
         with st.expander("👑 称号コレクション"):
             my_titles = user.get('unlocked_titles', '見習い').split(',')
             current = user.get('current_title', '見習い')
-            sel_t = st.selectbox("獲得済み", my_titles, index=my_titles.index(current) if current in my_titles else 0)
-            if st.button("装備", key="eq_title"):
-                supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
-                st.toast("装備を変更しました！"); time.sleep(1); st.rerun()
-
+            if user.get('custom_title_unlocked'):
+                tab_list, tab_custom = st.tabs(["📜 リスト", "✏️ 自由入力"])
+                with tab_list:
+                    idx = my_titles.index(current) if current in my_titles else 0
+                    sel_t = st.selectbox("獲得済み", my_titles, index=idx)
+                    if st.button("装備", key="eq_list"):
+                        supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
+                        st.toast("装備を変更しました！"); time.sleep(1); st.rerun()
+                with tab_custom:
+                    custom_t = st.text_input("名前を入力", value=current)
+                    if st.button("設定", key="eq_custom"):
+                        supabase.table("users").update({"current_title": custom_t}).eq("username", user['username']).execute()
+                        st.toast("称号を設定しました！"); time.sleep(1); st.rerun()
+            else:
+                idx = my_titles.index(current) if current in my_titles else 0
+                sel_t = st.selectbox("獲得済み", my_titles, index=idx)
+                if st.button("装備", key="eq_only_list"):
+                    supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
+                    st.toast("装備を変更しました！"); time.sleep(1); st.rerun()
         if st.button("ログアウト"):
             cookie_manager.delete('logtask_auth')
             st.session_state["logged_in"] = False
@@ -429,13 +459,10 @@ def main():
         accent_color=user.get('accent_color', '#FFD700')
     )
 
-    # ★ 集中モード (BGM & 一時停止対応)
     if st.session_state["is_studying"]:
         st.empty()
-        # BGM再生 (URLがある場合のみ)
         if "current_bgm_url" in st.session_state and st.session_state["current_bgm_url"]:
             st.video(st.session_state["current_bgm_url"], autoplay=True)
-            
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
         return
@@ -446,7 +473,7 @@ def main():
     today_mins = 0
     if not logs_df.empty:
         logs_df['d'] = logs_df['study_date'].astype(str).str.split("T").str[0]
-        today_mins = logs_df[logs_df['d'] == str(date.today())]['duration_minutes'].sum()
+        today_mins = logs_df[logs_df['d'] == today_str]['duration_minutes'].sum()
 
     level = (user['xp'] // 100) + 1
     next_xp = level * 100
@@ -469,7 +496,7 @@ def main():
     """, unsafe_allow_html=True)
     st.progress(goal_progress)
     if today_mins >= goal and goal > 0:
-        if user.get('last_goal_reward_date') == str(date.today()):
+        if user.get('last_goal_reward_date') == str(get_today_jst()):
              st.caption("✅ 今日の目標達成済み！ボーナス獲得済み")
         else:
              st.caption("🔥 あと少しで目標達成！")
@@ -486,6 +513,7 @@ def main():
     with t1:
         c1, c2 = st.columns([0.6, 0.4])
         events = []
+        
         if not tasks.empty:
             for _, r in tasks.iterrows():
                 if r['due_date']:
@@ -497,12 +525,15 @@ def main():
                         "id": str(r['id']),
                         "extendedProps": {"type": "task", "status": r['status']}
                     })
+        
         if not logs_df.empty:
-            for _, r in logs_df.iterrows():
-                d_str = str(r['study_date']).split("T")[0]
+            logs_df['day_str'] = logs_df['study_date'].astype(str).str.split('T').str[0]
+            agg_df = logs_df.groupby(['day_str', 'subject'])['duration_minutes'].sum().reset_index()
+            
+            for _, r in agg_df.iterrows():
                 events.append({
                     "title": f"📖 {r['subject']} ({r['duration_minutes']}分)", 
-                    "start": d_str, 
+                    "start": r['day_str'], 
                     "color": "#00CC00",
                     "extendedProps": {"type": "log"}
                 })
@@ -519,7 +550,8 @@ def main():
                         "right": "dayGridMonth,timeGridWeek,timeGridDay"
                     },
                     "initialView": "dayGridMonth",
-                    "height": 600,
+                    "height": "650px", # 明示的にpx指定
+                    "selectable": True, # これがないと日付選択が反応しにくい場合がある
                 }
                 cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar')
                 
@@ -535,7 +567,7 @@ def main():
         
         with c2:
             with st.container(border=True):
-                raw_sel = st.session_state.get("selected_date", str(date.today()))
+                raw_sel = st.session_state.get("selected_date", str(get_today_jst()))
                 display_date = str(raw_sel).split("T")[0]
                 st.markdown(f"### 📌 {display_date}")
                 
@@ -562,7 +594,7 @@ def main():
                     try:
                         default_date = datetime.strptime(display_date, '%Y-%m-%d').date()
                     except:
-                        default_date = date.today()
+                        default_date = get_today_jst()
                     task_date = st.date_input("期日", value=default_date)
                     if st.form_submit_button("追加"):
                         add_task(user['username'], tn, task_date, "中"); st.rerun()
@@ -576,15 +608,10 @@ def main():
                 s_name = st.selectbox("科目", subs + ["その他"])
                 if s_name == "その他": s_name = st.text_input("科目名入力")
                 
-                # BGM選択ロジック（解放済みのみ表示）
-                # unlocked_themesに "bgm:曲名" という形式で保存していると仮定
-                # Lofiは常に表示、それ以外は購入済みかチェック
-                my_items = user.get('unlocked_themes', '').split(',')
+                my_themes = user.get('unlocked_themes', '').split(',')
                 available_bgms = ["なし"]
-                
                 for name, data in BGM_DATA.items():
-                    # Lofiは無料なので常に許可、他は持っているかチェック
-                    if data['price'] == 0 or f"bgm:{name}" in my_items:
+                    if data['price'] == 0 or f"bgm:{name}" in my_themes:
                         available_bgms.append(name)
                 
                 bgm_choice = st.selectbox("🎵 BGMを選択", available_bgms)
@@ -596,7 +623,6 @@ def main():
                         st.session_state["timer_start_time"] = time.time()
                         st.session_state["timer_accumulated"] = 0
                         st.session_state["current_subject"] = s_name
-                        
                         if bgm_choice != "なし":
                             st.session_state["current_bgm_url"] = BGM_DATA[bgm_choice]["url"]
                         else:
@@ -606,7 +632,7 @@ def main():
             with st.container(border=True):
                 st.subheader("✏️ 手動記録")
                 with st.form("manual_log"):
-                    md = st.date_input("日付")
+                    md = st.date_input("日付", value=get_today_jst())
                     col_h, col_m = st.columns(2)
                     with col_h: h = st.number_input("時間 (h)", 0, 23, 0)
                     with col_m: m = st.number_input("分 (m)", 0, 59, 0)
@@ -687,18 +713,13 @@ def main():
         
         st.markdown("### 🎵 BGM (音楽)")
         my_themes = user.get('unlocked_themes', '').split(',')
-        
-        # BGMショップ表示
         cols_bgm = st.columns(3)
         bgm_items = list(BGM_DATA.items())
-        
         for i, (name, data) in enumerate(bgm_items):
-            if data['price'] == 0: continue # 無料のは表示しない
-            
+            if data['price'] == 0: continue
             with cols_bgm[i % 3]:
                 with st.container(border=True):
                     st.markdown(f"<div class='shop-title'>{name}</div>", unsafe_allow_html=True)
-                    # "bgm:曲名" という形式で保存確認
                     if f"bgm:{name}" in my_themes:
                         st.markdown(f"<span class='shop-owned'>購入済み</span>", unsafe_allow_html=True)
                         st.button("✅", disabled=True, key=f"owned_bgm_{i}")
@@ -716,11 +737,12 @@ def main():
         st.markdown("### 🅰️ フォント")
         font_items = [("ピクセル風", 500), ("手書き風", 800), ("ポップ", 1000), ("明朝体", 1200), ("筆文字", 1500)]
         cols = st.columns(3)
+        my_fonts = user.get('unlocked_themes', '標準').split(',')
         for i, (n, p) in enumerate(font_items):
             with cols[i % 3]:
                 with st.container(border=True):
                     st.markdown(f"<div class='shop-title'>{n}</div>", unsafe_allow_html=True)
-                    if n in my_themes:
+                    if n in my_fonts:
                         st.markdown(f"<span class='shop-owned'>所有済み</span>", unsafe_allow_html=True)
                         st.button("設定へ", disabled=True, key=f"df_{n}")
                     else:
@@ -731,7 +753,6 @@ def main():
                                 supabase.table("users").update({"coins": user['coins']-p, "unlocked_themes": nl}).eq("username", user['username']).execute()
                                 st.balloons(); st.rerun()
                             else: st.error("コイン不足")
-
         st.markdown("### 💎 その他")
         c1, c2 = st.columns(2)
         with c1:

@@ -12,7 +12,7 @@ from PIL import Image
 import hashlib
 import extra_streamlit_components as stx
 
-# ページ設定
+# ページ設定 (サイドバーは最初から開いておく)
 st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide", initial_sidebar_state="expanded")
 
 # --- 日本時間 (JST) の定義 ---
@@ -59,6 +59,7 @@ def show_event_info(event_data, username):
     start = event_data['start']
     extended_props = event_data.get('extendedProps', {})
     
+    # 日付表示の整形 (Tを除去)
     display_start = start.split("T")[0] if start else ""
     
     st.markdown(f"### {title}")
@@ -79,7 +80,7 @@ def show_event_info(event_data, username):
         st.write("📚 **勉強記録 (合計)**")
         st.info("※同じ日の同じ科目はまとめて表示されています")
 
-# --- デザイン適用関数 (白固定・カレンダー強制表示) ---
+# --- デザイン適用関数 (白固定・カレンダー強制表示・CSS強化) ---
 def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
@@ -137,10 +138,11 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
 
     /* ★カレンダー表示の強制確保（最重要）★ */
     iframe[title="streamlit_calendar.calendar"] {{
-        min-height: 600px !important;
-        height: 600px !important;
+        min-height: 650px !important;
+        height: 650px !important;
         display: block !important;
         visibility: visible !important;
+        background-color: #ffffff !important;
     }}
     .fc {{
         background-color: #ffffff !important;
@@ -148,11 +150,14 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
         border: 1px solid #ddd !important;
         border-radius: 8px;
         padding: 10px;
-        height: 100% !important; /* 親要素に合わせる */
+        height: 100% !important;
     }}
     .fc-toolbar-title, .fc-col-header-cell-cushion, .fc-daygrid-day-number {{
         color: #000000 !important; 
         text-decoration: none !important;
+    }}
+    .fc-theme-standard td, .fc-theme-standard th {{
+        border-color: #ddd !important;
     }}
     .fc-event-title {{ color: #ffffff !important; }}
     
@@ -387,6 +392,7 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
+    # 壁紙強制ホワイト
     if user.get('current_wallpaper') != "真っ白":
         supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
         st.rerun()
@@ -550,16 +556,35 @@ def main():
                         "right": "dayGridMonth,timeGridWeek,timeGridDay"
                     },
                     "initialView": "dayGridMonth",
-                    "height": "650px", # 明示的にpx指定
-                    "selectable": True, # これがないと日付選択が反応しにくい場合がある
+                    "height": 650,
+                    "selectable": True,
                 }
+                # key='calendar' で固定表示
                 cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar')
                 
                 if cal.get('dateClick'):
+                    # ★修正: 日付ズレ防止 (UTC補正)
                     click_data = cal.get('dateClick')
-                    selected = click_data.get('dateStr') or click_data.get('date')
-                    if selected:
-                        st.session_state["selected_date"] = selected.split("T")[0]
+                    selected_str = click_data.get('dateStr')
+                    
+                    if selected_str:
+                        st.session_state["selected_date"] = selected_str
+                    else:
+                        # dateStrがない場合(iPad等)、timestampから補正
+                        # FullCalendarのdateはUTCで返ってくるため、JSTに変換すると日付が変わる可能性がある
+                        # ここではシンプルに「返ってきたUTCタイムスタンプ」に+9時間して日付を取る
+                        date_iso = click_data.get('date')
+                        if date_iso:
+                            try:
+                                # ISOフォーマット(Z付き)をパース
+                                if date_iso.endswith("Z"):
+                                    date_iso = date_iso.replace("Z", "+00:00")
+                                dt_utc = datetime.fromisoformat(date_iso)
+                                dt_jst = dt_utc + timedelta(hours=9)
+                                st.session_state["selected_date"] = str(dt_jst.date())
+                            except:
+                                # パース失敗時はそのまま使う（保険）
+                                st.session_state["selected_date"] = date_iso.split("T")[0]
                 
                 if cal.get('eventClick'):
                     e = cal['eventClick']['event']

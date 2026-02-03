@@ -4,7 +4,7 @@ import pandas as pd
 import random
 import time
 from datetime import datetime, date, timedelta, timezone
-from streamlit_calendar import calendar
+import calendar # 標準ライブラリのカレンダー
 import altair as alt
 import io
 import base64
@@ -46,38 +46,6 @@ BGM_DATA = {
     "🔥 焚き火の音 (Fireplace)": {"url": "https://www.youtube.com/watch?v=L_LUpnjgPso", "price": 500}
 }
 
-# --- イベント詳細ダイアログ ---
-@st.dialog("📝 イベント詳細")
-def show_event_info(event_data, username):
-    title = event_data['title']
-    start = event_data['start']
-    extended_props = event_data.get('extendedProps', {})
-    display_start = start.split("T")[0] if start else ""
-    
-    st.markdown(f"### {title}")
-    st.divider()
-    st.write(f"📅 **日付:** {display_start}")
-    
-    if extended_props.get('type') == 'task':
-        status = extended_props.get('status')
-        st.write(f"📌 **状態:** {status}")
-        if status == '未完了':
-            if st.button("✅ このタスクを完了にする", type="primary", use_container_width=True):
-                complete_task(event_data['id'], username)
-                st.session_state["celebrate"] = True
-                st.rerun()
-        else:
-            st.success("✅ 完了済みです")
-    elif extended_props.get('type') == 'log':
-        st.write("📚 **勉強記録 (合計)**")
-        st.info("※同じ日の同じ科目はまとめて表示されています")
-
-# --- 画像処理関数 ---
-def image_to_base64(img):
-    buffered = io.BytesIO()
-    img.save(buffered, format="PNG")
-    return base64.b64encode(buffered.getvalue()).decode()
-
 # --- デザイン適用関数 ---
 def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
@@ -110,17 +78,16 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: #ffffff !important; border: 1px solid #e0e0e0; border-radius: 15px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }}
-
-    /* カレンダーCSS (シンプルかつ強力に指定) */
-    .fc {{
-        background-color: #ffffff !important; color: #000000 !important; border: 1px solid #ddd !important; border-radius: 8px; padding: 5px;
-    }}
-    .fc-toolbar-title, .fc-col-header-cell-cushion, .fc-daygrid-day-number {{ color: #000000 !important; text-decoration: none !important; }}
-    .fc-theme-standard td, .fc-theme-standard th {{ border-color: #ddd !important; }}
-    .fc-event-title {{ color: #ffffff !important; }}
     
     button[kind="primary"] {{ background: {accent_color} !important; border: none !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-weight: bold !important; color: #000000 !important; }}
     
+    /* カレンダーボタンのカスタマイズ */
+    div[data-testid="column"] button {{
+        width: 100%;
+        padding: 10px 0;
+        border-radius: 8px;
+    }}
+
     .ranking-card {{ background: #ffffff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center; }}
     .rank-medal {{ font-size: 28px; width: 60px; text-align: center; }}
     .rank-name {{ font-size: 1.2em; font-weight: bold; color: {main_text_color}; }}
@@ -275,82 +242,169 @@ def show_timer_fragment(user_name):
             if reached: st.session_state["goal_reached_msg"] = "🎉 目標達成！ +100コイン！"
             st.rerun()
 
-# --- コンポーネント描画 ---
-def render_calendar(events, username, layout_key):
-    with st.container(border=True):
-        st.subheader("📅 カレンダー")
-        # ★高さは固定値(650px)を指定し、コンテナで囲うのをやめる（シンプル化）
-        calendar_options = {
-            "editable": True, "navLinks": True,
-            "headerToolbar": {"left": "today prev,next", "center": "title", "right": "dayGridMonth,timeGridWeek,timeGridDay"},
-            "initialView": "dayGridMonth", 
-            "height": "650px", # 明示的にpxで指定
-            "selectable": True
-        }
-        cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key=layout_key)
-        
-        if cal.get('dateClick'):
-            click_data = cal.get('dateClick')
-            # ★修正: dateStr(見た目)を最優先。なければUTC時刻をJST変換
-            selected_str = click_data.get('dateStr')
-            
-            if selected_str:
-                st.session_state["selected_date"] = selected_str
+# --- 自作カレンダー描画関数 ---
+def render_custom_calendar(year, month, logs_df, tasks_df):
+    # 月のヘッダー
+    c_prev, c_title, c_next = st.columns([1, 5, 1])
+    with c_prev:
+        if st.button("◀", key="prev_month"):
+            if month == 1:
+                st.session_state['cal_year'] = year - 1
+                st.session_state['cal_month'] = 12
             else:
-                date_iso = click_data.get('date')
-                if date_iso:
-                    try:
-                        if date_iso.endswith("Z"): date_iso = date_iso.replace("Z", "+00:00")
-                        dt_utc = datetime.fromisoformat(date_iso)
-                        dt_jst = dt_utc + timedelta(hours=9)
-                        st.session_state["selected_date"] = str(dt_jst.date())
-                    except:
-                        # 最後の手段
-                        st.session_state["selected_date"] = date_iso.split("T")[0]
-        
-        if cal.get('eventClick'):
-            e = cal['eventClick']['event']
-            show_event_info(e, username)
+                st.session_state['cal_month'] = month - 1
+            st.rerun()
+    with c_next:
+        if st.button("▶", key="next_month"):
+            if month == 12:
+                st.session_state['cal_year'] = year + 1
+                st.session_state['cal_month'] = 1
+            else:
+                st.session_state['cal_month'] = month + 1
+            st.rerun()
+    with c_title:
+        st.markdown(f"<h3 style='text-align: center; margin: 0;'>{year}年 {month}月</h3>", unsafe_allow_html=True)
+
+    st.write("") # スペース
+
+    # 曜日のヘッダー
+    cols = st.columns(7)
+    weekdays = ["日", "月", "火", "水", "木", "金", "土"]
+    for i, w in enumerate(weekdays):
+        cols[i].markdown(f"<div style='text-align: center; font-weight: bold; color: #666;'>{w}</div>", unsafe_allow_html=True)
+
+    # カレンダーのデータ作成
+    cal = calendar.monthcalendar(year, month)
+    
+    # データの前処理（高速化）
+    log_map = {}
+    if not logs_df.empty:
+        logs_df['day_str'] = logs_df['study_date'].astype(str).str.split('T').str[0]
+        agg_df = logs_df.groupby('day_str')['duration_minutes'].sum().reset_index()
+        for _, r in agg_df.iterrows():
+            log_map[r['day_str']] = int(r['duration_minutes'])
+            
+    task_map = {}
+    if not tasks_df.empty:
+        tasks_df['day_str'] = tasks_df['due_date'].astype(str)
+        # 未完了タスクがある日をマーク
+        for _, r in tasks_df.iterrows():
+            if r['status'] == '未完了':
+                task_map[r['day_str']] = True
+
+    # カレンダーグリッド描画
+    selected_date_str = st.session_state.get('selected_date', str(get_today_jst()))
+    
+    for week in cal:
+        cols = st.columns(7)
+        for i, day in enumerate(week):
+            if day == 0:
+                cols[i].write("")
+                continue
+            
+            # 日付文字列生成 (YYYY-MM-DD)
+            day_str = f"{year}-{month:02d}-{day:02d}"
+            
+            # ラベル作成
+            label = f"{day}"
+            btn_type = "secondary"
+            
+            # 選択されている日なら色を変える
+            if day_str == selected_date_str:
+                btn_type = "primary"
+            
+            # 勉強記録があればマーク
+            if day_str in log_map:
+                label += f"\n📖{log_map[day_str]}分"
+                
+            # タスクがあればマーク
+            if day_str in task_map:
+                label += "\n📝"
+            
+            # ボタン描画
+            if cols[i].button(label, key=f"cal_btn_{day_str}", type=btn_type, use_container_width=True):
+                st.session_state['selected_date'] = day_str
+                st.rerun()
 
 def render_task_list(logs_df, tasks, username):
+    # 高さ合わせのためのコンテナ
     with st.container(border=True):
         raw_sel = st.session_state.get("selected_date", str(get_today_jst()))
-        display_date = str(raw_sel).split("T")[0]
+        # 安全に日付型へ
+        display_date = raw_sel
+        
         st.markdown(f"### 📌 {display_date}")
         
+        # 勉強記録の表示
         day_mins_sel = 0
         if not logs_df.empty:
-            day_logs = logs_df[logs_df['d'] == display_date]
-            day_mins_sel = day_logs['duration_minutes'].sum()
-            st.info(f"📚 **勉強時間: {day_mins_sel} 分**")
+            logs_df['day_str'] = logs_df['study_date'].astype(str).str.split('T').str[0]
+            day_logs = logs_df[logs_df['day_str'] == display_date]
+            
+            if not day_logs.empty:
+                # 科目ごとに集計して表示
+                sub_agg = day_logs.groupby('subject')['duration_minutes'].sum()
+                total_min = sub_agg.sum()
+                st.info(f"📚 **合計勉強時間: {total_min} 分**")
+                
+                for sub, mins in sub_agg.items():
+                    st.write(f"- {sub}: {mins}分")
+            else:
+                st.info("📚 勉強記録: なし")
         
+        st.write("---")
+        
+        # タスクの表示
         st.write("📝 **タスク**")
         if not tasks.empty:
+            # 日付比較
             day_tasks = tasks[tasks['due_date'] == display_date]
             if not day_tasks.empty:
                 for _, task in day_tasks.iterrows():
                     if task['status'] == "未完了":
+                        # 完了ボタン
                         if st.button(f"完了: {task['task_name']}", key=f"do_{task['id']}"):
-                            complete_task(task['id'], username); st.rerun()
-                    else: st.write(f"✅ {task['task_name']}")
-            else: st.caption("タスクなし")
+                            complete_task(task['id'], username)
+                            st.rerun()
+                    else:
+                        st.write(f"✅ {task['task_name']}")
+            else:
+                st.caption("タスクはありません")
+        else:
+            st.caption("タスクはありません")
         
-        st.divider()
-        with st.form("quick_add"):
-            tn = st.text_input("タスク追加")
+        st.write("---")
+        
+        # タスク追加フォーム
+        with st.form("quick_add_form"):
+            tn = st.text_input("新しいタスクを追加")
+            # 選択中の日付を初期値にする
             try:
-                default_date = datetime.strptime(display_date, '%Y-%m-%d').date()
+                init_date = datetime.strptime(display_date, '%Y-%m-%d').date()
             except:
-                default_date = get_today_jst()
-            task_date = st.date_input("期日", value=default_date)
+                init_date = get_today_jst()
+                
+            task_date = st.date_input("期日", value=init_date)
             if st.form_submit_button("追加"):
-                add_task(username, tn, task_date, "中"); st.rerun()
+                add_task(username, tn, task_date, "中")
+                st.rerun()
 
 # --- メイン ---
 def main():
     if "logged_in" not in st.session_state: 
         today_jst_str = str(get_today_jst())
-        st.session_state.update({"logged_in": False, "username": "", "is_studying": False, "timer_running": False, "timer_accumulated": 0, "celebrate": False, "toast_msg": None, "selected_date": today_jst_str})
+        st.session_state.update({
+            "logged_in": False, 
+            "username": "", 
+            "is_studying": False, 
+            "timer_running": False, 
+            "timer_accumulated": 0, 
+            "celebrate": False, 
+            "toast_msg": None, 
+            "selected_date": today_jst_str,
+            "cal_year": get_today_jst().year, # カレンダー表示用の年
+            "cal_month": get_today_jst().month # カレンダー表示用の月
+        })
 
     if not st.session_state["logged_in"]:
         try:
@@ -456,10 +510,8 @@ def main():
     
     today_mins = 0
     if not logs_df.empty:
-        # ★修正: データ型変換(NaN防止)
-        logs_df['duration_minutes'] = logs_df['duration_minutes'].fillna(0).astype(int)
         logs_df['d'] = logs_df['study_date'].astype(str).str.split("T").str[0]
-        today_mins = logs_df[logs_df['d'] == today_str]['duration_minutes'].sum()
+        today_mins = logs_df[logs_df['d'] == today_str]['duration_minutes'].fillna(0).astype(int).sum()
 
     level = (user['xp'] // 100) + 1
     next_xp = level * 100
@@ -483,29 +535,23 @@ def main():
     t1, t2, t3, t4, t5, t6 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ", "📚 科目"])
 
     with t1:
-        events = []
-        if not tasks.empty:
-            for _, r in tasks.iterrows():
-                if r['due_date']:
-                    color = "#FF4B4B" if r['status'] == '未完了' else "#888"
-                    events.append({"title": f"📝 {r['task_name']}", "start": r['due_date'], "color": color, "id": str(r['id']), "extendedProps": {"type": "task", "status": r['status']}})
-        if not logs_df.empty:
-            logs_df['day_str'] = logs_df['study_date'].astype(str).str.split('T').str[0]
-            agg_df = logs_df.groupby(['day_str', 'subject'])['duration_minutes'].sum().reset_index()
-            for _, r in agg_df.iterrows():
-                # ★修正: 勉強時間(int)を確実にPythonのint型にする
-                mins = int(r['duration_minutes'])
-                events.append({"title": f"📖 {r['subject']} ({mins}分)", "start": r['day_str'], "color": "#00CC00", "extendedProps": {"type": "log"}})
-
-        calendar_key = f"cal_{layout_pos}"
         if layout_pos == "左側":
             c1, c2 = st.columns([layout_ratio_val, 1 - layout_ratio_val])
-            with c1: render_calendar(events, user['username'], calendar_key)
+            with c1: 
+                with st.container(border=True):
+                    # 自作カレンダーの描画
+                    cal_y = st.session_state.get('cal_year', get_today_jst().year)
+                    cal_m = st.session_state.get('cal_month', get_today_jst().month)
+                    render_custom_calendar(cal_y, cal_m, logs_df, tasks)
             with c2: render_task_list(logs_df, tasks, user['username'])
         else:
             c1, c2 = st.columns([1 - layout_ratio_val, layout_ratio_val])
             with c1: render_task_list(logs_df, tasks, user['username'])
-            with c2: render_calendar(events, user['username'], calendar_key)
+            with c2: 
+                with st.container(border=True):
+                    cal_y = st.session_state.get('cal_year', get_today_jst().year)
+                    cal_m = st.session_state.get('cal_month', get_today_jst().month)
+                    render_custom_calendar(cal_y, cal_m, logs_df, tasks)
 
     with t2:
         c1, c2 = st.columns([1, 1])

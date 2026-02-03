@@ -13,7 +13,7 @@ import hashlib
 import extra_streamlit_components as stx
 
 # ページ設定
-st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide")
 
 # --- 日本時間 (JST) の定義 ---
 JST = timezone(timedelta(hours=9))
@@ -39,11 +39,10 @@ def image_to_base64(img):
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# --- デザイン適用関数 (修正版) ---
+# --- デザイン適用関数 ---
 def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None, 
                  bg_opacity=0.5, container_opacity=0.9, sidebar_bg_color="#ffffff",
                  main_text_color="#000000", sidebar_text_color="#000000", accent_color="#FFD700"):
-    
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -54,142 +53,161 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
+    # --- 自動判定ロジック ---
+    if main_text_color.lower() == "#ffffff":
+        card_bg_color = f"rgba(30, 30, 30, {container_opacity})"
+        shadow_color = "rgba(0,0,0,0.9)"
+    else:
+        card_bg_color = f"rgba(255, 255, 255, {container_opacity})"
+        shadow_color = "rgba(255,255,255,0.9)"
+
     # 背景CSS設定
     bg_style = ""
-    main_css = ""
-
-    # ★ここをシンプルに修正：真っ白の時は余計なことをしない★
-    if wallpaper == "真っ白":
-        bg_style = "background-color: #ffffff !important;"
-        # 白背景用のシンプル設定
-        main_css = f"""
-            /* アプリ全体の背景を白に */
-            [data-testid="stAppViewContainer"] {{ background-color: #ffffff !important; }}
-            .stApp {{ background-color: #ffffff !important; }}
-            
-            /* 文字色を黒に */
-            h1, h2, h3, p, span, div, label {{ color: #000000 !important; }}
-            
-            /* カード（コンテナ）の背景 */
-            div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
-                background-color: #f8f9fa !important;
-                border: 1px solid #ddd !important;
-                border-radius: 12px !important;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            }}
-            
-            /* 入力フォームを見やすく */
-            input, textarea, select {{
-                background-color: #ffffff !important;
-                color: #000000 !important;
-                border: 1px solid #ccc !important;
-            }}
+    if wallpaper == "カスタム" and custom_data:
+        bg_style = f"""
+            background-image: linear-gradient(rgba(255,255,255,{bg_opacity}), rgba(255,255,255,{bg_opacity})), url("data:image/png;base64,{custom_data}") !important;
+            background-attachment: fixed !important;
+            background-size: cover !important;
+            background-position: center !important;
         """
     elif wallpaper == "真っ黒":
         bg_style = "background-color: #000000 !important;"
-        main_css = f"""
-            [data-testid="stAppViewContainer"] {{ background-color: #000000 !important; }}
-            h1, h2, h3, p, span, div, label {{ color: #ffffff !important; text-shadow: 1px 1px 2px #000; }}
-            div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
-                background-color: rgba(30,30,30,0.9) !important;
-                border: 1px solid #444 !important;
-            }}
-            input, textarea, select {{ background-color: #333 !important; color: #fff !important; }}
-        """
+    elif wallpaper == "真っ白":
+        bg_style = "background-color: #ffffff !important;"
     else:
-        # 画像背景の場合
-        if wallpaper == "カスタム" and custom_data:
-            bg_url = f"data:image/png;base64,{custom_data}"
-        else:
-            wallpapers = {
-                "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
-                "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
-                "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
-                "サイバー": "1535295972055-1c762f4483e5"
-            }
-            img_id = wallpapers.get(wallpaper, "1472214103451-9374bd1c798e")
-            bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
+        wallpapers = {
+            "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
+            "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
+            "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
+            "サイバー": "1535295972055-1c762f4483e5"
+        }
+        target_wp = wallpaper if wallpaper in wallpapers else "真っ白"
         
-        main_css = f"""
-            [data-testid="stAppViewContainer"] {{
-                background-image: linear-gradient(rgba(255,255,255,{bg_opacity}), rgba(255,255,255,{bg_opacity})), url("{bg_url}") !important;
+        if target_wp == "真っ白":
+             bg_style = "background-color: #ffffff !important;"
+        elif target_wp == "真っ黒":
+             bg_style = "background-color: #000000 !important;"
+        else:
+            img_id = wallpapers[target_wp]
+            bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
+            bg_style = f"""
+                background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}") !important;
                 background-attachment: fixed !important;
                 background-size: cover !important;
-            }}
-            h1, h2, h3, p, span, div, label {{ 
-                color: {main_text_color} !important; 
-                text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
-            }}
-            div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
-                background-color: rgba(255,255,255,{container_opacity}) !important;
-                border: 1px solid rgba(0,0,0,0.1) !important;
-                backdrop-filter: blur(5px);
-            }}
-        """
+            """
 
     st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    html, body, [class*="css"] {{ font-family: {font_family} !important; }}
-    
-    /* ヘッダー透明化 */
+    [data-testid="stAppViewContainer"], .stApp {{ {bg_style} }}
     [data-testid="stHeader"] {{ background-color: rgba(0,0,0,0); }}
 
-    /* サイドバー（白固定・黒文字） */
+    /* サイドバー */
     [data-testid="stSidebar"] {{
-        background-color: #ffffff !important;
-        border-right: 1px solid #e0e0e0;
+        background-color: {sidebar_bg_color} !important;
+        border-right: 1px solid rgba(128,128,128,0.2);
     }}
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
-    [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown, [data-testid="stSidebar"] span {{
-        color: #000000 !important;
-        text-shadow: none !important;
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown {{
+        color: {sidebar_text_color} !important;
     }}
     [data-testid="stSidebar"] svg {{
-        fill: #000000 !important;
-        color: #000000 !important;
+        fill: {sidebar_text_color} !important;
+        color: {sidebar_text_color} !important;
     }}
-    
-    /* サイドバーの目標設定欄（赤枠） */
+    [data-testid="stSidebar"] input, [data-testid="stSidebar"] select {{
+        color: #000000 !important; 
+        background-color: #ffffff !important;
+    }}
+    /* 目標設定の赤枠 */
     [data-testid="stSidebar"] div[data-baseweb="input"] {{
         border: 2px solid #FF4B4B !important;
-        background-color: #FFF5F5 !important;
+        background-color: #FFF0F0 !important;
         border-radius: 8px !important;
     }}
+    [data-testid="stSidebar"] input {{
+        color: #000000 !important;
+        background-color: transparent !important;
+    }}
+
+    /* メイン画面入力フォーム */
+    .stMarkdown label, div[data-testid="stForm"] label, .stTextInput label, .stNumberInput label, .stSelectbox label, .stDateInput label {{
+        color: {main_text_color} !important;
+        font-weight: bold !important;
+        text-shadow: 1px 1px 2px {shadow_color};
+    }}
     
-    /* メインCSS適用 */
-    {main_css}
+    input, textarea, select {{
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #ccc !important;
+        border-radius: 8px !important;
+    }}
+    div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
+    div[data-baseweb="base-input"] {{ background-color: #ffffff !important; }}
+
+    html, body, [class*="css"] {{ font-family: {font_family} !important; }}
+    
+    .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
+        color: {main_text_color} !important; 
+        text-shadow: 1px 1px 2px {shadow_color};
+    }}
+    
+    /* カードコンテナ */
+    div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
+        background-color: {card_bg_color} !important;
+        border-radius: 15px; padding: 20px; border: 1px solid rgba(128,128,128,0.2);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); backdrop-filter: blur(5px);
+    }}
 
     /* ランキングカード */
     .ranking-card {{
-        background: #f8f9fa;
+        background: {card_bg_color};
         border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
-        border: 1px solid #ddd;
+        border: 1px solid rgba(128,128,128,0.2);
     }}
-    .rank-medal {{ font-size: 28px; width: 60px; text-align: center; }}
-    .rank-name {{ font-size: 1.2em; font-weight: bold; color: #333 !important; }}
-    .rank-title {{ font-size: 0.85em; color: #666 !important; }}
-    .rank-score {{ font-size: 1.4em; font-weight: bold; color: #009900 !important; }}
+    .rank-medal {{ font-size: 28px; width: 60px; text-align: center; color: {accent_color} !important; }}
+    .rank-info {{ flex-grow: 1; }}
+    .rank-name {{ font-size: 1.2em; font-weight: bold; color: {main_text_color}; }}
+    .rank-title {{ font-size: 0.85em; color: {accent_color}; }}
+    .rank-score {{ font-size: 1.4em; font-weight: bold; color: {accent_color}; }}
 
-    /* カレンダーの色補正（これが消える原因でした） */
-    .fc-col-header-cell-cushion, .fc-daygrid-day-number {{
-        color: #333 !important; /* 日付を黒く */
-        text-decoration: none !important;
-    }}
-    .fc-event-title {{
-        color: #fff !important; /* イベント文字は白 */
-    }}
+    /* ショップ */
+    .shop-title {{ font-size: 1.1em; font-weight: bold; color: {main_text_color}; margin-bottom: 5px; border-bottom: 1px solid rgba(128,128,128,0.3); padding-bottom:3px; }}
+    .shop-price {{ font-size: 1.0em; color: {accent_color}; font-weight: bold; margin-bottom: 8px; }}
+    .shop-owned {{ color: {main_text_color}; border: 1px solid {main_text_color}; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
 
-    /* ボタン */
+    /* HUD */
+    .status-bar {{
+        background: {card_bg_color};
+        padding: 15px; border-radius: 15px; border: 1px solid rgba(128,128,128,0.3);
+        display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
+        box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }}
+    .stat-item {{ text-align: center; }}
+    .stat-label {{ font-size: 0.7em; color: {main_text_color}; opacity: 0.8; letter-spacing: 1px; }}
+    .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_color}; }}
+    
     button[kind="primary"] {{
-        background: linear-gradient(45deg, #FF4B4B, #FF914D) !important;
-        border: none !important; box-shadow: 0 4px 10px rgba(255, 75, 75, 0.2); font-weight: bold !important;
-        color: #fff !important;
+        background: {accent_color} !important;
+        border: none !important; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-weight: bold !important;
+        color: #000000 !important;
     }}
     
+    canvas {{ filter: invert(0) hue-rotate(0deg); }}
     </style>
     """, unsafe_allow_html=True)
+
+# --- カラーパレット定義 ---
+COLOR_PALETTE = {
+    "#ffffff": "ホワイト (白)",
+    "#1a1a1a": "ブラック (黒)",
+    "#001f3f": "ミッドナイト",
+    "#3d0000": "クリムゾン",
+    "#003300": "ディープグリーン",
+    "#2c003e": "ロイヤルパープル",
+}
 
 # --- 認証・DB操作 ---
 def make_hashes(password): return hashlib.sha256(str.encode(password)).hexdigest()
@@ -308,7 +326,7 @@ def show_timer_fragment(user_name):
     h, m, s = elapsed // 3600, (elapsed % 3600) // 60, elapsed % 60
     
     st.markdown(f"""
-    <div style="text-align: center; font-size: 6em; font-weight: bold; margin-bottom: 20px; color: #333;">
+    <div style="text-align: center; font-size: 6em; font-weight: bold; margin-bottom: 20px;">
         {h:02}:{m:02}:{s:02}
     </div>
     """, unsafe_allow_html=True)
@@ -371,11 +389,10 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # 自動移行（既存ユーザーに真っ白を持たせる）
+    # 自動移行（初期化）
     if "真っ白" not in user.get('unlocked_wallpapers', ''):
         supabase.table("users").update({
-            "unlocked_wallpapers": user.get('unlocked_wallpapers', '') + ",真っ白",
-            "current_wallpaper": "真っ白" # 強制的に白に戻す
+            "unlocked_wallpapers": user.get('unlocked_wallpapers', '') + ",真っ白"
         }).eq("username", user['username']).execute()
         st.rerun()
 
@@ -398,6 +415,20 @@ def main():
     with st.sidebar:
         st.subheader("⚙️ 設定")
         
+        with st.expander("🎨 文字色カスタマイズ"):
+            cur_main = user.get('main_text_color', '#000000')
+            cur_acc = user.get('accent_color', '#FFD700')
+            
+            new_main = st.color_picker("メイン文字色", cur_main)
+            new_acc = st.color_picker("アクセント色（強調）", cur_acc)
+            
+            if new_main != cur_main or new_acc != cur_acc:
+                supabase.table("users").update({
+                    "main_text_color": new_main,
+                    "accent_color": new_acc
+                }).eq("username", user['username']).execute()
+                st.rerun()
+
         st.markdown("##### 🎚️ 表示調整")
         bg_darkness = st.slider("背景の暗さ (画像時)", 0.0, 1.0, 0.5, 0.1, help="0: 明るい, 1: 暗い")
         container_opacity = st.slider("ウィンドウ不透明度", 0.0, 1.0, 0.9, 0.1, help="0: 透明, 1: 濃い")
@@ -515,12 +546,17 @@ def main():
     goal = user.get('daily_goal', 60)
     goal_progress = min(1.0, today_mins / goal) if goal > 0 else 0
     
+    # HUD
+    card_bg_color = f"rgba(255, 255, 255, {container_opacity})" if user.get('main_text_color', '#000000').lower() != "#ffffff" else f"rgba(30, 30, 30, {container_opacity})"
+    acc = user.get('accent_color', '#FFD700')
+    main_txt = user.get('main_text_color', '#000000')
+    
     st.markdown(f"""
     <div class="status-bar">
-        <div class="stat-item"><div class="stat-label">PLAYER</div><div class="stat-val" style="font-size:1.2em; color:#333;">{user['nickname']}</div><div style="font-size:0.7em; color:#FFD700;">{user.get('current_title', '見習い')}</div></div>
+        <div class="stat-item"><div class="stat-label">PLAYER</div><div class="stat-val" style="font-size:1.2em; color:{main_txt};">{user['nickname']}</div><div style="font-size:0.7em; color:{acc};">{user.get('current_title', '見習い')}</div></div>
         <div class="stat-item"><div class="stat-label">LEVEL</div><div class="stat-val" style="color:#00e5ff;">{level}</div></div>
-        <div class="stat-item"><div class="stat-label">XP</div><div class="stat-val" style="color:#333;">{user['xp']} <span style="font-size:0.5em; opacity:0.7;">/ {next_xp}</span></div></div>
-        <div class="stat-item"><div class="stat-label">COIN</div><div class="stat-val" style="color:#FFD700;">{user['coins']} G</div></div>
+        <div class="stat-item"><div class="stat-label">XP</div><div class="stat-val" style="color:{main_txt};">{user['xp']} <span style="font-size:0.5em; opacity:0.7;">/ {next_xp}</span></div></div>
+        <div class="stat-item"><div class="stat-label">COIN</div><div class="stat-val" style="color:{acc};">{user['coins']} G</div></div>
         <div class="stat-item" style="border-left:1px solid rgba(128,128,128,0.5); padding-left:15px;">
             <div class="stat-label">TODAY'S GOAL</div>
             <div class="stat-val" style="color:#ff9900;">{today_mins} <span style="font-size:0.5em; opacity:0.7;">/ {goal} min</span></div>
@@ -560,18 +596,7 @@ def main():
         with c1:
             with st.container(border=True):
                 st.subheader("📅 カレンダー")
-                # カレンダーのオプション設定 (日本語化・見やすく)
-                calendar_options = {
-                    "editable": True,
-                    "navLinks": True,
-                    "headerToolbar": {
-                        "left": "today prev,next",
-                        "center": "title",
-                        "right": "dayGridMonth,timeGridWeek,timeGridDay"
-                    },
-                    "initialView": "dayGridMonth",
-                }
-                cal = calendar(events=events, options=calendar_options, callbacks=['dateClick'])
+                cal = calendar(events=events, options={"initialView": "dayGridMonth", "height": 500}, callbacks=['dateClick'])
                 if cal.get('dateClick'): st.session_state["selected_date"] = cal['dateClick']['date']
         
         with c2:

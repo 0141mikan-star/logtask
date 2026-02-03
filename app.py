@@ -12,7 +12,7 @@ from PIL import Image
 import hashlib
 import extra_streamlit_components as stx
 
-# ページ設定 (サイドバーは最初から開いておく)
+# ページ設定
 st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide", initial_sidebar_state="expanded")
 
 # --- 日本時間 (JST) の定義 ---
@@ -111,13 +111,12 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
         background-color: #ffffff !important; border: 1px solid #e0e0e0; border-radius: 15px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }}
 
-    iframe[title="streamlit_calendar.calendar"] {{
-        min-height: 650px !important; height: 650px !important; display: block !important; visibility: visible !important;
-    }}
+    /* カレンダー用CSS */
     .fc {{
-        background-color: #ffffff !important; color: #000000 !important; border: 1px solid #ddd !important; border-radius: 8px; padding: 10px; height: 100% !important;
+        background-color: #ffffff !important; color: #000000 !important; border-radius: 8px; padding: 5px; height: 100% !important;
     }}
     .fc-toolbar-title, .fc-col-header-cell-cushion, .fc-daygrid-day-number {{ color: #000000 !important; text-decoration: none !important; }}
+    .fc-theme-standard td, .fc-theme-standard th {{ border-color: #ddd !important; }}
     .fc-event-title {{ color: #ffffff !important; }}
     
     button[kind="primary"] {{ background: {accent_color} !important; border: none !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-weight: bold !important; color: #000000 !important; }}
@@ -278,12 +277,13 @@ def show_timer_fragment(user_name):
 
 # --- コンポーネント描画 ---
 def render_calendar(events, username):
-    with st.container(border=True):
+    # ★重要: containerで高さを強制確保 (スクロールバーが出る場合はheightを調整)
+    with st.container(height=680, border=True):
         st.subheader("📅 カレンダー")
         calendar_options = {
             "editable": True, "navLinks": True,
             "headerToolbar": {"left": "today prev,next", "center": "title", "right": "dayGridMonth,timeGridWeek,timeGridDay"},
-            "initialView": "dayGridMonth", "height": 650, "selectable": True
+            "initialView": "dayGridMonth", "height": "100%", "selectable": True # 高さは親に合わせる
         }
         cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar_view')
         
@@ -306,7 +306,7 @@ def render_calendar(events, username):
             show_event_info(e, username)
 
 def render_task_list(logs_df, tasks, username):
-    with st.container(border=True):
+    with st.container(height=680, border=True):
         raw_sel = st.session_state.get("selected_date", str(get_today_jst()))
         display_date = str(raw_sel).split("T")[0]
         st.markdown(f"### 📌 {display_date}")
@@ -397,13 +397,9 @@ def main():
 
     with st.sidebar:
         st.subheader("⚙️ 設定")
-        
-        # レイアウトスライダー
         st.markdown("##### 📐 レイアウト調整")
         layout_pos = st.radio("カレンダー配置", ["左側", "右側"], horizontal=True, index=0)
-        # スライダー: 0.2 (20%) 〜 0.8 (80%)
         layout_ratio_val = st.slider("カレンダーの幅", 0.2, 0.8, 0.6, 0.1)
-        
         st.divider()
         with st.expander("🎨 文字色カスタマイズ"):
             cur_main = user.get('main_text_color', '#000000')
@@ -490,7 +486,6 @@ def main():
             for _, r in agg_df.iterrows():
                 events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": r['day_str'], "color": "#00CC00", "extendedProps": {"type": "log"}})
 
-        # スライダーの値に基づいて比率を決定
         if layout_pos == "左側":
             c1, c2 = st.columns([layout_ratio_val, 1 - layout_ratio_val])
             with c1: render_calendar(events, user['username'])

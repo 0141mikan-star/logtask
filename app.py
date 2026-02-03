@@ -10,7 +10,7 @@ import io
 import base64
 from PIL import Image
 import hashlib
-import extra_streamlit_components as stx # ★追加: Cookie管理用
+import extra_streamlit_components as stx
 
 # ページ設定
 st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide")
@@ -30,8 +30,8 @@ def init_supabase():
 
 supabase = init_supabase()
 
-# --- Cookieマネージャーの初期化 (キャッシュして再利用) ---
-@st.cache_resource(experimental_allow_widgets=True)
+# --- Cookieマネージャーの初期化 (修正箇所: 引数を削除) ---
+@st.cache_resource
 def get_manager():
     return stx.CookieManager()
 
@@ -57,7 +57,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
-    # 自動判定ロジック
+    # --- 自動判定ロジック ---
     if main_text_color.lower() == "#ffffff":
         card_bg_color = f"rgba(30, 30, 30, {container_opacity})"
         shadow_color = "rgba(0,0,0,0.9)"
@@ -236,8 +236,10 @@ def add_user(username, password, nickname):
             "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
             "custom_bg_data": None,
             "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None,
-            "current_sidebar_color": "#ffffff", "unlocked_sidebar_colors": "#ffffff,#1a1a1a",
-            "main_text_color": "#000000", "sidebar_text_color": "#000000", "accent_color": "#FFD700"
+            "current_sidebar_color": "#ffffff", "unlocked_sidebar_colors": "#ffffff", 
+            "main_text_color": "#000000", 
+            "sidebar_text_color": "#000000",
+            "accent_color": "#FFD700"
         }
         supabase.table("users").insert(data).execute()
         return True, "登録成功"
@@ -351,21 +353,19 @@ def main():
     if "logged_in" not in st.session_state: 
         st.session_state.update({"logged_in": False, "username": "", "is_studying": False, "start_time": None, "celebrate": False, "toast_msg": None, "selected_date": str(date.today())})
 
-    # 自動ログイン判定 (Cookie)
+    # 自動ログイン判定
     if not st.session_state["logged_in"]:
         auth_cookie = cookie_manager.get('logtask_auth')
         if auth_cookie:
             try:
-                # user:hash の形式で保存されていると仮定
                 c_user, c_hash = auth_cookie.split(":", 1)
                 res = supabase.table("users").select("password").eq("username", c_user).execute()
-                # パスワードハッシュが一致すればログインとみなす
                 if res.data and res.data[0]["password"] == c_hash:
                     st.session_state["logged_in"] = True
                     st.session_state["username"] = c_user
                     st.rerun()
             except:
-                pass # クッキーが不正なら何もしない
+                pass
 
     if not st.session_state["logged_in"]:
         st.title("🛡️ ログイン")
@@ -382,7 +382,6 @@ def main():
             if st.button("ログイン"):
                 res, msg = login_user(u, p)
                 if res:
-                    # ログイン成功時にCookieセット (有効期限7日)
                     p_hash = make_hashes(p)
                     cookie_manager.set('logtask_auth', f"{u}:{p_hash}", expires_at=datetime.now() + timedelta(days=7))
                     st.session_state["logged_in"] = True
@@ -441,7 +440,7 @@ def main():
         
         st.divider()
 
-        # 目標設定
+        # 目標設定（赤枠付き）
         st.markdown("##### 🎯 1日の目標")
         new_goal = st.number_input("目標時間(分)", min_value=10, max_value=600, value=user.get('daily_goal', 60), step=10)
         if new_goal != user.get('daily_goal', 60):

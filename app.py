@@ -39,7 +39,7 @@ def image_to_base64(img):
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# --- イベント詳細表示ダイアログ (新規追加) ---
+# --- イベント詳細表示ダイアログ ---
 @st.dialog("📝 イベント詳細")
 def show_event_info(title, start, color):
     st.markdown(f"### {title}")
@@ -61,45 +61,47 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
-    # --- 自動判定ロジック ---
-    if main_text_color.lower() == "#ffffff":
-        card_bg_color = f"rgba(30, 30, 30, {container_opacity})"
-        shadow_color = "rgba(0,0,0,0.9)"
-    else:
-        card_bg_color = f"rgba(255, 255, 255, {container_opacity})"
-        shadow_color = "rgba(255,255,255,0.9)"
-
     # 背景CSS設定
     bg_style = ""
-    if wallpaper == "カスタム" and custom_data:
-        bg_style = f"""
-            background-image: linear-gradient(rgba(255,255,255,{bg_opacity}), rgba(255,255,255,{bg_opacity})), url("data:image/png;base64,{custom_data}") !important;
-            background-attachment: fixed !important;
-            background-size: cover !important;
-            background-position: center !important;
-        """
+    
+    # ★修正ポイント: 「真っ白」のときは透明度計算をせず、完全に不透明な白にする（バグ回避）
+    if wallpaper == "真っ白":
+        bg_style = "background-color: #ffffff !important;"
+        card_bg_color = "#ffffff" # 完全な白
+        border_style = "1px solid #e0e0e0" # 薄いグレーの枠線
+        shadow_color = "none"
+        main_text_override = "#000000"
     elif wallpaper == "真っ黒":
         bg_style = "background-color: #000000 !important;"
-    elif wallpaper == "真っ白":
-        bg_style = "background-color: #ffffff !important;"
+        card_bg_color = "#1a1a1a"
+        border_style = "1px solid #333"
+        shadow_color = "1px 1px 2px #000"
+        main_text_override = "#ffffff"
     else:
-        wallpapers = {
-            "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
-            "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
-            "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
-            "サイバー": "1535295972055-1c762f4483e5"
-        }
-        target_wp = wallpaper if wallpaper in wallpapers else "真っ白"
-        
-        if target_wp == "真っ白":
-             bg_style = "background-color: #ffffff !important;"
-        elif target_wp == "真っ黒":
-             bg_style = "background-color: #000000 !important;"
+        # 画像がある場合のみ透明度を適用
+        card_bg_color = f"rgba(255, 255, 255, {container_opacity})"
+        border_style = "1px solid rgba(255,255,255,0.2)"
+        shadow_color = "1px 1px 2px rgba(255,255,255,0.8)"
+        main_text_override = main_text_color
+
+        if wallpaper == "カスタム" and custom_data:
+            bg_style = f"""
+                background-image: linear-gradient(rgba(255,255,255,{bg_opacity}), rgba(255,255,255,{bg_opacity})), url("data:image/png;base64,{custom_data}") !important;
+                background-attachment: fixed !important;
+                background-size: cover !important;
+                background-position: center !important;
+            """
         else:
-            img_id = wallpapers[target_wp]
+            wallpapers = {
+                "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
+                "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
+                "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
+                "サイバー": "1535295972055-1c762f4483e5"
+            }
+            img_id = wallpapers.get(wallpaper, "1472214103451-9374bd1c798e")
             bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
             bg_style = f"""
-                background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}") !important;
+                background-image: linear-gradient(rgba(255,255,255,{bg_opacity}), rgba(255,255,255,{bg_opacity})), url("{bg_url}") !important;
                 background-attachment: fixed !important;
                 background-size: cover !important;
             """
@@ -114,7 +116,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     /* サイドバー */
     [data-testid="stSidebar"] {{
         background-color: {sidebar_bg_color} !important;
-        border-right: 1px solid rgba(128,128,128,0.2);
+        border-right: 1px solid #e0e0e0;
     }}
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
     [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown {{
@@ -139,13 +141,23 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
         background-color: transparent !important;
     }}
 
-    /* メイン画面入力フォーム */
-    .stMarkdown label, div[data-testid="stForm"] label, .stTextInput label, .stNumberInput label, .stSelectbox label, .stDateInput label {{
-        color: {main_text_color} !important;
-        font-weight: bold !important;
-        text-shadow: 1px 1px 2px {shadow_color};
+    /* メイン画面フォント */
+    html, body, [class*="css"] {{ font-family: {font_family} !important; }}
+    
+    /* メインエリア文字色 */
+    .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
+        color: {main_text_override} !important; 
+        text-shadow: {shadow_color};
     }}
     
+    /* 入力フォームのラベルを見やすく */
+    .stMarkdown label, div[data-testid="stForm"] label, .stTextInput label, .stNumberInput label, .stSelectbox label, .stDateInput label {{
+        color: {main_text_override} !important;
+        font-weight: bold !important;
+        text-shadow: {shadow_color};
+    }}
+    
+    /* 入力ボックス自体は白背景・黒文字で統一 */
     input, textarea, select {{
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -155,47 +167,50 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
     div[data-baseweb="base-input"] {{ background-color: #ffffff !important; }}
 
-    html, body, [class*="css"] {{ font-family: {font_family} !important; }}
-    
-    .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
-        color: {main_text_color} !important; 
-        text-shadow: 1px 1px 2px {shadow_color};
-    }}
-    
-    /* カードコンテナ */
+    /* カードコンテナ (透明度やぼかしを排除し、シンプルなスタイルに) */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: {card_bg_color} !important;
-        border-radius: 15px; padding: 20px; border: 1px solid rgba(128,128,128,0.2);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1); backdrop-filter: blur(5px);
+        border: {border_style};
+        border-radius: 15px; 
+        padding: 20px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
     }}
 
     /* ランキングカード */
     .ranking-card {{
         background: {card_bg_color};
+        border: {border_style};
         border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
-        border: 1px solid rgba(128,128,128,0.2);
     }}
     .rank-medal {{ font-size: 28px; width: 60px; text-align: center; color: {accent_color} !important; }}
     .rank-info {{ flex-grow: 1; }}
-    .rank-name {{ font-size: 1.2em; font-weight: bold; color: {main_text_color}; }}
+    .rank-name {{ font-size: 1.2em; font-weight: bold; color: {main_text_override}; }}
     .rank-title {{ font-size: 0.85em; color: {accent_color}; }}
     .rank-score {{ font-size: 1.4em; font-weight: bold; color: {accent_color}; }}
 
     /* ショップ */
-    .shop-title {{ font-size: 1.1em; font-weight: bold; color: {main_text_color}; margin-bottom: 5px; border-bottom: 1px solid rgba(128,128,128,0.3); padding-bottom:3px; }}
+    .shop-title {{ font-size: 1.1em; font-weight: bold; color: {main_text_override}; margin-bottom: 5px; border-bottom: 1px solid #ccc; padding-bottom:3px; }}
     .shop-price {{ font-size: 1.0em; color: {accent_color}; font-weight: bold; margin-bottom: 8px; }}
-    .shop-owned {{ color: {main_text_color}; border: 1px solid {main_text_color}; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
+    .shop-owned {{ color: {main_text_override}; border: 1px solid {main_text_override}; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
 
     /* HUD */
     .status-bar {{
         background: {card_bg_color};
-        padding: 15px; border-radius: 15px; border: 1px solid rgba(128,128,128,0.3);
+        border: {border_style};
+        padding: 15px; border-radius: 15px; 
         display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
-        box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
     }}
     .stat-item {{ text-align: center; }}
-    .stat-label {{ font-size: 0.7em; color: {main_text_color}; opacity: 0.8; letter-spacing: 1px; }}
-    .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_color}; }}
+    .stat-label {{ font-size: 0.7em; color: {main_text_override}; opacity: 0.8; letter-spacing: 1px; }}
+    .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_override}; }}
+    
+    /* カレンダーの色補正 (重要) */
+    .fc-col-header-cell-cushion, .fc-daygrid-day-number {{
+        color: {main_text_override} !important; 
+        text-decoration: none !important;
+    }}
+    .fc-event-title {{ color: #fff !important; }}
     
     button[kind="primary"] {{
         background: {accent_color} !important;
@@ -438,8 +453,12 @@ def main():
                 st.rerun()
 
         st.markdown("##### 🎚️ 表示調整")
-        bg_darkness = st.slider("背景の暗さ (画像時)", 0.0, 1.0, 0.5, 0.1, help="0: 明るい, 1: 暗い")
-        container_opacity = st.slider("ウィンドウ不透明度", 0.0, 1.0, 0.9, 0.1, help="0: 透明, 1: 濃い")
+        # ★真っ白のときはスライダーを表示しない、または無効化することで誤操作を防ぐ
+        if user.get('current_wallpaper') == "真っ白":
+            st.info("※「真っ白」テーマでは表示調整は無効です")
+        else:
+            bg_darkness = st.slider("背景の暗さ (画像時)", 0.0, 1.0, 0.5, 0.1, help="0: 明るい, 1: 暗い")
+            container_opacity = st.slider("ウィンドウ不透明度", 0.0, 1.0, 0.9, 0.1, help="0: 透明, 1: 濃い")
         
         st.divider()
 
@@ -779,7 +798,6 @@ def main():
                             else: st.error("コイン不足")
 
         st.markdown("### 🖼️ 壁紙")
-        # ★真っ黒と草原を販売★
         items = [("真っ黒", 500), ("草原", 500), ("夕焼け", 500), ("夜空", 800), ("ダンジョン", 1200), ("王宮", 2000)]
         cols = st.columns(2)
         for i, (n, p) in enumerate(items):

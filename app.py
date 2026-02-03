@@ -72,12 +72,6 @@ def show_event_info(event_data, username):
         st.write("📚 **勉強記録 (合計)**")
         st.info("※同じ日の同じ科目はまとめて表示されています")
 
-# --- 画像処理関数 ---
-def image_to_base64(img):
-    buffered = io.BytesIO()
-    img.save(buffered, format="PNG")
-    return base64.b64encode(buffered.getvalue()).decode()
-
 # --- デザイン適用関数 ---
 def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
@@ -107,17 +101,20 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     input, textarea, select {{ background-color: #ffffff !important; color: #000000 !important; border: 1px solid #ccc !important; border-radius: 8px !important; }}
     div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
 
+    /* カードデザイン */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: #ffffff !important; border: 1px solid #e0e0e0; border-radius: 15px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }}
 
-    /* カレンダー用CSS */
+    /* カレンダーCSS (シンプル化して競合回避) */
     .fc {{
-        background-color: #ffffff !important; color: #000000 !important; border-radius: 8px; padding: 5px; height: 100% !important;
+        background-color: #ffffff !important; 
+        color: #000000 !important;
+        height: 100% !important;
     }}
-    .fc-toolbar-title, .fc-col-header-cell-cushion, .fc-daygrid-day-number {{ color: #000000 !important; text-decoration: none !important; }}
-    .fc-theme-standard td, .fc-theme-standard th {{ border-color: #ddd !important; }}
-    .fc-event-title {{ color: #ffffff !important; }}
+    .fc-toolbar-title, .fc-col-header-cell-cushion, .fc-daygrid-day-number {{ 
+        color: #000000 !important; text-decoration: none !important; 
+    }}
     
     button[kind="primary"] {{ background: {accent_color} !important; border: none !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-weight: bold !important; color: #000000 !important; }}
     
@@ -276,16 +273,19 @@ def show_timer_fragment(user_name):
             st.rerun()
 
 # --- コンポーネント描画 ---
-def render_calendar(events, username):
-    # ★重要: containerで高さを強制確保 (スクロールバーが出る場合はheightを調整)
-    with st.container(height=680, border=True):
+def render_calendar(events, username, layout_key):
+    # ★重要: height固定のコンテナを作り、その中でカレンダーを100%にする
+    with st.container(height=650, border=True):
         st.subheader("📅 カレンダー")
         calendar_options = {
             "editable": True, "navLinks": True,
             "headerToolbar": {"left": "today prev,next", "center": "title", "right": "dayGridMonth,timeGridWeek,timeGridDay"},
-            "initialView": "dayGridMonth", "height": "100%", "selectable": True # 高さは親に合わせる
+            "initialView": "dayGridMonth", 
+            "height": "100%", # 親コンテナに合わせる
+            "selectable": True
         }
-        cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar_view')
+        # ★重要: layout_keyを使ってユニークなキーを付与し、移動時のバグを防ぐ
+        cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key=layout_key)
         
         if cal.get('dateClick'):
             click_data = cal.get('dateClick')
@@ -306,7 +306,8 @@ def render_calendar(events, username):
             show_event_info(e, username)
 
 def render_task_list(logs_df, tasks, username):
-    with st.container(height=680, border=True):
+    # レイアウトバランスのためにここも高さを揃える
+    with st.container(height=650, border=True):
         raw_sel = st.session_state.get("selected_date", str(get_today_jst()))
         display_date = str(raw_sel).split("T")[0]
         st.markdown(f"### 📌 {display_date}")
@@ -486,14 +487,17 @@ def main():
             for _, r in agg_df.iterrows():
                 events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": r['day_str'], "color": "#00CC00", "extendedProps": {"type": "log"}})
 
+        # キーを動的に変更して再描画を強制する
+        calendar_key = f"cal_{layout_pos}"
+        
         if layout_pos == "左側":
             c1, c2 = st.columns([layout_ratio_val, 1 - layout_ratio_val])
-            with c1: render_calendar(events, user['username'])
+            with c1: render_calendar(events, user['username'], calendar_key)
             with c2: render_task_list(logs_df, tasks, user['username'])
         else:
             c1, c2 = st.columns([1 - layout_ratio_val, layout_ratio_val])
             with c1: render_task_list(logs_df, tasks, user['username'])
-            with c2: render_calendar(events, user['username'])
+            with c2: render_calendar(events, user['username'], calendar_key)
 
     with t2:
         c1, c2 = st.columns([1, 1])

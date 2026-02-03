@@ -42,9 +42,7 @@ def image_to_base64(img):
 # --- イベント詳細表示ダイアログ ---
 @st.dialog("📝 イベント詳細")
 def show_event_info(title, start, color):
-    # 日付表示の調整（Tが含まれていたら除去）
     display_start = start.split("T")[0] if start else ""
-    
     st.markdown(f"### {title}")
     st.divider()
     st.write(f"📅 **日付:** {display_start}")
@@ -150,7 +148,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
         text-shadow: {shadow_color};
     }}
     
-    /* 入力フォームのラベルを見やすく */
+    /* 入力フォーム */
     .stMarkdown label, div[data-testid="stForm"] label, .stTextInput label, .stNumberInput label, .stSelectbox label, .stDateInput label {{
         color: {main_text_override} !important;
         font-weight: bold !important;
@@ -204,10 +202,13 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     .stat-label {{ font-size: 0.7em; color: {main_text_override}; opacity: 0.8; letter-spacing: 1px; }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_override}; }}
     
-    /* カレンダー表示修正 */
+    /* カレンダー表示修正 (強制的に白背景・黒文字) */
     .fc {{
         background-color: #ffffff !important;
         color: #000000 !important;
+        border: 1px solid #ddd !important;
+        border-radius: 8px;
+        padding: 10px;
     }}
     .fc-col-header-cell-cushion, .fc-daygrid-day-number, .fc-toolbar-title {{
         color: #000000 !important; 
@@ -626,8 +627,9 @@ def main():
         events = []
         if not tasks.empty:
             for _, r in tasks.iterrows():
-                color = "#FF4B4B" if r['status'] == '未完了' else "#888"
-                events.append({"title": f"📝 {r['task_name']}", "start": r['due_date'], "color": color})
+                if r['due_date']: # チェック追加
+                    color = "#FF4B4B" if r['status'] == '未完了' else "#888"
+                    events.append({"title": f"📝 {r['task_name']}", "start": r['due_date'], "color": color})
         if not logs_df.empty:
             for _, r in logs_df.iterrows():
                 d_str = str(r['study_date']).split("T")[0]
@@ -645,12 +647,12 @@ def main():
                         "right": "dayGridMonth,timeGridWeek,timeGridDay"
                     },
                     "initialView": "dayGridMonth",
-                    "height": 600, # ★ここが重要
+                    "height": 600,
                 }
-                cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'])
+                # ★ここが重要: key='calendar' を追加して状態を保持
+                cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar')
                 
                 if cal.get('dateClick'):
-                    # ★修正: 日付ズレ防止 (dateStrを使用)
                     st.session_state["selected_date"] = cal['dateClick']['dateStr']
                 
                 if cal.get('eventClick'):
@@ -659,9 +661,7 @@ def main():
         
         with c2:
             with st.container(border=True):
-                # ★修正: 日付処理の安全性向上
                 raw_sel = st.session_state.get("selected_date", str(date.today()))
-                # dateStrなら "2026-02-03", dateオブジェクトなら "2026-02-03T..." となる可能性があるので統一
                 display_date = raw_sel.split("T")[0]
                 
                 st.markdown(f"### 📌 {display_date}")
@@ -686,12 +686,10 @@ def main():
                 st.divider()
                 with st.form("quick_add"):
                     tn = st.text_input("タスク追加")
-                    
                     try:
                         default_date = datetime.strptime(display_date, '%Y-%m-%d').date()
                     except:
                         default_date = date.today()
-                        
                     task_date = st.date_input("期日", value=default_date)
                     
                     if st.form_submit_button("追加"):

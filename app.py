@@ -42,9 +42,12 @@ def image_to_base64(img):
 # --- イベント詳細表示ダイアログ ---
 @st.dialog("📝 イベント詳細")
 def show_event_info(title, start, color):
+    # 日付表示の調整（Tが含まれていたら除去）
+    display_start = start.split("T")[0] if start else ""
+    
     st.markdown(f"### {title}")
     st.divider()
-    st.write(f"📅 **日付:** {start}")
+    st.write(f"📅 **日付:** {display_start}")
     st.markdown(f"🎨 **ラベル色:** <span style='color:{color}; font-size:1.5em;'>■</span>", unsafe_allow_html=True)
 
 # --- デザイン適用関数 ---
@@ -64,7 +67,6 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     # 背景CSS設定
     bg_style = ""
     
-    # 「真っ白」のときは透明度計算をせず、完全に不透明な白にする（バグ回避）
     if wallpaper == "真っ白":
         bg_style = "background-color: #ffffff !important;"
         card_bg_color = "#ffffff"
@@ -202,7 +204,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     .stat-label {{ font-size: 0.7em; color: {main_text_override}; opacity: 0.8; letter-spacing: 1px; }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_override}; }}
     
-    /* カレンダー表示修正 (文字色強制) */
+    /* カレンダー表示修正 */
     .fc {{
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -643,12 +645,13 @@ def main():
                         "right": "dayGridMonth,timeGridWeek,timeGridDay"
                     },
                     "initialView": "dayGridMonth",
-                    "height": 600, # ★ここが重要：高さを指定
+                    "height": 600, # ★ここが重要
                 }
                 cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'])
                 
                 if cal.get('dateClick'):
-                    st.session_state["selected_date"] = cal['dateClick']['date']
+                    # ★修正: 日付ズレ防止 (dateStrを使用)
+                    st.session_state["selected_date"] = cal['dateClick']['dateStr']
                 
                 if cal.get('eventClick'):
                     e = cal['eventClick']['event']
@@ -656,8 +659,11 @@ def main():
         
         with c2:
             with st.container(border=True):
-                sel_date_raw = st.session_state.get("selected_date", str(date.today()))
-                display_date = sel_date_raw.split("T")[0]
+                # ★修正: 日付処理の安全性向上
+                raw_sel = st.session_state.get("selected_date", str(date.today()))
+                # dateStrなら "2026-02-03", dateオブジェクトなら "2026-02-03T..." となる可能性があるので統一
+                display_date = raw_sel.split("T")[0]
+                
                 st.markdown(f"### 📌 {display_date}")
                 
                 day_mins_sel = 0
@@ -680,7 +686,12 @@ def main():
                 st.divider()
                 with st.form("quick_add"):
                     tn = st.text_input("タスク追加")
-                    default_date = datetime.strptime(display_date, '%Y-%m-%d').date()
+                    
+                    try:
+                        default_date = datetime.strptime(display_date, '%Y-%m-%d').date()
+                    except:
+                        default_date = date.today()
+                        
                     task_date = st.date_input("期日", value=default_date)
                     
                     if st.form_submit_button("追加"):

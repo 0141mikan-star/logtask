@@ -30,8 +30,7 @@ def init_supabase():
 
 supabase = init_supabase()
 
-# --- Cookieマネージャーの初期化 (修正済み) ---
-# エラー回避のため、キャッシュを使わず直接初期化します
+# --- Cookieマネージャーの初期化 ---
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
 # --- 画像処理関数 ---
@@ -117,7 +116,6 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
         fill: {sidebar_text_color} !important;
         color: {sidebar_text_color} !important;
     }}
-    /* サイドバー入力フォーム */
     [data-testid="stSidebar"] input, [data-testid="stSidebar"] select {{
         color: #000000 !important; 
         background-color: #ffffff !important;
@@ -134,7 +132,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     }}
 
     /* メイン画面入力フォーム */
-    .stMarkdown label, div[data-testid="stForm"] label, .stTextInput label, .stNumberInput label, .stSelectbox label {{
+    .stMarkdown label, div[data-testid="stForm"] label, .stTextInput label, .stNumberInput label, .stSelectbox label, .stDateInput label {{
         color: {main_text_color} !important;
         font-weight: bold !important;
         text-shadow: 1px 1px 2px {shadow_color};
@@ -627,8 +625,13 @@ def main():
                 st.divider()
                 with st.form("quick_add"):
                     tn = st.text_input("タスク追加")
+                    # ★ここで日付選択も可能に★
+                    # デフォルト値はカレンダーで選択中の日付
+                    default_date = datetime.strptime(display_date, '%Y-%m-%d').date()
+                    task_date = st.date_input("期日", value=default_date)
+                    
                     if st.form_submit_button("追加"):
-                        add_task(user['username'], tn, display_date, "中"); st.rerun()
+                        add_task(user['username'], tn, task_date, "中"); st.rerun()
 
     with t2: # タイマー
         c1, c2 = st.columns([1, 1])

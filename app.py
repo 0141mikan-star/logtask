@@ -39,6 +39,14 @@ def image_to_base64(img):
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
+# --- イベント詳細表示ダイアログ (新規追加) ---
+@st.dialog("📝 イベント詳細")
+def show_event_info(title, start, color):
+    st.markdown(f"### {title}")
+    st.divider()
+    st.write(f"📅 **日付:** {start}")
+    st.markdown(f"🎨 **ラベル色:** <span style='color:{color}; font-size:1.5em;'>■</span>", unsafe_allow_html=True)
+
 # --- デザイン適用関数 ---
 def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None, 
                  bg_opacity=0.5, container_opacity=0.9, sidebar_bg_color="#ffffff",
@@ -596,8 +604,26 @@ def main():
         with c1:
             with st.container(border=True):
                 st.subheader("📅 カレンダー")
-                cal = calendar(events=events, options={"initialView": "dayGridMonth", "height": 500}, callbacks=['dateClick'])
-                if cal.get('dateClick'): st.session_state["selected_date"] = cal['dateClick']['date']
+                calendar_options = {
+                    "editable": True,
+                    "navLinks": True,
+                    "headerToolbar": {
+                        "left": "today prev,next",
+                        "center": "title",
+                        "right": "dayGridMonth,timeGridWeek,timeGridDay"
+                    },
+                    "initialView": "dayGridMonth",
+                }
+                # callbacksにeventClickを追加
+                cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'])
+                
+                if cal.get('dateClick'):
+                    st.session_state["selected_date"] = cal['dateClick']['date']
+                
+                # イベント詳細ポップアップ表示
+                if cal.get('eventClick'):
+                    e = cal['eventClick']['event']
+                    show_event_info(e['title'], e['start'], e.get('backgroundColor', '#888'))
         
         with c2:
             with st.container(border=True):

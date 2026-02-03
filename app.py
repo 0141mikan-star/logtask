@@ -498,11 +498,18 @@ def main():
                     "initialView": "dayGridMonth",
                     "height": 600,
                 }
-                # ★ここが重要: key='calendar' を追加して状態を保持
+                # key='calendar'を指定して初期表示を安定させる
                 cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar')
                 
                 if cal.get('dateClick'):
-                    st.session_state["selected_date"] = cal['dateClick']['dateStr']
+                    # iPad対策 (dateStrがない場合はdateを使う)
+                    click_data = cal['dateClick']
+                    clicked_date = click_data.get('dateStr')
+                    if not clicked_date:
+                        clicked_date = click_data.get('date')
+                    
+                    if clicked_date:
+                        st.session_state["selected_date"] = clicked_date
                 
                 if cal.get('eventClick'):
                     e = cal['eventClick']['event']
@@ -511,7 +518,11 @@ def main():
         with c2:
             with st.container(border=True):
                 raw_sel = st.session_state.get("selected_date", str(date.today()))
-                display_date = raw_sel.split("T")[0]
+                # 文字列でもオブジェクトでも対応できるように変換
+                if isinstance(raw_sel, str):
+                    display_date = raw_sel.split("T")[0]
+                else:
+                    display_date = str(raw_sel).split("T")[0]
                 
                 st.markdown(f"### 📌 {display_date}")
                 

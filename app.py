@@ -72,6 +72,12 @@ def show_event_info(event_data, username):
         st.write("📚 **勉強記録 (合計)**")
         st.info("※同じ日の同じ科目はまとめて表示されています")
 
+# --- 画像処理関数 ---
+def image_to_base64(img):
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode()
+
 # --- デザイン適用関数 ---
 def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
@@ -101,20 +107,17 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     input, textarea, select {{ background-color: #ffffff !important; color: #000000 !important; border: 1px solid #ccc !important; border-radius: 8px !important; }}
     div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
 
-    /* カードデザイン */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: #ffffff !important; border: 1px solid #e0e0e0; border-radius: 15px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }}
 
-    /* カレンダーCSS (シンプル化して競合回避) */
+    /* カレンダーCSS (シンプルかつ強力に指定) */
     .fc {{
-        background-color: #ffffff !important; 
-        color: #000000 !important;
-        height: 100% !important;
+        background-color: #ffffff !important; color: #000000 !important; border: 1px solid #ddd !important; border-radius: 8px; padding: 5px;
     }}
-    .fc-toolbar-title, .fc-col-header-cell-cushion, .fc-daygrid-day-number {{ 
-        color: #000000 !important; text-decoration: none !important; 
-    }}
+    .fc-toolbar-title, .fc-col-header-cell-cushion, .fc-daygrid-day-number {{ color: #000000 !important; text-decoration: none !important; }}
+    .fc-theme-standard td, .fc-theme-standard th {{ border-color: #ddd !important; }}
+    .fc-event-title {{ color: #ffffff !important; }}
     
     button[kind="primary"] {{ background: {accent_color} !important; border: none !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-weight: bold !important; color: #000000 !important; }}
     
@@ -274,40 +277,43 @@ def show_timer_fragment(user_name):
 
 # --- コンポーネント描画 ---
 def render_calendar(events, username, layout_key):
-    # ★重要: height固定のコンテナを作り、その中でカレンダーを100%にする
-    with st.container(height=650, border=True):
+    with st.container(border=True):
         st.subheader("📅 カレンダー")
+        # ★高さは固定値(650px)を指定し、コンテナで囲うのをやめる（シンプル化）
         calendar_options = {
             "editable": True, "navLinks": True,
             "headerToolbar": {"left": "today prev,next", "center": "title", "right": "dayGridMonth,timeGridWeek,timeGridDay"},
             "initialView": "dayGridMonth", 
-            "height": "100%", # 親コンテナに合わせる
+            "height": "650px", # 明示的にpxで指定
             "selectable": True
         }
-        # ★重要: layout_keyを使ってユニークなキーを付与し、移動時のバグを防ぐ
         cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key=layout_key)
         
         if cal.get('dateClick'):
             click_data = cal.get('dateClick')
-            selected = click_data.get('dateStr') or click_data.get('date')
-            if selected:
-                if "T" in selected:
+            # ★修正: dateStr(見た目)を最優先。なければUTC時刻をJST変換
+            selected_str = click_data.get('dateStr')
+            
+            if selected_str:
+                st.session_state["selected_date"] = selected_str
+            else:
+                date_iso = click_data.get('date')
+                if date_iso:
                     try:
-                        dt_utc = datetime.fromisoformat(selected.replace("Z", "+00:00"))
+                        if date_iso.endswith("Z"): date_iso = date_iso.replace("Z", "+00:00")
+                        dt_utc = datetime.fromisoformat(date_iso)
                         dt_jst = dt_utc + timedelta(hours=9)
                         st.session_state["selected_date"] = str(dt_jst.date())
                     except:
-                        st.session_state["selected_date"] = selected.split("T")[0]
-                else:
-                    st.session_state["selected_date"] = selected
+                        # 最後の手段
+                        st.session_state["selected_date"] = date_iso.split("T")[0]
         
         if cal.get('eventClick'):
             e = cal['eventClick']['event']
             show_event_info(e, username)
 
 def render_task_list(logs_df, tasks, username):
-    # レイアウトバランスのためにここも高さを揃える
-    with st.container(height=650, border=True):
+    with st.container(border=True):
         raw_sel = st.session_state.get("selected_date", str(get_today_jst()))
         display_date = str(raw_sel).split("T")[0]
         st.markdown(f"### 📌 {display_date}")
@@ -450,6 +456,8 @@ def main():
     
     today_mins = 0
     if not logs_df.empty:
+        # ★修正: データ型変換(NaN防止)
+        logs_df['duration_minutes'] = logs_df['duration_minutes'].fillna(0).astype(int)
         logs_df['d'] = logs_df['study_date'].astype(str).str.split("T").str[0]
         today_mins = logs_df[logs_df['d'] == today_str]['duration_minutes'].sum()
 
@@ -485,11 +493,11 @@ def main():
             logs_df['day_str'] = logs_df['study_date'].astype(str).str.split('T').str[0]
             agg_df = logs_df.groupby(['day_str', 'subject'])['duration_minutes'].sum().reset_index()
             for _, r in agg_df.iterrows():
-                events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": r['day_str'], "color": "#00CC00", "extendedProps": {"type": "log"}})
+                # ★修正: 勉強時間(int)を確実にPythonのint型にする
+                mins = int(r['duration_minutes'])
+                events.append({"title": f"📖 {r['subject']} ({mins}分)", "start": r['day_str'], "color": "#00CC00", "extendedProps": {"type": "log"}})
 
-        # キーを動的に変更して再描画を強制する
         calendar_key = f"cal_{layout_pos}"
-        
         if layout_pos == "左側":
             c1, c2 = st.columns([layout_ratio_val, 1 - layout_ratio_val])
             with c1: render_calendar(events, user['username'], calendar_key)
@@ -542,7 +550,7 @@ def main():
                 for _, r in logs_df.head(5).iterrows():
                     lc1, lc2 = st.columns([0.8, 0.2])
                     d_str = str(r['study_date']).split("T")[0]
-                    lc1.write(f"・{r['subject']} ({r['duration_minutes']}分) - {d_str}")
+                    lc1.write(f"・{r['subject']} ({int(r['duration_minutes'])}分) - {d_str}")
                     if lc2.button("削除", key=f"dl_{r['id']}"): delete_study_log(r['id'], user['username'], r['duration_minutes']); st.rerun()
 
     with t3:

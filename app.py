@@ -64,11 +64,11 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     # 背景CSS設定
     bg_style = ""
     
-    # ★修正ポイント: 「真っ白」のときは透明度計算をせず、完全に不透明な白にする（バグ回避）
+    # 「真っ白」のときは透明度計算をせず、完全に不透明な白にする（バグ回避）
     if wallpaper == "真っ白":
         bg_style = "background-color: #ffffff !important;"
-        card_bg_color = "#ffffff" # 完全な白
-        border_style = "1px solid #e0e0e0" # 薄いグレーの枠線
+        card_bg_color = "#ffffff"
+        border_style = "1px solid #e0e0e0"
         shadow_color = "none"
         main_text_override = "#000000"
     elif wallpaper == "真っ黒":
@@ -78,7 +78,6 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
         shadow_color = "1px 1px 2px #000"
         main_text_override = "#ffffff"
     else:
-        # 画像がある場合のみ透明度を適用
         card_bg_color = f"rgba(255, 255, 255, {container_opacity})"
         border_style = "1px solid rgba(255,255,255,0.2)"
         shadow_color = "1px 1px 2px rgba(255,255,255,0.8)"
@@ -130,7 +129,6 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
         color: #000000 !important; 
         background-color: #ffffff !important;
     }}
-    /* 目標設定の赤枠 */
     [data-testid="stSidebar"] div[data-baseweb="input"] {{
         border: 2px solid #FF4B4B !important;
         background-color: #FFF0F0 !important;
@@ -157,7 +155,6 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
         text-shadow: {shadow_color};
     }}
     
-    /* 入力ボックス自体は白背景・黒文字で統一 */
     input, textarea, select {{
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -167,7 +164,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
     div[data-baseweb="base-input"] {{ background-color: #ffffff !important; }}
 
-    /* カードコンテナ (透明度やぼかしを排除し、シンプルなスタイルに) */
+    /* カードコンテナ */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: {card_bg_color} !important;
         border: {border_style};
@@ -189,7 +186,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     .rank-score {{ font-size: 1.4em; font-weight: bold; color: {accent_color}; }}
 
     /* ショップ */
-    .shop-title {{ font-size: 1.1em; font-weight: bold; color: {main_text_override}; margin-bottom: 5px; border-bottom: 1px solid #ccc; padding-bottom:3px; }}
+    .shop-title {{ font-size: 1.1em; font-weight: bold; color: {main_text_override}; margin-bottom: 5px; border-bottom: 1px solid rgba(128,128,128,0.3); padding-bottom:3px; }}
     .shop-price {{ font-size: 1.0em; color: {accent_color}; font-weight: bold; margin-bottom: 8px; }}
     .shop-owned {{ color: {main_text_override}; border: 1px solid {main_text_override}; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
 
@@ -205,10 +202,19 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     .stat-label {{ font-size: 0.7em; color: {main_text_override}; opacity: 0.8; letter-spacing: 1px; }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_override}; }}
     
-    /* カレンダーの色補正 (重要) */
-    .fc-col-header-cell-cushion, .fc-daygrid-day-number {{
-        color: {main_text_override} !important; 
+    /* カレンダー表示修正 (文字色強制) */
+    .fc {{
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }}
+    .fc-col-header-cell-cushion, .fc-daygrid-day-number, .fc-toolbar-title {{
+        color: #000000 !important; 
         text-decoration: none !important;
+    }}
+    .fc-button {{
+        color: #000000 !important;
+        background-color: #f0f0f0 !important;
+        border: 1px solid #ccc !important;
     }}
     .fc-event-title {{ color: #fff !important; }}
     
@@ -453,7 +459,6 @@ def main():
                 st.rerun()
 
         st.markdown("##### 🎚️ 表示調整")
-        # ★真っ白のときはスライダーを表示しない、または無効化することで誤操作を防ぐ
         if user.get('current_wallpaper') == "真っ白":
             st.info("※「真っ白」テーマでは表示調整は無効です")
         else:
@@ -574,7 +579,13 @@ def main():
     goal_progress = min(1.0, today_mins / goal) if goal > 0 else 0
     
     # HUD
-    card_bg_color = f"rgba(255, 255, 255, {container_opacity})" if user.get('main_text_color', '#000000').lower() != "#ffffff" else f"rgba(30, 30, 30, {container_opacity})"
+    if user.get('current_wallpaper') == "真っ白":
+        card_bg_rgba = "#ffffff"
+        border_style = "1px solid #e0e0e0"
+    else:
+        card_bg_rgba = f"rgba(255, 255, 255, {container_opacity})" if user.get('main_text_color', '#000000').lower() != "#ffffff" else f"rgba(30, 30, 30, {container_opacity})"
+        border_style = "1px solid rgba(128,128,128,0.2)"
+
     acc = user.get('accent_color', '#FFD700')
     main_txt = user.get('main_text_color', '#000000')
     
@@ -632,14 +643,13 @@ def main():
                         "right": "dayGridMonth,timeGridWeek,timeGridDay"
                     },
                     "initialView": "dayGridMonth",
+                    "height": 600, # ★ここが重要：高さを指定
                 }
-                # callbacksにeventClickを追加
                 cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'])
                 
                 if cal.get('dateClick'):
                     st.session_state["selected_date"] = cal['dateClick']['date']
                 
-                # イベント詳細ポップアップ表示
                 if cal.get('eventClick'):
                     e = cal['eventClick']['event']
                     show_event_info(e['title'], e['start'], e.get('backgroundColor', '#888'))
@@ -670,7 +680,6 @@ def main():
                 st.divider()
                 with st.form("quick_add"):
                     tn = st.text_input("タスク追加")
-                    # 日付指定
                     default_date = datetime.strptime(display_date, '%Y-%m-%d').date()
                     task_date = st.date_input("期日", value=default_date)
                     

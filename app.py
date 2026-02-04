@@ -49,9 +49,7 @@ def show_event_info(title, start, color):
     st.markdown(f"🎨 **ラベル色:** <span style='color:{color}; font-size:1.5em;'>■</span>", unsafe_allow_html=True)
 
 # --- デザイン適用関数 ---
-def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None, 
-                 bg_opacity=0.5, container_opacity=0.9, sidebar_bg_color="#ffffff",
-                 main_text_color="#000000", sidebar_text_color="#000000", accent_color="#FFD700"):
+def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -62,99 +60,35 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
-    # 背景CSS設定
-    bg_style = ""
-    
-    if wallpaper == "真っ白":
-        bg_style = "background-color: #ffffff !important;"
-        card_bg_color = "#ffffff"
-        border_style = "1px solid #e0e0e0"
-        shadow_color = "none"
-        main_text_override = "#000000"
-    elif wallpaper == "真っ黒":
-        bg_style = "background-color: #000000 !important;"
-        card_bg_color = "#1a1a1a"
-        border_style = "1px solid #333"
-        shadow_color = "1px 1px 2px #000"
-        main_text_override = "#ffffff"
-    else:
-        card_bg_color = f"rgba(255, 255, 255, {container_opacity})"
-        border_style = "1px solid rgba(255,255,255,0.2)"
-        shadow_color = "1px 1px 2px rgba(255,255,255,0.8)"
-        main_text_override = main_text_color
-
-        if wallpaper == "カスタム" and custom_data:
-            bg_style = f"""
-                background-image: linear-gradient(rgba(255,255,255,{bg_opacity}), rgba(255,255,255,{bg_opacity})), url("data:image/png;base64,{custom_data}") !important;
-                background-attachment: fixed !important;
-                background-size: cover !important;
-                background-position: center !important;
-            """
-        else:
-            wallpapers = {
-                "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
-                "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
-                "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
-                "サイバー": "1535295972055-1c762f4483e5"
-            }
-            img_id = wallpapers.get(wallpaper, "1472214103451-9374bd1c798e")
-            bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
-            bg_style = f"""
-                background-image: linear-gradient(rgba(255,255,255,{bg_opacity}), rgba(255,255,255,{bg_opacity})), url("{bg_url}") !important;
-                background-attachment: fixed !important;
-                background-size: cover !important;
-            """
-
     st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    [data-testid="stAppViewContainer"], .stApp {{ {bg_style} }}
-    [data-testid="stHeader"] {{ background-color: rgba(0,0,0,0); }}
+    /* 全体のフォントと背景色 */
+    html, body, [class*="css"] {{ font-family: {font_family} !important; }}
+    [data-testid="stAppViewContainer"], .stApp {{ background-color: #ffffff !important; }}
+    [data-testid="stHeader"] {{ background-color: rgba(255,255,255,0.9); }}
 
     /* サイドバー */
     [data-testid="stSidebar"] {{
-        background-color: {sidebar_bg_color} !important;
+        background-color: #ffffff !important;
         border-right: 1px solid #e0e0e0;
     }}
-    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
-    [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown {{
-        color: {sidebar_text_color} !important;
-    }}
-    [data-testid="stSidebar"] svg {{
-        fill: {sidebar_text_color} !important;
-        color: {sidebar_text_color} !important;
-    }}
-    [data-testid="stSidebar"] input, [data-testid="stSidebar"] select {{
-        color: #000000 !important; 
-        background-color: #ffffff !important;
+    [data-testid="stSidebar"] * {{
+        color: #000000 !important;
     }}
     [data-testid="stSidebar"] div[data-baseweb="input"] {{
         border: 2px solid #FF4B4B !important;
         background-color: #FFF0F0 !important;
         border-radius: 8px !important;
     }}
-    [data-testid="stSidebar"] input {{
-        color: #000000 !important;
-        background-color: transparent !important;
+
+    /* メインエリアの文字色 */
+    .main h1, .main h2, .main h3, .main p, .main span, .main label, .main div {{ 
+        color: {main_text_color} !important; 
     }}
 
-    /* メイン画面フォント */
-    html, body, [class*="css"] {{ font-family: {font_family} !important; }}
-    
-    /* メインエリア文字色 */
-    .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
-        color: {main_text_override} !important; 
-        text-shadow: {shadow_color};
-    }}
-    
     /* 入力フォーム */
-    .stMarkdown label, div[data-testid="stForm"] label, .stTextInput label, .stNumberInput label, .stSelectbox label, .stDateInput label {{
-        color: {main_text_override} !important;
-        font-weight: bold !important;
-        text-shadow: {shadow_color};
-    }}
-    
     input, textarea, select {{
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -164,53 +98,26 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
     div[data-baseweb="base-input"] {{ background-color: #ffffff !important; }}
 
-    /* カードコンテナ */
+    /* カードデザイン */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
-        background-color: {card_bg_color} !important;
-        border: {border_style};
+        background-color: #ffffff !important;
+        border: 1px solid #e0e0e0;
         border-radius: 15px; 
         padding: 20px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }}
 
-    /* ランキングカード */
-    .ranking-card {{
-        background: {card_bg_color};
-        border: {border_style};
-        border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
-    }}
-    .rank-medal {{ font-size: 28px; width: 60px; text-align: center; color: {accent_color} !important; }}
-    .rank-info {{ flex-grow: 1; }}
-    .rank-name {{ font-size: 1.2em; font-weight: bold; color: {main_text_override}; }}
-    .rank-title {{ font-size: 0.85em; color: {accent_color}; }}
-    .rank-score {{ font-size: 1.4em; font-weight: bold; color: {accent_color}; }}
-
-    /* ショップ */
-    .shop-title {{ font-size: 1.1em; font-weight: bold; color: {main_text_override}; margin-bottom: 5px; border-bottom: 1px solid rgba(128,128,128,0.3); padding-bottom:3px; }}
-    .shop-price {{ font-size: 1.0em; color: {accent_color}; font-weight: bold; margin-bottom: 8px; }}
-    .shop-owned {{ color: {main_text_override}; border: 1px solid {main_text_override}; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
-
-    /* HUD */
-    .status-bar {{
-        background: {card_bg_color};
-        border: {border_style};
-        padding: 15px; border-radius: 15px; 
-        display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-    }}
-    .stat-item {{ text-align: center; }}
-    .stat-label {{ font-size: 0.7em; color: {main_text_override}; opacity: 0.8; letter-spacing: 1px; }}
-    .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_override}; }}
-    
-    /* カレンダー表示修正 (強制的に白背景・黒文字) */
+    /* ★重要：カレンダーの表示強制確保★ */
     .fc {{
         background-color: #ffffff !important;
         color: #000000 !important;
         border: 1px solid #ddd !important;
         border-radius: 8px;
         padding: 10px;
-        min-height: 600px !important; /* 表示落ち防止 */
+        min-height: 600px !important;
         height: 600px !important;
+        display: block !important; /* 強制表示 */
+        visibility: visible !important;
     }}
     .fc-col-header-cell-cushion, .fc-daygrid-day-number, .fc-toolbar-title {{
         color: #000000 !important; 
@@ -223,25 +130,34 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     }}
     .fc-event-title {{ color: #fff !important; }}
     
+    /* ボタン */
     button[kind="primary"] {{
         background: {accent_color} !important;
-        border: none !important; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-weight: bold !important;
+        border: none !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-weight: bold !important;
         color: #000000 !important;
     }}
     
-    canvas {{ filter: invert(0) hue-rotate(0deg); }}
+    /* ランキング */
+    .ranking-card {{
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
+    }}
+    .rank-medal {{ font-size: 28px; width: 60px; text-align: center; }}
+    .rank-name {{ font-size: 1.2em; font-weight: bold; color: {main_text_color}; }}
+    .rank-score {{ font-size: 1.4em; font-weight: bold; color: {accent_color}; }}
+
+    /* HUD */
+    .status-bar {{
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        padding: 15px; border-radius: 15px; 
+        display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }}
+    .stat-val {{ font-size: 1.6em; font-weight: bold; }}
     </style>
     """, unsafe_allow_html=True)
-
-# --- カラーパレット定義 ---
-COLOR_PALETTE = {
-    "#ffffff": "ホワイト (白)",
-    "#1a1a1a": "ブラック (黒)",
-    "#001f3f": "ミッドナイト",
-    "#3d0000": "クリムゾン",
-    "#003300": "ディープグリーン",
-    "#2c003e": "ロイヤルパープル",
-}
 
 # --- 認証・DB操作 ---
 def make_hashes(password): return hashlib.sha256(str.encode(password)).hexdigest()
@@ -262,12 +178,8 @@ def add_user(username, password, nickname):
             "unlocked_themes": "標準", "current_theme": "標準",
             "current_title": "見習い", "unlocked_titles": "見習い", 
             "current_wallpaper": "真っ白", "unlocked_wallpapers": "真っ白", 
-            "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
-            "custom_bg_data": None,
             "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None,
-            "current_sidebar_color": "#ffffff", "unlocked_sidebar_colors": "#ffffff", 
             "main_text_color": "#000000", 
-            "sidebar_text_color": "#000000",
             "accent_color": "#FFD700"
         }
         supabase.table("users").insert(data).execute()
@@ -423,7 +335,7 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # 自動移行（既存ユーザーのデータを修正）
+    # 自動移行
     if user.get('current_wallpaper') != "真っ白":
         supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
         st.rerun()
@@ -438,6 +350,13 @@ def main():
         st.toast("🎁 ログインボーナス！ +50コイン GET！", icon="🎁")
         time.sleep(1)
         user['coins'] = new_coins
+
+    # デザイン適用（※データ取得より前に実行してCSSを当てる）
+    apply_design(
+        user.get('current_theme', '標準'), 
+        main_text_color=user.get('main_text_color', '#000000'),
+        accent_color=user.get('accent_color', '#FFD700')
+    )
 
     # サイドバー (設定)
     with st.sidebar:
@@ -469,10 +388,9 @@ def main():
         
         st.divider()
         
-        # フォント設定（BGM除外）
+        # フォント設定
         VALID_FONTS = ["標準", "ピクセル風", "手書き風", "ポップ", "明朝体", "筆文字"]
         raw_themes = user.get('unlocked_themes', '標準').split(',')
-        # 有効なフォントのみ抽出
         my_fonts = [t for t in raw_themes if t in VALID_FONTS]
         if not my_fonts: my_fonts = ["標準"]
         
@@ -512,13 +430,6 @@ def main():
             cookie_manager.delete('logtask_auth')
             st.session_state["logged_in"] = False
             st.rerun()
-
-    # デザイン適用
-    apply_design(
-        user.get('current_theme', '標準'), 
-        main_text_color=user.get('main_text_color', '#000000'),
-        accent_color=user.get('accent_color', '#FFD700')
-    )
 
     # ★ 集中モード (BGM無し)
     if st.session_state["is_studying"]:
@@ -584,11 +495,9 @@ def main():
                     color = "#FF4B4B" if r['status'] == '未完了' else "#888"
                     events.append({"title": f"📝 {r['task_name']}", "start": r['due_date'], "color": color})
         if not logs_df.empty:
-            # ★修正: 勉強時間を科目ごとに合算してイベント作成
+            # 勉強時間の合算処理
             logs_df['day_str'] = logs_df['study_date'].astype(str).str.split("T").str[0]
-            # 日付と科目で集計
             agg_logs = logs_df.groupby(['day_str', 'subject'])['duration_minutes'].sum().reset_index()
-            
             for _, r in agg_logs.iterrows():
                 events.append({
                     "title": f"📖 {r['subject']} ({r['duration_minutes']}分)", 
@@ -602,6 +511,7 @@ def main():
                 calendar_options = {
                     "editable": True,
                     "navLinks": True,
+                    "initialDate": str(date.today()), # ★重要: 初期表示日をセットして迷子防止
                     "headerToolbar": {
                         "left": "today prev,next",
                         "center": "title",
@@ -610,8 +520,8 @@ def main():
                     "initialView": "dayGridMonth",
                     "height": 600,
                 }
-                # key='calendar_v3' で再描画を強制
-                cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar_v3')
+                # key='calendar_fixed' で初期化
+                cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar_fixed')
                 
                 if cal.get('dateClick'):
                     st.session_state["selected_date"] = cal['dateClick']['dateStr']

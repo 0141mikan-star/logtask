@@ -33,12 +33,6 @@ supabase = init_supabase()
 # --- Cookieマネージャー ---
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
-# --- 画像処理 ---
-def image_to_base64(img):
-    buffered = io.BytesIO()
-    img.save(buffered, format="PNG")
-    return base64.b64encode(buffered.getvalue()).decode()
-
 # --- デザイン適用 ---
 def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
@@ -137,15 +131,7 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
-        data = {
-            "username": username, "password": make_hashes(password), "nickname": nickname, 
-            "xp": 0, "coins": 0, 
-            "unlocked_themes": "標準", "current_theme": "標準", 
-            "current_title": "見習い", "unlocked_titles": "見習い", 
-            "current_wallpaper": "真っ白", "unlocked_wallpapers": "真っ白",
-            "unlocked_bgms": "Lofi", "current_bgm": "なし", # ★BGM初期設定
-            "daily_goal": 60, "main_text_color": "#000000", "accent_color": "#FFD700"
-        }
+        data = {"username": username, "password": make_hashes(password), "nickname": nickname, "xp": 0, "coins": 0, "unlocked_themes": "標準", "current_theme": "標準", "current_title": "見習い", "unlocked_titles": "見習い", "current_wallpaper": "真っ白", "unlocked_wallpapers": "真っ白", "daily_goal": 60, "main_text_color": "#000000", "accent_color": "#FFD700", "unlocked_bgms": "Lofi", "current_bgm": "なし"}
         supabase.table("users").insert(data).execute()
         return True, "登録成功"
     except: return False, "エラー"
@@ -185,7 +171,6 @@ def add_study_log(u, s, m, d):
     total = sum([l['duration_minutes'] for l in logs.data]) if logs.data else m
     goal_reached = False
     if ud.get('last_goal_reward_date') != today_str and total >= ud.get('daily_goal', 60):
-        # 目標達成ボーナス
         supabase.table("users").update({"xp": ud['xp']+m, "coins": ud['coins']+m+100, "last_goal_reward_date": today_str}).eq("username", u).execute()
         goal_reached = True
     else:
@@ -215,17 +200,46 @@ def complete_task(tid, u):
 # --- タイマー ---
 @st.fragment(run_every=1)
 def show_timer_fragment(user_name):
-    now = time.time()
-    start = st.session_state.get("start_time", now)
-    elapsed = int(now - start)
+    # 状態取得
+    is_paused = st.session_state.get("timer_paused", False)
+    accumulated = st.session_state.get("timer_accumulated", 0)
+    start_time = st.session_state.get("start_time", time.time())
+    
+    # 経過時間の計算
+    if is_paused:
+        elapsed = int(accumulated)
+    else:
+        elapsed = int(accumulated + (time.time() - start_time))
+    
     h, m, s = elapsed // 3600, (elapsed % 3600) // 60, elapsed % 60
-    st.markdown(f"<div style='text-align:center; font-size:6em; font-weight:bold; color:#000;'>{h:02}:{m:02}:{s:02}</div>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns([1, 2, 1])
+    
+    st.markdown(f"""
+    <div style="text-align: center; font-size: 6em; font-weight: bold; margin-bottom: 20px;">
+        {h:02}:{m:02}:{s:02}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    c1, c2, c3 = st.columns([1, 1, 1])
+    
+    with c1:
+        if not is_paused:
+            if st.button("⏸ 一時停止", use_container_width=True):
+                st.session_state["timer_accumulated"] = elapsed
+                st.session_state["timer_paused"] = True
+                st.rerun()
+        else:
+            if st.button("▶ 再開", use_container_width=True):
+                st.session_state["start_time"] = time.time()
+                st.session_state["timer_paused"] = False
+                st.rerun()
+                
     with c2:
         if st.button("⏹️ 終了して記録", use_container_width=True, type="primary"):
             duration = max(1, elapsed // 60)
             _, _, _, reached = add_study_log(user_name, st.session_state.get("current_subject", "自習"), duration, date.today())
             st.session_state["is_studying"] = False
+            st.session_state["timer_paused"] = False
+            st.session_state["timer_accumulated"] = 0
             st.session_state["celebrate"] = True
             st.session_state["toast_msg"] = f"{duration}分 記録しました！"
             if reached: st.session_state["goal_reached_msg"] = "🎉 目標達成！"
@@ -239,7 +253,8 @@ def main():
             "start_time": None, "celebrate": False, "toast_msg": None, 
             "selected_date": str(date.today()),
             "cal_year": date.today().year, "cal_month": date.today().month,
-            "selected_bgm": "なし"
+            "selected_bgm": "なし",
+            "timer_paused": False, "timer_accumulated": 0
         })
 
     if not st.session_state["logged_in"]:
@@ -274,20 +289,18 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # --- データの自動補正 (既存ユーザーへのBGMカラム追加対応) ---
+    # データ補正
     if 'unlocked_bgms' not in user:
         supabase.table("users").update({"unlocked_bgms": "Lofi"}).eq("username", user['username']).execute()
         user['unlocked_bgms'] = "Lofi"
         st.rerun()
 
-    # 壁紙初期化
     if not user.get('current_wallpaper'):
         supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
         st.rerun()
 
     today_str = str(date.today())
     if user.get('last_login_date') != today_str:
-        # ★ログインボーナス 100コイン
         new_coins = user['coins'] + 100
         supabase.table("users").update({
             "coins": new_coins,
@@ -308,10 +321,10 @@ def main():
     with st.sidebar:
         st.subheader("⚙️ 設定")
         
-        # ★BGM選択 (購入済みのみ表示)
-        st.markdown("##### 🎵 集中時のBGM")
+        # BGM選択
+        st.markdown("##### 🎵 集中時のBGM (YouTube)")
         my_bgms = ["なし"] + user.get('unlocked_bgms', 'Lofi').split(',')
-        if "Lofi" not in my_bgms: my_bgms.append("Lofi") # 念のため
+        if "Lofi" not in my_bgms: my_bgms.append("Lofi")
         
         selected_bgm = st.selectbox("再生する音", my_bgms, index=0)
         st.session_state["selected_bgm"] = selected_bgm
@@ -348,7 +361,6 @@ def main():
         
         st.divider()
         
-        # フォント設定
         VALID = ["標準", "ピクセル風", "手書き風", "ポップ", "明朝体", "筆文字"]
         my_fonts = [t for t in user.get('unlocked_themes', '').split(',') if t in VALID]
         if not my_fonts: my_fonts = ["標準"]
@@ -363,26 +375,25 @@ def main():
             cookie_manager.delete('logtask_auth')
             st.session_state["logged_in"] = False; st.rerun()
 
-    # ★ 集中モード (ここでBGM再生)
+    # ★ 集中モード (ここでBGM再生 - YouTube)
     if st.session_state["is_studying"]:
         st.empty()
         
-        # BGM再生ロジック (Pixabayなどのフリー素材URL)
-        bgm_url = None
-        s_bgm = st.session_state.get("selected_bgm", "なし")
-        
-        # URLマップ
-        bgm_map = {
-            "Lofi": "https://cdn.pixabay.com/download/audio/2022/11/22/audio_febc508520.mp3", # Empty Mind
-            "雨音": "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3",
-            "カフェ": "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3",
-            "森": "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3",
-            "ホワイトノイズ": "https://cdn.pixabay.com/download/audio/2021/08/09/audio_2736e248b5.mp3"
-        }
-        
-        if s_bgm in bgm_map:
-            st.audio(bgm_map[s_bgm], format="audio/mp3", loop=True, autoplay=True)
-            st.caption(f"🎵 再生中: {s_bgm}")
+        # BGM再生ロジック (一時停止中は再生しない)
+        if not st.session_state.get("timer_paused", False):
+            s_bgm = st.session_state.get("selected_bgm", "なし")
+            bgm_map = {
+                "Lofi": "https://www.youtube.com/watch?v=jfKfPfyJRdk", # Lofi Girl Live
+                "雨音": "https://www.youtube.com/watch?v=BSmYxnvUDHw", # 10 Hours Rain
+                "カフェ": "https://www.youtube.com/watch?v=rVUv_j9AiVM", # Cafe Ambience
+                "森": "https://www.youtube.com/watch?v=eNUpTV9BGac", # Forest
+                "ホワイトノイズ": "https://www.youtube.com/watch?v=E1bbH03JhKA" # White Noise
+            }
+            if s_bgm in bgm_map:
+                st.video(bgm_map[s_bgm], autoplay=True)
+                st.caption(f"🎵 再生中: {s_bgm} (YouTube)")
+        else:
+            st.caption("⏸ 一時停止中（BGM停止）")
 
         st.markdown(f"<h1 style='text-align:center;'>🔥 {st.session_state.get('current_subject','')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
@@ -510,6 +521,7 @@ def main():
             if st.button("スタート", type="primary", use_container_width=True):
                 if sub:
                     st.session_state["is_studying"]=True; st.session_state["start_time"]=time.time(); st.session_state["current_subject"]=sub
+                    st.session_state["timer_paused"]=False; st.session_state["timer_accumulated"]=0
                     st.rerun()
         with c2:
             st.subheader("✏️ 記録")
@@ -549,13 +561,11 @@ def main():
         
         with c_bgm:
             st.markdown("#### 🎵 BGM購入")
-            # BGM販売リスト
             for b, p in [("雨音", 500), ("カフェ", 800), ("森", 800), ("ホワイトノイズ", 300)]:
                 with st.container(border=True):
                     bc1, bc2 = st.columns([0.6, 0.4])
                     bc1.write(f"**{b}**")
                     bc1.caption(f"{p} G")
-                    
                     if b not in user.get('unlocked_bgms', 'Lofi'):
                         if bc2.button("購入", key=f"buy_bgm_{b}"):
                             if user['coins'] >= p:

@@ -35,10 +35,11 @@ def init_supabase():
 supabase = init_supabase()
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
-# --- BGMリスト ---
+# --- BGMリスト (URL修正済み) ---
 BGM_DATA = {
     "☕ Lofi Girl (Hip Hop)": {"url": "https://www.youtube.com/watch?v=jfKfPfyJRdk", "price": 0},
-    "🎹 癒やしのピアノ (Piano)": {"url": "https://www.youtube.com/watch?v=XULUBg_ZcAU", "price": 300},
+    # 変更: より安定して再生できるピアノBGM (Classical Piano for Studying)
+    "🎹 癒やしのピアノ (Piano)": {"url": "https://www.youtube.com/watch?v=9pQM5Zt3_FY", "price": 300},
     "🌧️ 雨の音 (Rain)": {"url": "https://www.youtube.com/watch?v=mPZkdNFkNps", "price": 300},
     "☕ カフェの雑音 (Cafe)": {"url": "https://www.youtube.com/watch?v=gaGrHUekGrc", "price": 300},
     "🔥 焚き火の音 (Fireplace)": {"url": "https://www.youtube.com/watch?v=L_LUpnjgPso", "price": 500}
@@ -144,19 +145,16 @@ def complete_task(tid, u):
 def update_selected_date(new_date):
     st.session_state['selected_date'] = new_date
 
-# --- ダイアログ関数 (日別詳細 & タスク管理) ---
+# --- ダイアログ関数 ---
 @st.dialog("📅 日別詳細")
 def show_daily_detail(date_str, username):
     st.markdown(f"### {date_str}")
     st.divider()
     
-    # データの再取得（最新状態にするため）
     tasks = get_tasks(username)
     logs = get_study_logs(username)
     
-    # 勉強記録の表示
     st.markdown("#### 📚 勉強記録")
-    day_mins = 0
     if not logs.empty:
         logs['day_str'] = logs['study_date'].astype(str).str.split('T').str[0]
         day_logs = logs[logs['day_str'] == date_str]
@@ -174,13 +172,10 @@ def show_daily_detail(date_str, username):
         
     st.divider()
     
-    # タスクの表示と完了操作
     st.markdown("#### 📝 タスク")
-    has_tasks = False
     if not tasks.empty:
         day_tasks = tasks[tasks['due_date'] == date_str]
         if not day_tasks.empty:
-            has_tasks = True
             for _, task in day_tasks.iterrows():
                 col_t1, col_t2 = st.columns([0.7, 0.3])
                 with col_t1:
@@ -205,7 +200,6 @@ def show_daily_detail(date_str, username):
 
 # --- 自作カレンダー描画関数 ---
 def render_custom_calendar(year, month, logs_df, tasks_df, username):
-    # 月のヘッダー
     c_prev, c_title, c_next = st.columns([1, 5, 1])
     with c_prev:
         if st.button("◀", key="prev_month"):
@@ -226,22 +220,18 @@ def render_custom_calendar(year, month, logs_df, tasks_df, username):
     with c_title:
         st.markdown(f"<h3 style='text-align: center; margin: 0;'>{year}年 {month}月</h3>", unsafe_allow_html=True)
 
-    st.write("") # スペース
+    st.write("") 
 
-    # 曜日のヘッダー
     cols = st.columns(7)
     weekdays = ["日", "月", "火", "水", "木", "金", "土"]
     for i, w in enumerate(weekdays):
         cols[i].markdown(f"<div style='text-align: center; font-weight: bold; color: #666;'>{w}</div>", unsafe_allow_html=True)
 
-    # カレンダーデータ
     cal = calendar.monthcalendar(year, month)
     
-    # データマップ作成
     log_map = {}
     if not logs_df.empty:
         logs_df['day_str'] = logs_df['study_date'].astype(str).str.split('T').str[0]
-        # NaNを除去してintに変換
         logs_df['duration_minutes'] = logs_df['duration_minutes'].fillna(0).astype(int)
         agg_df = logs_df.groupby('day_str')['duration_minutes'].sum().reset_index()
         for _, r in agg_df.iterrows():
@@ -256,7 +246,6 @@ def render_custom_calendar(year, month, logs_df, tasks_df, username):
 
     selected_date_str = st.session_state.get('selected_date', str(get_today_jst()))
     
-    # カレンダーグリッド
     for week in cal:
         cols = st.columns(7)
         for i, day in enumerate(week):
@@ -265,7 +254,6 @@ def render_custom_calendar(year, month, logs_df, tasks_df, username):
                 continue
             
             day_str = f"{year}-{month:02d}-{day:02d}"
-            
             label = f"{day}"
             btn_type = "secondary"
             if day_str == selected_date_str:
@@ -276,7 +264,6 @@ def render_custom_calendar(year, month, logs_df, tasks_df, username):
             if day_str in task_map:
                 label += "\n📝"
             
-            # ★重要: コールバック(on_click)を使って状態を更新し、戻り値(True)でダイアログを開く
             if cols[i].button(label, key=f"cal_btn_{day_str}", type=btn_type, use_container_width=True, on_click=update_selected_date, args=(day_str,)):
                 show_daily_detail(day_str, username)
 
@@ -313,7 +300,6 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
         background-color: #ffffff !important; border: 1px solid #e0e0e0; border-radius: 15px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }}
     
-    /* カレンダーボタン */
     div[data-testid="column"] button {{
         width: 100%; padding: 10px 0; border-radius: 8px; min-height: 80px;
         display: flex; flex-direction: column; justify-content: start; align-items: center;

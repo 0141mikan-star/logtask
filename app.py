@@ -12,7 +12,7 @@ from PIL import Image
 import hashlib
 import extra_streamlit_components as stx
 
-# ページ設定 (サイドバーは最初から開いておく)
+# ページ設定
 st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide", initial_sidebar_state="expanded")
 
 # --- 日本時間 (JST) の定義 ---
@@ -48,7 +48,7 @@ def show_event_info(title, start, color):
     st.write(f"📅 **日付:** {display_start}")
     st.markdown(f"🎨 **ラベル色:** <span style='color:{color}; font-size:1.5em;'>■</span>", unsafe_allow_html=True)
 
-# --- デザイン適用関数 ---
+# --- デザイン適用関数 (カレンダーへの干渉を排除) ---
 def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
@@ -64,7 +64,7 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    /* 全体のフォントと背景色 */
+    /* 全体のフォントと背景色（白固定） */
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
     [data-testid="stAppViewContainer"], .stApp {{ background-color: #ffffff !important; }}
     [data-testid="stHeader"] {{ background-color: rgba(255,255,255,0.9); }}
@@ -98,7 +98,7 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
     div[data-baseweb="base-input"] {{ background-color: #ffffff !important; }}
 
-    /* カードデザイン */
+    /* カードデザイン（影付きの白い箱） */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: #ffffff !important;
         border: 1px solid #e0e0e0;
@@ -106,29 +106,6 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
         padding: 20px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }}
-
-    /* ★重要：カレンダーの表示強制確保★ */
-    .fc {{
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        border: 1px solid #ddd !important;
-        border-radius: 8px;
-        padding: 10px;
-        min-height: 600px !important;
-        height: 600px !important;
-        display: block !important; /* 強制表示 */
-        visibility: visible !important;
-    }}
-    .fc-col-header-cell-cushion, .fc-daygrid-day-number, .fc-toolbar-title {{
-        color: #000000 !important; 
-        text-decoration: none !important;
-    }}
-    .fc-button {{
-        color: #000000 !important;
-        background-color: #f0f0f0 !important;
-        border: 1px solid #ccc !important;
-    }}
-    .fc-event-title {{ color: #fff !important; }}
     
     /* ボタン */
     button[kind="primary"] {{
@@ -156,6 +133,13 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; }}
+    
+    /* ★カレンダーのCSS強制指定（これがないと消える場合がある） */
+    .fc {{
+        min-height: 600px !important;
+        height: auto !important;
+        background-color: white !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -335,11 +319,6 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # 自動移行
-    if user.get('current_wallpaper') != "真っ白":
-        supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
-        st.rerun()
-
     today_str = str(date.today())
     if user.get('last_login_date') != today_str:
         new_coins = user['coins'] + 50
@@ -351,7 +330,7 @@ def main():
         time.sleep(1)
         user['coins'] = new_coins
 
-    # デザイン適用（※データ取得より前に実行してCSSを当てる）
+    # デザイン適用
     apply_design(
         user.get('current_theme', '標準'), 
         main_text_color=user.get('main_text_color', '#000000'),
@@ -511,17 +490,18 @@ def main():
                 calendar_options = {
                     "editable": True,
                     "navLinks": True,
-                    "initialDate": str(date.today()), # ★重要: 初期表示日をセットして迷子防止
+                    "initialDate": str(date.today()), # 初期表示日をセット
                     "headerToolbar": {
                         "left": "today prev,next",
                         "center": "title",
                         "right": "dayGridMonth,timeGridWeek,timeGridDay"
                     },
                     "initialView": "dayGridMonth",
-                    "height": 600,
+                    "height": 650, # 高さを明確に指定
                 }
-                # key='calendar_fixed' で初期化
-                cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar_fixed')
+                
+                # ★ここがポイント: keyを固定にして、再描画の迷子を防ぐ
+                cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar_final')
                 
                 if cal.get('dateClick'):
                     st.session_state["selected_date"] = cal['dateClick']['dateStr']

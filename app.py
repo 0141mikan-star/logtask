@@ -338,7 +338,7 @@ def main():
     with st.sidebar:
         st.subheader("⚙️ 設定")
         
-        # BGM機能
+        # ★BGM機能
         st.markdown("##### 🎵 BGM")
         bgm = st.selectbox("音楽を選択", ["なし", "集中 (Nature)", "カフェ (Jazz)", "雨音 (Rain)"])
         if bgm == "集中 (Nature)":
@@ -555,7 +555,7 @@ def main():
         if not rk.empty:
             for i, r in rk.iterrows():
                 medal = "🥇" if i==0 else "🥈" if i==1 else "🥉" if i==2 else f"{i+1}位"
-                st.markdown(f"<div class='ranking-card'><div class='rank-medal'>{medal}</div><div class='rank-info'><div class='rank-name'>{r['nickname']}</div><div class='rank-title'>{r['current_title']}</div></div><div class='rank-score'>{int(r['duration_minutes'])} min</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='ranking-card'><div class='rank-medal'>{medal}</div><div class='rank-info'><div class='rank-name'>{r['nickname']}</div><div class='rank-title'>👑 {r['current_title']}</div></div><div class='rank-score'>{int(r['duration_minutes'])} min</div></div>", unsafe_allow_html=True)
 
     with t5: 
         st.subheader("🛒 ショップ")

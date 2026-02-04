@@ -4,7 +4,7 @@ import pandas as pd
 import random
 import time
 from datetime import datetime, date, timedelta, timezone
-import calendar
+from streamlit_calendar import calendar
 import altair as alt
 import io
 import base64
@@ -18,10 +18,6 @@ st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理�
 # --- 日本時間 (JST) の定義 ---
 JST = timezone(timedelta(hours=9))
 
-# --- ヘルパー関数 ---
-def get_today_jst():
-    return datetime.now(JST).date()
-
 # --- Supabase接続設定 ---
 @st.cache_resource
 def init_supabase():
@@ -33,15 +29,217 @@ def init_supabase():
         return None
 
 supabase = init_supabase()
+
+# --- Cookieマネージャーの初期化 ---
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
-# --- BGMリスト (ピアノを削除し、森を追加) ---
-BGM_DATA = {
-    "☕ Lofi Girl (Study)": {"url": "https://www.youtube.com/watch?v=n61ULEU7CO0", "price": 0},
-    "🌲 森の音 (Forest)": {"url": "https://www.youtube.com/watch?v=xNN7iTA57jM", "price": 300}, # 新規追加
-    "🌧️ 静かな雨 (Rain)": {"url": "https://www.youtube.com/watch?v=M3hV2Pec6ys", "price": 300},
-    "📚 図書館の音 (Library)": {"url": "https://www.youtube.com/watch?v=4vIQON2fDWM", "price": 300},
-    "🔥 焚き火 (Bonfire)": {"url": "https://www.youtube.com/watch?v=c0_ejQQcrwI", "price": 500}
+# --- 画像処理関数 ---
+def image_to_base64(img):
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode()
+
+# --- イベント詳細表示ダイアログ ---
+@st.dialog("📝 イベント詳細")
+def show_event_info(title, start, color):
+    display_start = start.split("T")[0] if start else ""
+    st.markdown(f"### {title}")
+    st.divider()
+    st.write(f"📅 **日付:** {display_start}")
+    st.markdown(f"🎨 **ラベル色:** <span style='color:{color}; font-size:1.5em;'>■</span>", unsafe_allow_html=True)
+
+# --- デザイン適用関数 ---
+def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None, 
+                 bg_opacity=0.5, container_opacity=0.9, sidebar_bg_color="#ffffff",
+                 main_text_color="#000000", sidebar_text_color="#000000", accent_color="#FFD700"):
+    fonts = {
+        "ピクセル風": "'DotGothic16', sans-serif",
+        "手書き風": "'Yomogi', cursive",
+        "ポップ": "'Hachi Maru Pop', cursive",
+        "明朝体": "'Shippori Mincho', serif",
+        "筆文字": "'Yuji Syuku', serif",
+        "標準": "sans-serif"
+    }
+    font_family = fonts.get(user_theme, "sans-serif")
+    
+    # 背景CSS設定
+    bg_style = ""
+    
+    # 「真っ白」のときは透明度計算をせず、完全に不透明な白にする（バグ回避）
+    if wallpaper == "真っ白":
+        bg_style = "background-color: #ffffff !important;"
+        card_bg_color = "#ffffff"
+        border_style = "1px solid #e0e0e0"
+        shadow_color = "none"
+        main_text_override = "#000000"
+    elif wallpaper == "真っ黒":
+        bg_style = "background-color: #000000 !important;"
+        card_bg_color = "#1a1a1a"
+        border_style = "1px solid #333"
+        shadow_color = "1px 1px 2px #000"
+        main_text_override = "#ffffff"
+    else:
+        card_bg_color = f"rgba(255, 255, 255, {container_opacity})"
+        border_style = "1px solid rgba(255,255,255,0.2)"
+        shadow_color = "1px 1px 2px rgba(255,255,255,0.8)"
+        main_text_override = main_text_color
+
+        if wallpaper == "カスタム" and custom_data:
+            bg_style = f"""
+                background-image: linear-gradient(rgba(255,255,255,{bg_opacity}), rgba(255,255,255,{bg_opacity})), url("data:image/png;base64,{custom_data}") !important;
+                background-attachment: fixed !important;
+                background-size: cover !important;
+                background-position: center !important;
+            """
+        else:
+            wallpapers = {
+                "草原": "1472214103451-9374bd1c798e", "夕焼け": "1472120435266-53107fd0c44a",
+                "夜空": "1462331940025-496dfbfc7564", "ダンジョン": "1518709268805-4e9042af9f23",
+                "王宮": "1544939514-aa98d908bc47", "図書館": "1521587760476-6c12a4b040da",
+                "サイバー": "1535295972055-1c762f4483e5"
+            }
+            img_id = wallpapers.get(wallpaper, "1472214103451-9374bd1c798e")
+            bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
+            bg_style = f"""
+                background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}") !important;
+                background-attachment: fixed !important;
+                background-size: cover !important;
+            """
+
+    st.markdown(f"""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
+    
+    [data-testid="stAppViewContainer"], .stApp {{ {bg_style} }}
+    [data-testid="stHeader"] {{ background-color: rgba(0,0,0,0); }}
+
+    /* サイドバー */
+    [data-testid="stSidebar"] {{
+        background-color: {sidebar_bg_color} !important;
+        border-right: 1px solid #e0e0e0;
+    }}
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown {{
+        color: {sidebar_text_color} !important;
+    }}
+    [data-testid="stSidebar"] svg {{
+        fill: {sidebar_text_color} !important;
+        color: {sidebar_text_color} !important;
+    }}
+    [data-testid="stSidebar"] input, [data-testid="stSidebar"] select {{
+        color: #000000 !important; 
+        background-color: #ffffff !important;
+    }}
+    [data-testid="stSidebar"] div[data-baseweb="input"] {{
+        border: 2px solid #FF4B4B !important;
+        background-color: #FFF0F0 !important;
+        border-radius: 8px !important;
+    }}
+    [data-testid="stSidebar"] input {{
+        color: #000000 !important;
+        background-color: transparent !important;
+    }}
+
+    /* メイン画面フォント */
+    html, body, [class*="css"] {{ font-family: {font_family} !important; }}
+    
+    /* メインエリア文字色 */
+    .main .stMarkdown, .main .stText, .main h1, .main h2, .main h3, .main p, .main span {{ 
+        color: {main_text_override} !important; 
+        text-shadow: {shadow_color};
+    }}
+    
+    /* 入力フォーム */
+    .stMarkdown label, div[data-testid="stForm"] label, .stTextInput label, .stNumberInput label, .stSelectbox label, .stDateInput label {{
+        color: {main_text_override} !important;
+        font-weight: bold !important;
+        text-shadow: {shadow_color};
+    }}
+    
+    input, textarea, select {{
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #ccc !important;
+        border-radius: 8px !important;
+    }}
+    div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
+    div[data-baseweb="base-input"] {{ background-color: #ffffff !important; }}
+
+    /* カードコンテナ */
+    div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
+        background-color: {card_bg_color} !important;
+        border: {border_style};
+        border-radius: 15px; 
+        padding: 20px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }}
+
+    /* ランキングカード */
+    .ranking-card {{
+        background: {card_bg_color};
+        border: {border_style};
+        border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
+    }}
+    .rank-medal {{ font-size: 28px; width: 60px; text-align: center; color: {accent_color} !important; }}
+    .rank-info {{ flex-grow: 1; }}
+    .rank-name {{ font-size: 1.2em; font-weight: bold; color: {main_text_override}; }}
+    .rank-title {{ font-size: 0.85em; color: {accent_color}; }}
+    .rank-score {{ font-size: 1.4em; font-weight: bold; color: {accent_color}; }}
+
+    /* ショップ */
+    .shop-title {{ font-size: 1.1em; font-weight: bold; color: {main_text_override}; margin-bottom: 5px; border-bottom: 1px solid rgba(128,128,128,0.3); padding-bottom:3px; }}
+    .shop-price {{ font-size: 1.0em; color: {accent_color}; font-weight: bold; margin-bottom: 8px; }}
+    .shop-owned {{ color: {main_text_override}; border: 1px solid {main_text_override}; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; display: inline-block; font-weight:bold; }}
+
+    /* HUD */
+    .status-bar {{
+        background: {card_bg_color};
+        border: {border_style};
+        padding: 15px; border-radius: 15px; 
+        display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }}
+    .stat-item {{ text-align: center; }}
+    .stat-label {{ font-size: 0.7em; color: {main_text_override}; opacity: 0.8; letter-spacing: 1px; }}
+    .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_override}; }}
+    
+    /* カレンダー表示修正 (強制的に白背景・黒文字) */
+    .fc {{
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #ddd !important;
+        border-radius: 8px;
+        padding: 10px;
+    }}
+    .fc-col-header-cell-cushion, .fc-daygrid-day-number, .fc-toolbar-title {{
+        color: #000000 !important; 
+        text-decoration: none !important;
+    }}
+    .fc-button {{
+        color: #000000 !important;
+        background-color: #f0f0f0 !important;
+        border: 1px solid #ccc !important;
+    }}
+    .fc-event-title {{ color: #fff !important; }}
+    
+    button[kind="primary"] {{
+        background: {accent_color} !important;
+        border: none !important; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-weight: bold !important;
+        color: #000000 !important;
+    }}
+    
+    canvas {{ filter: invert(0) hue-rotate(0deg); }}
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- カラーパレット定義 ---
+COLOR_PALETTE = {
+    "#ffffff": "ホワイト (白)",
+    "#1a1a1a": "ブラック (黒)",
+    "#001f3f": "ミッドナイト",
+    "#3d0000": "クリムゾン",
+    "#003300": "ディープグリーン",
+    "#2c003e": "ロイヤルパープル",
 }
 
 # --- 認証・DB操作 ---
@@ -63,12 +261,18 @@ def add_user(username, password, nickname):
             "unlocked_themes": "標準", "current_theme": "標準",
             "current_title": "見習い", "unlocked_titles": "見習い", 
             "current_wallpaper": "真っ白", "unlocked_wallpapers": "真っ白", 
+            "custom_title_unlocked": False, "custom_wallpaper_unlocked": False,
+            "custom_bg_data": None,
             "daily_goal": 60, "last_goal_reward_date": None, "last_login_date": None,
-            "main_text_color": "#000000", "accent_color": "#FFD700"
+            "current_sidebar_color": "#ffffff", "unlocked_sidebar_colors": "#ffffff", 
+            "main_text_color": "#000000", 
+            "sidebar_text_color": "#000000",
+            "accent_color": "#FFD700"
         }
         supabase.table("users").insert(data).execute()
         return True, "登録成功"
-    except Exception as e: return False, f"SQLエラー: {e}"
+    except Exception as e:
+        return False, f"SQLエラー: {e}"
 
 def get_user_data(username):
     try:
@@ -76,6 +280,7 @@ def get_user_data(username):
         return res.data[0] if res.data else None
     except: return None
 
+# --- その他DB操作 ---
 def get_weekly_ranking():
     start = (datetime.now(JST) - timedelta(days=7)).strftime('%Y-%m-%d')
     try:
@@ -101,14 +306,18 @@ def add_study_log(u, s, m, d):
     supabase.table("study_logs").insert({"username": u, "subject": s, "duration_minutes": m, "study_date": str(d)}).execute()
     ud = get_user_data(u)
     if not ud: return m, 0, 0, False
-    today_str = str(get_today_jst())
+
+    today_str = str(date.today())
     logs = supabase.table("study_logs").select("duration_minutes").eq("username", u).eq("study_date", today_str).execute()
     total_today = sum([l['duration_minutes'] for l in logs.data]) if logs.data else m
+    
     new_xp = ud['xp'] + m
     new_coins = ud['coins'] + m
+    
     goal_reached = False
     goal = ud.get('daily_goal', 60)
     last_reward = ud.get('last_goal_reward_date')
+    
     if last_reward != today_str and total_today >= goal:
         new_coins += 100
         supabase.table("users").update({
@@ -117,6 +326,7 @@ def add_study_log(u, s, m, d):
         goal_reached = True
     else:
         supabase.table("users").update({"xp": new_xp, "coins": new_coins}).eq("username", u).execute()
+        
     return m, new_xp, new_coins, goal_reached
 
 def delete_study_log(lid, u, m):
@@ -140,199 +350,15 @@ def complete_task(tid, u):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": ud['xp']+10, "coins": ud['coins']+10}).eq("username", u).execute()
 
-# --- コールバック関数 ---
-def update_selected_date(new_date):
-    st.session_state['selected_date'] = new_date
-
-# --- ダイアログ関数 ---
-@st.dialog("📅 日別詳細")
-def show_daily_detail(date_str, username):
-    st.markdown(f"### {date_str}")
-    st.divider()
-    
-    tasks = get_tasks(username)
-    logs = get_study_logs(username)
-    
-    st.markdown("#### 📚 勉強記録")
-    if not logs.empty:
-        logs['day_str'] = logs['study_date'].astype(str).str.split('T').str[0]
-        day_logs = logs[logs['day_str'] == date_str]
-        
-        if not day_logs.empty:
-            sub_agg = day_logs.groupby('subject')['duration_minutes'].sum()
-            day_mins = sub_agg.sum()
-            st.info(f"合計: {day_mins} 分")
-            for sub, mins in sub_agg.items():
-                st.write(f"- {sub}: {mins}分")
-        else:
-            st.caption("記録なし")
-    else:
-        st.caption("記録なし")
-        
-    st.divider()
-    
-    st.markdown("#### 📝 タスク")
-    if not tasks.empty:
-        day_tasks = tasks[tasks['due_date'] == date_str]
-        if not day_tasks.empty:
-            for _, task in day_tasks.iterrows():
-                col_t1, col_t2 = st.columns([0.7, 0.3])
-                with col_t1:
-                    if task['status'] == "完了":
-                        st.markdown(f"✅ ~~{task['task_name']}~~")
-                    else:
-                        st.markdown(f"⬜ {task['task_name']}")
-                with col_t2:
-                    if task['status'] == "未完了":
-                        if st.button("完了する", key=f"popup_done_{task['id']}"):
-                            complete_task(task['id'], username)
-                            st.session_state["celebrate"] = True
-                            st.rerun()
-        else:
-            st.caption("タスクなし")
-    else:
-        st.caption("タスクなし")
-
-    st.divider()
-    if st.button("閉じる"):
-        st.rerun()
-
-# --- 自作カレンダー描画関数 ---
-def render_custom_calendar(year, month, logs_df, tasks_df, username):
-    c_prev, c_title, c_next = st.columns([1, 5, 1])
-    with c_prev:
-        if st.button("◀", key="prev_month"):
-            if month == 1:
-                st.session_state['cal_year'] = year - 1
-                st.session_state['cal_month'] = 12
-            else:
-                st.session_state['cal_month'] = month - 1
-            st.rerun()
-    with c_next:
-        if st.button("▶", key="next_month"):
-            if month == 12:
-                st.session_state['cal_year'] = year + 1
-                st.session_state['cal_month'] = 1
-            else:
-                st.session_state['cal_month'] = month + 1
-            st.rerun()
-    with c_title:
-        st.markdown(f"<h3 style='text-align: center; margin: 0;'>{year}年 {month}月</h3>", unsafe_allow_html=True)
-
-    st.write("") 
-
-    cols = st.columns(7)
-    weekdays = ["日", "月", "火", "水", "木", "金", "土"]
-    for i, w in enumerate(weekdays):
-        cols[i].markdown(f"<div style='text-align: center; font-weight: bold; color: #666;'>{w}</div>", unsafe_allow_html=True)
-
-    cal = calendar.monthcalendar(year, month)
-    
-    log_map = {}
-    if not logs_df.empty:
-        logs_df['day_str'] = logs_df['study_date'].astype(str).str.split('T').str[0]
-        logs_df['duration_minutes'] = logs_df['duration_minutes'].fillna(0).astype(int)
-        agg_df = logs_df.groupby('day_str')['duration_minutes'].sum().reset_index()
-        for _, r in agg_df.iterrows():
-            log_map[r['day_str']] = r['duration_minutes']
-            
-    task_map = {}
-    if not tasks_df.empty:
-        tasks_df['day_str'] = tasks_df['due_date'].astype(str)
-        for _, r in tasks_df.iterrows():
-            if r['status'] == '未完了':
-                task_map[r['day_str']] = True
-
-    selected_date_str = st.session_state.get('selected_date', str(get_today_jst()))
-    
-    for week in cal:
-        cols = st.columns(7)
-        for i, day in enumerate(week):
-            if day == 0:
-                cols[i].write("")
-                continue
-            
-            day_str = f"{year}-{month:02d}-{day:02d}"
-            label = f"{day}"
-            btn_type = "secondary"
-            if day_str == selected_date_str:
-                btn_type = "primary"
-            
-            if day_str in log_map:
-                label += f"\n📖{log_map[day_str]}m"
-            if day_str in task_map:
-                label += "\n📝"
-            
-            if cols[i].button(label, key=f"cal_btn_{day_str}", type=btn_type, use_container_width=True, on_click=update_selected_date, args=(day_str,)):
-                show_daily_detail(day_str, username)
-
-# --- デザイン適用関数 ---
-def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#FFD700"):
-    fonts = {
-        "ピクセル風": "'DotGothic16', sans-serif",
-        "手書き風": "'Yomogi', cursive",
-        "ポップ": "'Hachi Maru Pop', cursive",
-        "明朝体": "'Shippori Mincho', serif",
-        "筆文字": "'Yuji Syuku', serif",
-        "標準": "sans-serif"
-    }
-    font_family = fonts.get(user_theme, "sans-serif")
-    
-    st.markdown(f"""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
-    
-    html, body, [class*="css"] {{ font-family: {font_family} !important; }}
-    [data-testid="stAppViewContainer"], .stApp {{ background-color: #ffffff !important; }}
-    [data-testid="stHeader"] {{ background-color: rgba(255,255,255,0.9); }}
-
-    [data-testid="stSidebar"] {{ background-color: #ffffff !important; border-right: 1px solid #e0e0e0; }}
-    [data-testid="stSidebar"] * {{ color: #000000 !important; }}
-    [data-testid="stSidebar"] div[data-baseweb="input"] {{ border: 2px solid #FF4B4B !important; background-color: #FFF0F0 !important; border-radius: 8px !important; }}
-
-    .main h1, .main h2, .main h3, .main p, .main span, .main label, .main div {{ color: {main_text_color} !important; }}
-
-    input, textarea, select {{ background-color: #ffffff !important; color: #000000 !important; border: 1px solid #ccc !important; border-radius: 8px !important; }}
-    div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
-
-    div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
-        background-color: #ffffff !important; border: 1px solid #e0e0e0; border-radius: 15px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }}
-    
-    div[data-testid="column"] button {{
-        width: 100%; padding: 10px 0; border-radius: 8px; min-height: 80px;
-        display: flex; flex-direction: column; justify-content: start; align-items: center;
-        line-height: 1.2;
-    }}
-    
-    button[kind="primary"] {{ background: {accent_color} !important; border: none !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-weight: bold !important; color: #000000 !important; }}
-    
-    .ranking-card {{ background: #ffffff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center; }}
-    .rank-medal {{ font-size: 28px; width: 60px; text-align: center; }}
-    .rank-name {{ font-size: 1.2em; font-weight: bold; color: {main_text_color}; }}
-    .rank-score {{ font-size: 1.4em; font-weight: bold; color: {accent_color}; }}
-
-    .status-bar {{ background: #ffffff; border: 1px solid #e0e0e0; padding: 15px; border-radius: 15px; display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }}
-    .stat-val {{ font-size: 1.6em; font-weight: bold; }}
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- タイマー ---
+# --- タイマー更新フラグメント ---
 @st.fragment(run_every=1)
 def show_timer_fragment(user_name):
-    timer_running = st.session_state.get("timer_running", False)
-    start_time = st.session_state.get("timer_start_time", time.time())
-    accumulated_time = st.session_state.get("timer_accumulated", 0)
-    current_elapsed = accumulated_time
-    if timer_running:
-        current_elapsed += int(time.time() - start_time)
-    h, m, s = current_elapsed // 3600, (current_elapsed % 3600) // 60, current_elapsed % 60
-    
-    status_text = "🔥 集中 ..." if timer_running else "⏸️ 一時停止中"
-    status_color = "#333" if timer_running else "#888"
+    now = time.time()
+    start = st.session_state.get("start_time", now)
+    elapsed = int(now - start)
+    h, m, s = elapsed // 3600, (elapsed % 3600) // 60, elapsed % 60
     
     st.markdown(f"""
-    <div style="text-align: center; color: {status_color}; margin-bottom: 10px; font-weight: bold;">{status_text}</div>
     <div style="text-align: center; font-size: 6em; font-weight: bold; margin-bottom: 20px; color: #000;">
         {h:02}:{m:02}:{s:02}
     </div>
@@ -340,88 +366,22 @@ def show_timer_fragment(user_name):
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if timer_running:
-            if st.button("⏸️ 一時停止", use_container_width=True):
-                st.session_state["timer_accumulated"] = current_elapsed
-                st.session_state["timer_running"] = False
-                st.rerun()
-        else:
-            if st.button("▶️ 再開", use_container_width=True, type="primary"):
-                st.session_state["timer_start_time"] = time.time()
-                st.session_state["timer_running"] = True
-                st.rerun()
-        st.write("")
-        if st.button("⏹️ 終了して記録", use_container_width=True):
-            duration = max(1, current_elapsed // 60)
-            _, _, _, reached = add_study_log(user_name, st.session_state.get("current_subject", "自習"), duration, get_today_jst())
+        if st.button("⏹️ 終了して記録", use_container_width=True, type="primary"):
+            duration = max(1, elapsed // 60)
+            _, _, _, reached = add_study_log(user_name, st.session_state.get("current_subject", "自習"), duration, date.today())
             st.session_state["is_studying"] = False
-            st.session_state["timer_running"] = False
-            st.session_state["timer_accumulated"] = 0
-            if "current_bgm_url" in st.session_state: del st.session_state["current_bgm_url"]
             st.session_state["celebrate"] = True
             st.session_state["toast_msg"] = f"{duration}分 記録しました！"
-            if reached: st.session_state["goal_reached_msg"] = "🎉 目標達成！ +100コイン！"
+            if reached:
+                st.session_state["goal_reached_msg"] = "🎉 目標達成！ +100コイン！"
             st.rerun()
 
-def render_task_list(logs_df, tasks, username):
-    with st.container(border=True):
-        raw_sel = st.session_state.get("selected_date", str(get_today_jst()))
-        display_date = raw_sel
-        st.markdown(f"### 📌 {display_date}")
-        
-        day_mins_sel = 0
-        if not logs_df.empty:
-            logs_df['day_str'] = logs_df['study_date'].astype(str).str.split('T').str[0]
-            day_logs = logs_df[logs_df['day_str'] == display_date]
-            if not day_logs.empty:
-                sub_agg = day_logs.groupby('subject')['duration_minutes'].sum()
-                total_min = sub_agg.sum()
-                st.info(f"📚 **合計勉強時間: {int(total_min)} 分**")
-                for sub, mins in sub_agg.items():
-                    st.write(f"- {sub}: {int(mins)}分")
-            else: st.info("📚 勉強記録: なし")
-        
-        st.write("---")
-        st.write("📝 **タスク**")
-        if not tasks.empty:
-            day_tasks = tasks[tasks['due_date'] == display_date]
-            if not day_tasks.empty:
-                for _, task in day_tasks.iterrows():
-                    if task['status'] == "未完了":
-                        if st.button(f"完了: {task['task_name']}", key=f"do_{task['id']}"):
-                            complete_task(task['id'], username); st.rerun()
-                    else: st.write(f"✅ {task['task_name']}")
-            else: st.caption("タスクはありません")
-        else: st.caption("タスクはありません")
-        
-        st.write("---")
-        with st.form("quick_add_form"):
-            tn = st.text_input("新しいタスクを追加")
-            try:
-                init_date = datetime.strptime(display_date, '%Y-%m-%d').date()
-            except:
-                init_date = get_today_jst()
-            task_date = st.date_input("期日", value=init_date)
-            if st.form_submit_button("追加"):
-                add_task(username, tn, task_date, "中"); st.rerun()
-
-# --- メイン ---
+# --- メイン処理 ---
 def main():
     if "logged_in" not in st.session_state: 
-        today_jst_str = str(get_today_jst())
-        st.session_state.update({
-            "logged_in": False, 
-            "username": "", 
-            "is_studying": False, 
-            "timer_running": False, 
-            "timer_accumulated": 0, 
-            "celebrate": False, 
-            "toast_msg": None, 
-            "selected_date": today_jst_str,
-            "cal_year": get_today_jst().year,
-            "cal_month": get_today_jst().month
-        })
+        st.session_state.update({"logged_in": False, "username": "", "is_studying": False, "start_time": None, "celebrate": False, "toast_msg": None, "selected_date": str(date.today())})
 
+    # 自動ログイン判定
     if not st.session_state["logged_in"]:
         try:
             auth_cookie = cookie_manager.get('logtask_auth')
@@ -432,7 +392,8 @@ def main():
                     st.session_state["logged_in"] = True
                     st.session_state["username"] = c_user
                     st.rerun()
-        except: pass
+        except:
+            pass
 
     if not st.session_state["logged_in"]:
         st.title("🛡️ ログイン")
@@ -457,130 +418,295 @@ def main():
                 else: st.error(msg)
         return
 
+    # ログイン後
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    if user.get('current_wallpaper') != "真っ白":
-        supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
+    # 自動移行（初期化）
+    if "真っ白" not in user.get('unlocked_wallpapers', ''):
+        supabase.table("users").update({
+            "unlocked_wallpapers": user.get('unlocked_wallpapers', '') + ",真っ白",
+            "current_wallpaper": "真っ白"
+        }).eq("username", user['username']).execute()
         st.rerun()
 
-    today_str = str(get_today_jst())
+    today_str = str(date.today())
     if user.get('last_login_date') != today_str:
         new_coins = user['coins'] + 50
-        supabase.table("users").update({"coins": new_coins, "last_login_date": today_str}).eq("username", user['username']).execute()
+        supabase.table("users").update({
+            "coins": new_coins,
+            "last_login_date": today_str
+        }).eq("username", user['username']).execute()
         st.toast("🎁 ログインボーナス！ +50コイン GET！", icon="🎁")
         time.sleep(1)
         user['coins'] = new_coins
 
+    # 変数初期化
+    bg_darkness = 0.5
+    container_opacity = 0.9
+
+    # サイドバー (設定)
     with st.sidebar:
         st.subheader("⚙️ 設定")
-        st.markdown("##### 📐 レイアウト調整")
-        layout_pos = st.radio("カレンダー配置", ["左側", "右側"], horizontal=True, index=0)
-        layout_ratio_val = st.slider("カレンダーの幅", 0.2, 0.8, 0.6, 0.1)
-        st.divider()
+        
         with st.expander("🎨 文字色カスタマイズ"):
             cur_main = user.get('main_text_color', '#000000')
             cur_acc = user.get('accent_color', '#FFD700')
+            
             new_main = st.color_picker("メイン文字色", cur_main)
             new_acc = st.color_picker("アクセント色（強調）", cur_acc)
+            
             if new_main != cur_main or new_acc != cur_acc:
-                supabase.table("users").update({"main_text_color": new_main, "accent_color": new_acc}).eq("username", user['username']).execute()
+                supabase.table("users").update({
+                    "main_text_color": new_main,
+                    "accent_color": new_acc
+                }).eq("username", user['username']).execute()
                 st.rerun()
+
+        st.markdown("##### 🎚️ 表示調整")
+        if user.get('current_wallpaper') == "真っ白":
+            st.info("※「真っ白」テーマでは表示調整は無効です")
+        else:
+            bg_darkness = st.slider("背景の暗さ (画像時)", 0.0, 1.0, 0.5, 0.1, help="0: 明るい, 1: 暗い")
+            container_opacity = st.slider("ウィンドウ不透明度", 0.0, 1.0, 0.9, 0.1, help="0: 透明, 1: 濃い")
+        
         st.divider()
+
+        # 目標設定
         st.markdown("##### 🎯 1日の目標")
         new_goal = st.number_input("目標時間(分)", min_value=10, max_value=600, value=user.get('daily_goal', 60), step=10)
         if new_goal != user.get('daily_goal', 60):
             if st.button("目標を保存"):
                 supabase.table("users").update({"daily_goal": new_goal}).eq("username", user['username']).execute()
                 st.success("保存しました"); time.sleep(0.5); st.rerun()
+        
         st.divider()
-        themes = user.get('unlocked_themes', '標準').split(',')
-        new_t = st.selectbox("フォント", themes, index=themes.index(user.get('current_theme', '標準')) if user.get('current_theme') in themes else 0)
+
+        # 壁紙設定
+        walls = user['unlocked_wallpapers'].split(',')
+        if "真っ白" not in walls: walls.insert(0, "真っ白")
+        
+        if user.get('custom_wallpaper_unlocked'):
+            bg_mode = st.radio("壁紙モード", ["プリセット", "カスタム画像"], horizontal=True, label_visibility="collapsed")
+            if bg_mode == "カスタム画像":
+                st.caption("画像をアップロードして壁紙に設定")
+                uploaded_file = st.file_uploader("画像を選択", type=['jpg', 'png', 'jpeg'])
+                if uploaded_file:
+                    if st.button("この画像を適用"):
+                        img = Image.open(uploaded_file)
+                        img.thumbnail((1920, 1080))
+                        b64_str = image_to_base64(img)
+                        supabase.table("users").update({"current_wallpaper": "カスタム", "custom_bg_data": b64_str}).eq("username", user['username']).execute()
+                        st.success("更新しました！"); time.sleep(1); st.rerun()
+                elif user.get('current_wallpaper') == 'カスタム': st.success("カスタム画像適用中")
+            else:
+                current_w = user.get('current_wallpaper', '真っ白')
+                if current_w == 'カスタム': current_w = "真っ白"
+                new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
+                if new_w != user.get('current_wallpaper'):
+                    supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
+                    st.rerun()
+        else:
+            current_w = user.get('current_wallpaper', '真っ白')
+            if current_w not in walls: current_w = "真っ白"
+            new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
+            if new_w != user.get('current_wallpaper'):
+                supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
+                st.rerun()
+        
+        # ★ここが重要：フォント選択肢の修正（BGMを除外）
+        VALID_FONTS = ["標準", "ピクセル風", "手書き風", "ポップ", "明朝体", "筆文字"]
+        
+        # DBのデータをそのまま使わず、有効なフォントだけを抽出
+        raw_themes = user.get('unlocked_themes', '標準').split(',')
+        my_fonts = [t for t in raw_themes if t in VALID_FONTS]
+        if not my_fonts: my_fonts = ["標準"] # 万が一空なら標準を入れる
+        
+        current_theme = user.get('current_theme', '標準')
+        if current_theme not in my_fonts: current_theme = "標準"
+
+        new_t = st.selectbox("フォント", my_fonts, index=my_fonts.index(current_theme))
+        
         if new_t != user.get('current_theme'):
             supabase.table("users").update({"current_theme": new_t}).eq("username", user['username']).execute()
             st.rerun()
+            
         with st.expander("👑 称号コレクション"):
             my_titles = user.get('unlocked_titles', '見習い').split(',')
             current = user.get('current_title', '見習い')
-            sel_t = st.selectbox("獲得済み", my_titles, index=my_titles.index(current) if current in my_titles else 0)
-            if st.button("装備", key="eq_title"):
-                supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
-                st.toast("装備を変更しました！"); time.sleep(1); st.rerun()
+            
+            if user.get('custom_title_unlocked'):
+                tab_list, tab_custom = st.tabs(["📜 リスト", "✏️ 自由入力"])
+                with tab_list:
+                    idx = my_titles.index(current) if current in my_titles else 0
+                    sel_t = st.selectbox("獲得済み", my_titles, index=idx)
+                    if st.button("装備", key="eq_list"):
+                        supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
+                        st.toast("装備を変更しました！"); time.sleep(1); st.rerun()
+                with tab_custom:
+                    custom_t = st.text_input("名前を入力", value=current)
+                    if st.button("設定", key="eq_custom"):
+                        supabase.table("users").update({"current_title": custom_t}).eq("username", user['username']).execute()
+                        st.toast("称号を設定しました！"); time.sleep(1); st.rerun()
+            else:
+                idx = my_titles.index(current) if current in my_titles else 0
+                sel_t = st.selectbox("獲得済み", my_titles, index=idx)
+                if st.button("装備", key="eq_only_list"):
+                    supabase.table("users").update({"current_title": sel_t}).eq("username", user['username']).execute()
+                    st.toast("装備を変更しました！"); time.sleep(1); st.rerun()
+
         if st.button("ログアウト"):
             cookie_manager.delete('logtask_auth')
             st.session_state["logged_in"] = False
             st.rerun()
 
-    apply_design(user.get('current_theme', '標準'), main_text_color=user.get('main_text_color', '#000000'), accent_color=user.get('accent_color', '#FFD700'))
+    # デザイン適用
+    apply_design(
+        user.get('current_theme', '標準'), 
+        user.get('current_wallpaper', '真っ白'), 
+        user.get('custom_bg_data'),
+        bg_opacity=bg_darkness,
+        container_opacity=container_opacity,
+        main_text_color=user.get('main_text_color', '#000000'),
+        accent_color=user.get('accent_color', '#FFD700')
+    )
 
+    # ★ 集中モード (BGM無し)
     if st.session_state["is_studying"]:
         st.empty()
-        
-        if "current_bgm_url" in st.session_state and st.session_state["current_bgm_url"]:
-            with st.expander("📺 画面サイズ", expanded=False):
-                video_width_pct = st.slider("サイズ調整", 10, 100, 50, key="video_width")
-            
-            if video_width_pct == 100:
-                st.video(st.session_state["current_bgm_url"])
-            else:
-                padding = (100 - video_width_pct) / 2
-                _, col_vid, _ = st.columns([padding, video_width_pct, padding])
-                with col_vid:
-                    st.video(st.session_state["current_bgm_url"])
-        
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
         return
 
+    # 本日の勉強時間取得
     logs_df = get_study_logs(user['username'])
     tasks = get_tasks(user['username'])
     
     today_mins = 0
     if not logs_df.empty:
-        logs_df['duration_minutes'] = logs_df['duration_minutes'].fillna(0).astype(int)
         logs_df['d'] = logs_df['study_date'].astype(str).str.split("T").str[0]
-        today_mins = logs_df[logs_df['d'] == today_str]['duration_minutes'].sum()
+        today_mins = logs_df[logs_df['d'] == str(date.today())]['duration_minutes'].sum()
 
+    # ★HUD
     level = (user['xp'] // 100) + 1
     next_xp = level * 100
     goal = user.get('daily_goal', 60)
     goal_progress = min(1.0, today_mins / goal) if goal > 0 else 0
+    
+    # HUD
+    if user.get('current_wallpaper') == "真っ白":
+        card_bg_rgba = "#ffffff"
+        border_style = "1px solid #e0e0e0"
+    else:
+        card_bg_rgba = f"rgba(255, 255, 255, {container_opacity})" if user.get('main_text_color', '#000000').lower() != "#ffffff" else f"rgba(30, 30, 30, {container_opacity})"
+        border_style = "1px solid rgba(128,128,128,0.2)"
+
     acc = user.get('accent_color', '#FFD700')
     main_txt = user.get('main_text_color', '#000000')
     
-    st.markdown(f"""<div class="status-bar"><div class="stat-item"><div class="stat-label">PLAYER</div><div class="stat-val" style="font-size:1.2em; color:{main_txt};">{user['nickname']}</div><div style="font-size:0.7em; color:{acc};">{user.get('current_title', '見習い')}</div></div><div class="stat-item"><div class="stat-label">LEVEL</div><div class="stat-val" style="color:#00e5ff;">{level}</div></div><div class="stat-item"><div class="stat-label">XP</div><div class="stat-val" style="color:{main_txt};">{user['xp']} <span style="font-size:0.5em; opacity:0.7;">/ {next_xp}</span></div></div><div class="stat-item"><div class="stat-label">COIN</div><div class="stat-val" style="color:{acc};">{user['coins']} G</div></div><div class="stat-item" style="border-left:1px solid rgba(128,128,128,0.5); padding-left:15px;"><div class="stat-label">TODAY'S GOAL</div><div class="stat-val" style="color:#ff9900;">{today_mins} <span style="font-size:0.5em; opacity:0.7;">/ {goal} min</span></div></div></div>""", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="status-bar">
+        <div class="stat-item"><div class="stat-label">PLAYER</div><div class="stat-val" style="font-size:1.2em; color:{main_txt};">{user['nickname']}</div><div style="font-size:0.7em; color:{acc};">{user.get('current_title', '見習い')}</div></div>
+        <div class="stat-item"><div class="stat-label">LEVEL</div><div class="stat-val" style="color:#00e5ff;">{level}</div></div>
+        <div class="stat-item"><div class="stat-label">XP</div><div class="stat-val" style="color:{main_txt};">{user['xp']} <span style="font-size:0.5em; opacity:0.7;">/ {next_xp}</span></div></div>
+        <div class="stat-item"><div class="stat-label">COIN</div><div class="stat-val" style="color:{acc};">{user['coins']} G</div></div>
+        <div class="stat-item" style="border-left:1px solid rgba(128,128,128,0.5); padding-left:15px;">
+            <div class="stat-label">TODAY'S GOAL</div>
+            <div class="stat-val" style="color:#ff9900;">{today_mins} <span style="font-size:0.5em; opacity:0.7;">/ {goal} min</span></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.progress(goal_progress)
     if today_mins >= goal and goal > 0:
-        if user.get('last_goal_reward_date') == str(get_today_jst()):
+        if user.get('last_goal_reward_date') == str(date.today()):
              st.caption("✅ 今日の目標達成済み！ボーナス獲得済み")
         else:
              st.caption("🔥 あと少しで目標達成！")
 
+    # メイン画面
     if st.session_state.get("celebrate"): st.balloons(); st.session_state["celebrate"] = False
     if st.session_state.get("toast_msg"): st.toast(st.session_state["toast_msg"]); st.session_state["toast_msg"] = None
-    if st.session_state.get("goal_reached_msg"): st.toast(st.session_state["goal_reached_msg"], icon="🎉"); st.balloons(); st.session_state["goal_reached_msg"] = None
+    if st.session_state.get("goal_reached_msg"):
+        st.toast(st.session_state["goal_reached_msg"], icon="🎉")
+        st.balloons()
+        st.session_state["goal_reached_msg"] = None
 
     t1, t2, t3, t4, t5, t6 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ", "📚 科目"])
 
-    with t1:
-        if layout_pos == "左側":
-            c1, c2 = st.columns([layout_ratio_val, 1 - layout_ratio_val])
-            with c1: 
-                with st.container(border=True):
-                    cal_y = st.session_state.get('cal_year', get_today_jst().year)
-                    cal_m = st.session_state.get('cal_month', get_today_jst().month)
-                    render_custom_calendar(cal_y, cal_m, logs_df, tasks, user['username'])
-            with c2: render_task_list(logs_df, tasks, user['username'])
-        else:
-            c1, c2 = st.columns([1 - layout_ratio_val, layout_ratio_val])
-            with c1: render_task_list(logs_df, tasks, user['username'])
-            with c2: 
-                with st.container(border=True):
-                    cal_y = st.session_state.get('cal_year', get_today_jst().year)
-                    cal_m = st.session_state.get('cal_month', get_today_jst().month)
-                    render_custom_calendar(cal_y, cal_m, logs_df, tasks, user['username'])
+    with t1: # ToDo & Calendar
+        c1, c2 = st.columns([0.6, 0.4])
+        events = []
+        if not tasks.empty:
+            for _, r in tasks.iterrows():
+                if r['due_date']:
+                    color = "#FF4B4B" if r['status'] == '未完了' else "#888"
+                    events.append({"title": f"📝 {r['task_name']}", "start": r['due_date'], "color": color})
+        if not logs_df.empty:
+            for _, r in logs_df.iterrows():
+                d_str = str(r['study_date']).split("T")[0]
+                events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": d_str, "color": "#00CC00"})
 
-    with t2:
+        with c1:
+            with st.container(border=True):
+                st.subheader("📅 カレンダー")
+                calendar_options = {
+                    "editable": True,
+                    "navLinks": True,
+                    "headerToolbar": {
+                        "left": "today prev,next",
+                        "center": "title",
+                        "right": "dayGridMonth,timeGridWeek,timeGridDay"
+                    },
+                    "initialView": "dayGridMonth",
+                    "height": 600,
+                }
+                cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar')
+                
+                if cal.get('dateClick'):
+                    st.session_state["selected_date"] = cal['dateClick']['dateStr']
+                
+                if cal.get('eventClick'):
+                    e = cal['eventClick']['event']
+                    show_event_info(e['title'], e['start'], e.get('backgroundColor', '#888'))
+        
+        with c2:
+            with st.container(border=True):
+                raw_sel = st.session_state.get("selected_date", str(date.today()))
+                display_date = raw_sel.split("T")[0]
+                
+                st.markdown(f"### 📌 {display_date}")
+                
+                day_mins_sel = 0
+                if not logs_df.empty:
+                    day_logs = logs_df[logs_df['d'] == display_date]
+                    day_mins_sel = day_logs['duration_minutes'].sum()
+                    st.info(f"📚 **勉強時間: {day_mins_sel} 分**")
+                
+                st.write("📝 **タスク**")
+                if not tasks.empty:
+                    day_tasks = tasks[tasks['due_date'] == display_date]
+                    if not day_tasks.empty:
+                        for _, task in day_tasks.iterrows():
+                            if task['status'] == "未完了":
+                                if st.button(f"完了: {task['task_name']}", key=f"do_{task['id']}"):
+                                    complete_task(task['id'], user['username']); st.rerun()
+                            else: st.write(f"✅ {task['task_name']}")
+                    else: st.caption("タスクなし")
+                
+                st.divider()
+                with st.form("quick_add"):
+                    tn = st.text_input("タスク追加")
+                    try:
+                        default_date = datetime.strptime(display_date, '%Y-%m-%d').date()
+                    except:
+                        default_date = date.today()
+                    task_date = st.date_input("期日", value=default_date)
+                    
+                    if st.form_submit_button("追加"):
+                        add_task(user['username'], tn, task_date, "中"); st.rerun()
+
+    with t2: # タイマー
         c1, c2 = st.columns([1, 1])
         with c1:
             with st.container(border=True):
@@ -588,23 +714,17 @@ def main():
                 subs = get_subjects(user['username'])
                 s_name = st.selectbox("科目", subs + ["その他"])
                 if s_name == "その他": s_name = st.text_input("科目名入力")
-                my_themes = user.get('unlocked_themes', '').split(',')
-                available_bgms = ["なし"]
-                for name, data in BGM_DATA.items():
-                    if data['price'] == 0 or f"bgm:{name}" in my_themes: available_bgms.append(name)
-                bgm_choice = st.selectbox("🎵 BGMを選択", available_bgms)
                 if st.button("スタート", type="primary", use_container_width=True):
                     if s_name:
-                        st.session_state.update({"is_studying": True, "timer_running": True, "timer_start_time": time.time(), "timer_accumulated": 0, "current_subject": s_name})
-                        if bgm_choice != "なし": st.session_state["current_bgm_url"] = BGM_DATA[bgm_choice]["url"]
-                        else:
-                            if "current_bgm_url" in st.session_state: del st.session_state["current_bgm_url"]
+                        st.session_state["is_studying"] = True
+                        st.session_state["start_time"] = time.time()
+                        st.session_state["current_subject"] = s_name
                         st.rerun()
         with c2:
             with st.container(border=True):
                 st.subheader("✏️ 手動記録")
                 with st.form("manual_log"):
-                    md = st.date_input("日付", value=get_today_jst())
+                    md = st.date_input("日付")
                     col_h, col_m = st.columns(2)
                     with col_h: h = st.number_input("時間 (h)", 0, 23, 0)
                     with col_m: m = st.number_input("分 (m)", 0, 59, 0)
@@ -613,20 +733,24 @@ def main():
                         total_min = h * 60 + m
                         if total_min > 0:
                             _, _, _, reached = add_study_log(user['username'], ms, total_min, md)
-                            st.session_state.update({"toast_msg": "記録しました！", "celebrate": True})
-                            if reached: st.session_state["goal_reached_msg"] = "🎉 目標達成！ +100コイン！"
+                            st.session_state["toast_msg"] = "記録しました！"
+                            st.session_state["celebrate"] = True
+                            if reached:
+                                st.session_state["goal_reached_msg"] = "🎉 目標達成！ +100コイン！"
                             st.rerun()
                         else: st.error("時間を入力してください")
+        
         with st.container(border=True):
             st.write("📖 **最近の記録**")
             if not logs_df.empty:
                 for _, r in logs_df.head(5).iterrows():
                     lc1, lc2 = st.columns([0.8, 0.2])
                     d_str = str(r['study_date']).split("T")[0]
-                    lc1.write(f"・{r['subject']} ({int(r['duration_minutes'])}分) - {d_str}")
-                    if lc2.button("削除", key=f"dl_{r['id']}"): delete_study_log(r['id'], user['username'], r['duration_minutes']); st.rerun()
+                    lc1.write(f"・{r['subject']} ({r['duration_minutes']}分) - {d_str}")
+                    if lc2.button("削除", key=f"dl_{r['id']}"):
+                        delete_study_log(r['id'], user['username'], r['duration_minutes']); st.rerun()
 
-    with t3:
+    with t3: # 分析
         with st.container(border=True):
             st.subheader("📊 学習データ分析")
             if not logs_df.empty:
@@ -634,21 +758,32 @@ def main():
                 total_all = logs_df['duration_minutes'].sum()
                 k1.metric("総勉強時間", f"{total_all//60}時間{total_all%60}分")
                 k2.metric("今日の勉強時間", f"{today_mins}分")
+                
                 st.markdown("##### 📅 過去7日間の推移")
                 logs_df['dt'] = pd.to_datetime(logs_df['study_date'])
                 last_7 = pd.Timestamp.now(JST).normalize().tz_localize(None) - pd.Timedelta(days=6)
                 recent = logs_df[logs_df['dt'] >= last_7].copy()
                 if not recent.empty:
-                    chart = alt.Chart(recent).mark_bar().encode(x=alt.X('dt:T', title='日付', axis=alt.Axis(format='%m/%d')), y=alt.Y('duration_minutes:Q', title='時間(分)'), color=alt.Color('subject:N', title='科目'), tooltip=['study_date', 'subject', 'duration_minutes']).properties(height=300)
+                    chart = alt.Chart(recent).mark_bar().encode(
+                        x=alt.X('dt:T', title='日付', axis=alt.Axis(format='%m/%d')),
+                        y=alt.Y('duration_minutes:Q', title='時間(分)'),
+                        color=alt.Color('subject:N', title='科目'),
+                        tooltip=['study_date', 'subject', 'duration_minutes']
+                    ).properties(height=300)
                     st.altair_chart(chart, use_container_width=True)
                 else: st.info("直近のデータがありません")
+                
                 st.markdown("##### 📚 科目比率")
                 sub_dist = logs_df.groupby('subject')['duration_minutes'].sum().reset_index()
-                pie = alt.Chart(sub_dist).mark_arc(innerRadius=50).encode(theta=alt.Theta(field="duration_minutes", type="quantitative"), color=alt.Color(field="subject", type="nominal"), tooltip=['subject', 'duration_minutes']).properties(height=300)
+                pie = alt.Chart(sub_dist).mark_arc(innerRadius=50).encode(
+                    theta=alt.Theta(field="duration_minutes", type="quantitative"),
+                    color=alt.Color(field="subject", type="nominal"),
+                    tooltip=['subject', 'duration_minutes']
+                ).properties(height=300)
                 st.altair_chart(pie, use_container_width=True)
             else: st.info("データがありません")
 
-    with t4:
+    with t4: # ランキング
         with st.container(border=True):
             st.subheader("🏆 週間ランキング")
             df_rank = get_weekly_ranking()
@@ -656,39 +791,30 @@ def main():
                 for i, row in df_rank.iterrows():
                     rank = i + 1
                     medal = "🥇" if rank==1 else "🥈" if rank==2 else "🥉" if rank==3 else f"{rank}位"
-                    st.markdown(f"""<div class="ranking-card"><div class="rank-medal" style="color: {'#FFD700' if rank==1 else '#C0C0C0' if rank==2 else '#CD7F32' if rank==3 else '#fff'};">{medal}</div><div class="rank-info"><div class="rank-name">{row['nickname']}</div><div class="rank-title">👑 {row.get('current_title', '見習い')}</div></div><div class="rank-score">{int(row['duration_minutes'])} min</div></div>""", unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div class="ranking-card">
+                        <div class="rank-medal" style="color: {'#FFD700' if rank==1 else '#C0C0C0' if rank==2 else '#CD7F32' if rank==3 else '#fff'};">{medal}</div>
+                        <div class="rank-info">
+                            <div class="rank-name">{row['nickname']}</div>
+                            <div class="rank-title">👑 {row.get('current_title', '見習い')}</div>
+                        </div>
+                        <div class="rank-score">{int(row['duration_minutes'])} min</div>
+                    </div>
+                    """, unsafe_allow_html=True)
             else: st.info("データなし")
 
-    with t5:
+    with t5: # ショップ (BGM完全削除)
         st.write("アイテムを購入してカスタマイズしよう！")
-        st.markdown("### 🎵 BGM (音楽)")
-        my_themes = user.get('unlocked_themes', '').split(',')
-        cols_bgm = st.columns(3)
-        bgm_items = list(BGM_DATA.items())
-        for i, (name, data) in enumerate(bgm_items):
-            if data['price'] == 0: continue
-            with cols_bgm[i % 3]:
-                with st.container(border=True):
-                    st.markdown(f"<div class='shop-title'>{name}</div>", unsafe_allow_html=True)
-                    if f"bgm:{name}" in my_themes:
-                        st.markdown(f"<span class='shop-owned'>購入済み</span>", unsafe_allow_html=True)
-                        st.button("✅", disabled=True, key=f"owned_bgm_{i}")
-                    else:
-                        st.markdown(f"<div class='shop-price'>{data['price']} G</div>", unsafe_allow_html=True)
-                        if st.button("購入", key=f"buy_bgm_{i}", use_container_width=True):
-                            if user['coins'] >= data['price']:
-                                nl = user['unlocked_themes'] + f",bgm:{name}"
-                                supabase.table("users").update({"coins": user['coins']-data['price'], "unlocked_themes": nl}).eq("username", user['username']).execute()
-                                st.balloons(); st.rerun()
-                            else: st.error("コイン不足")
+        
         st.markdown("### 🅰️ フォント")
         font_items = [("ピクセル風", 500), ("手書き風", 800), ("ポップ", 1000), ("明朝体", 1200), ("筆文字", 1500)]
         cols = st.columns(3)
+        my_fonts = user.get('unlocked_themes', '標準').split(',')
         for i, (n, p) in enumerate(font_items):
             with cols[i % 3]:
                 with st.container(border=True):
                     st.markdown(f"<div class='shop-title'>{n}</div>", unsafe_allow_html=True)
-                    if n in my_themes:
+                    if n in my_fonts:
                         st.markdown(f"<span class='shop-owned'>所有済み</span>", unsafe_allow_html=True)
                         st.button("設定へ", disabled=True, key=f"df_{n}")
                     else:
@@ -699,6 +825,26 @@ def main():
                                 supabase.table("users").update({"coins": user['coins']-p, "unlocked_themes": nl}).eq("username", user['username']).execute()
                                 st.balloons(); st.rerun()
                             else: st.error("コイン不足")
+
+        st.markdown("### 🖼️ 壁紙")
+        items = [("真っ黒", 500), ("草原", 500), ("夕焼け", 500), ("夜空", 800), ("ダンジョン", 1200), ("王宮", 2000)]
+        cols = st.columns(2)
+        for i, (n, p) in enumerate(items):
+            with cols[i % 2]:
+                with st.container(border=True):
+                    st.markdown(f"<div class='shop-title'>{n}</div>", unsafe_allow_html=True)
+                    if n in user['unlocked_wallpapers']:
+                        st.markdown(f"<span class='shop-owned'>所有済み</span>", unsafe_allow_html=True)
+                        st.button("設定へ", disabled=True, key=f"d_{n}")
+                    else:
+                        st.markdown(f"<div class='shop-price'>{p} G</div>", unsafe_allow_html=True)
+                        if st.button("購入", key=f"buy_w_{n}", use_container_width=True):
+                            if user['coins'] >= p:
+                                nl = user['unlocked_wallpapers'] + f",{n}"
+                                supabase.table("users").update({"coins": user['coins']-p, "unlocked_wallpapers": nl}).eq("username", user['username']).execute()
+                                st.balloons(); st.rerun()
+                            else: st.error("コイン不足")
+
         st.markdown("### 💎 その他")
         c1, c2 = st.columns(2)
         with c1:
@@ -713,6 +859,7 @@ def main():
                         supabase.table("users").update({"coins": user['coins']-100, "unlocked_titles": current, "current_title": got}).eq("username", user['username']).execute()
                         st.toast(f"🎉 称号『{got}』を獲得しました！"); st.balloons(); time.sleep(1); st.rerun()
                     else: st.error("コイン不足")
+        
         with c2:
             with st.container(border=True):
                 st.markdown("<div class='shop-title'>👑 自由称号パス</div>", unsafe_allow_html=True)
@@ -725,6 +872,7 @@ def main():
                             supabase.table("users").update({"coins": user['coins']-9999, "custom_title_unlocked": True}).eq("username", user['username']).execute()
                             st.balloons(); st.rerun()
                         else: st.error("不足")
+                        
             with st.container(border=True):
                 st.markdown("<div class='shop-title'>🖼️ カスタム壁紙パス</div>", unsafe_allow_html=True)
                 st.markdown("<div class='shop-price'>9999 G</div>", unsafe_allow_html=True)
@@ -737,15 +885,15 @@ def main():
                             st.balloons(); st.rerun()
                         else: st.error("不足")
 
-    with t6:
+    with t6: # 科目
         new_s = st.text_input("科目追加")
         if st.button("追加"):
             if new_s: add_subject_db(user['username'], new_s); st.rerun()
         st.write("登録済み:")
-        for i, s in enumerate(get_subjects(user['username'])):
+        for s in get_subjects(user['username']):
             c1, c2 = st.columns([0.8, 0.2])
             c1.write(s)
-            if c2.button("削除", key=f"del_subj_{i}_{s}"): delete_subject_db(user['username'], s); st.rerun()
+            if c2.button("削除", key=f"d_{s}"): delete_subject_db(user['username'], s); st.rerun()
 
 if __name__ == "__main__":
     main()

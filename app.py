@@ -196,13 +196,28 @@ def delete_study_log(lid, u, m):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": max(0, ud['xp']-m), "coins": max(0, ud['coins']-m)}).eq("username", u).execute()
 
+# ★修正: データが空の場合でもカラム構造を持つDataFrameを返す
 def get_study_logs(u):
-    res = supabase.table("study_logs").select("*").eq("username", u).order("created_at", desc=True).execute()
-    return pd.DataFrame(res.data) if res.data else pd.DataFrame()
+    try:
+        res = supabase.table("study_logs").select("*").eq("username", u).order("created_at", desc=True).execute()
+        if res.data:
+            return pd.DataFrame(res.data)
+        else:
+            # カラム定義を行ってKeyErrorを防ぐ
+            return pd.DataFrame(columns=['id', 'username', 'subject', 'duration_minutes', 'study_date', 'created_at'])
+    except:
+        return pd.DataFrame(columns=['id', 'username', 'subject', 'duration_minutes', 'study_date', 'created_at'])
 
+# ★修正: タスクも同様
 def get_tasks(u):
-    res = supabase.table("tasks").select("*").eq("username", u).order("due_date").execute()
-    return pd.DataFrame(res.data) if res.data else pd.DataFrame()
+    try:
+        res = supabase.table("tasks").select("*").eq("username", u).order("due_date").execute()
+        if res.data:
+            return pd.DataFrame(res.data)
+        else:
+            return pd.DataFrame(columns=['id', 'username', 'task_name', 'status', 'due_date', 'priority', 'created_at'])
+    except:
+        return pd.DataFrame(columns=['id', 'username', 'task_name', 'status', 'due_date', 'priority', 'created_at'])
 
 def add_task(u, n, d, p): supabase.table("tasks").insert({"username": u, "task_name": n, "status": "未完了", "due_date": str(d), "priority": p}).execute()
 def delete_task(tid): supabase.table("tasks").delete().eq("id", tid).execute()
@@ -214,12 +229,10 @@ def complete_task(tid, u):
 # --- タイマー ---
 @st.fragment(run_every=1)
 def show_timer_fragment(user_name):
-    # 状態取得
     is_paused = st.session_state.get("timer_paused", False)
     accumulated = st.session_state.get("timer_accumulated", 0)
     start_time = st.session_state.get("start_time", time.time())
     
-    # 経過時間の計算
     if is_paused:
         elapsed = int(accumulated)
     else:
@@ -303,14 +316,10 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # データ補正 (BGMカラム欠損時のエラー回避)
     if 'unlocked_bgms' not in user:
         try:
-            # カラムがあれば更新
             supabase.table("users").update({"unlocked_bgms": "Lofi"}).eq("username", user['username']).execute()
-        except:
-            # カラムがなければ無視してメモリ上だけで処理 (アプリは落ちない)
-            pass
+        except: pass
         user['unlocked_bgms'] = "Lofi"
 
     if not user.get('current_wallpaper'):
@@ -320,7 +329,6 @@ def main():
 
     today_str = str(date.today())
     if user.get('last_login_date') != today_str:
-        # ★ログインボーナス 100コイン
         new_coins = user['coins'] + 100
         supabase.table("users").update({
             "coins": new_coins,
@@ -337,11 +345,9 @@ def main():
         user.get('accent_color', '#FFD700')
     )
 
-    # サイドバー
     with st.sidebar:
         st.subheader("⚙️ 設定")
         
-        # BGM選択
         st.markdown("##### 🎵 集中時のBGM (YouTube)")
         my_bgms = ["なし"] + user.get('unlocked_bgms', 'Lofi').split(',')
         if "Lofi" not in my_bgms: my_bgms.append("Lofi")
@@ -395,19 +401,18 @@ def main():
             cookie_manager.delete('logtask_auth')
             st.session_state["logged_in"] = False; st.rerun()
 
-    # ★ 集中モード (ここでBGM再生 - YouTube)
+    # ★ 集中モード
     if st.session_state["is_studying"]:
         st.empty()
         
-        # BGM再生ロジック (一時停止中は再生しない)
         if not st.session_state.get("timer_paused", False):
             s_bgm = st.session_state.get("selected_bgm", "なし")
             bgm_map = {
-                "Lofi": "https://www.youtube.com/watch?v=jfKfPfyJRdk", # Lofi Girl Live
-                "雨音": "https://www.youtube.com/watch?v=BSmYxnvUDHw", # 10 Hours Rain
-                "カフェ": "https://www.youtube.com/watch?v=rVUv_j9AiVM", # Cafe Ambience
-                "森": "https://www.youtube.com/watch?v=eNUpTV9BGac", # Forest
-                "ホワイトノイズ": "https://www.youtube.com/watch?v=E1bbH03JhKA" # White Noise
+                "Lofi": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
+                "雨音": "https://www.youtube.com/watch?v=BSmYxnvUDHw",
+                "カフェ": "https://www.youtube.com/watch?v=rVUv_j9AiVM",
+                "森": "https://www.youtube.com/watch?v=eNUpTV9BGac",
+                "ホワイトノイズ": "https://www.youtube.com/watch?v=E1bbH03JhKA"
             }
             if s_bgm in bgm_map:
                 st.video(bgm_map[s_bgm], autoplay=True)
@@ -422,7 +427,7 @@ def main():
     logs_df = get_study_logs(user['username'])
     tasks = get_tasks(user['username'])
     today_mins = 0
-    if not logs_df.empty:
+    if not logs_df.empty and 'duration_minutes' in logs_df.columns:
         today_mins = logs_df[logs_df['study_date'].astype(str).str.contains(str(date.today()))]['duration_minutes'].sum()
 
     st.markdown(f"""
@@ -473,10 +478,10 @@ def main():
                             if d != 0:
                                 d_str = f"{st.session_state.cal_year}-{st.session_state.cal_month:02}-{d:02}"
                                 label = f"{d}"
-                                if not logs_df.empty:
+                                if not logs_df.empty and 'study_date' in logs_df.columns:
                                     s_mins = logs_df[logs_df['study_date'].astype(str).str.contains(d_str)]['duration_minutes'].sum()
                                     if s_mins > 0: label += f"\n📖{s_mins}分"
-                                if not tasks.empty:
+                                if not tasks.empty and 'due_date' in tasks.columns:
                                     t_cnt = len(tasks[(tasks['due_date'].astype(str) == d_str) & (tasks['status'] == '未完了')])
                                     if t_cnt > 0: label += f"\n🔔{t_cnt}件"
                                 
@@ -493,7 +498,7 @@ def main():
                 st.markdown(f"### 📌 {display_date}")
                 
                 st.write("📚 **勉強記録**")
-                if not logs_df.empty:
+                if not logs_df.empty and 'study_date' in logs_df.columns:
                     day_logs = logs_df[logs_df['study_date'].astype(str).str.contains(display_date)]
                     if not day_logs.empty:
                         total_d = day_logs['duration_minutes'].sum()
@@ -509,7 +514,7 @@ def main():
                 
                 st.divider()
                 st.write("📝 **タスク**")
-                if not tasks.empty:
+                if not tasks.empty and 'due_date' in tasks.columns:
                     dt = tasks[tasks['due_date'].astype(str) == display_date]
                     if not dt.empty:
                         for _, task in dt.iterrows():
@@ -541,6 +546,7 @@ def main():
             if st.button("スタート", type="primary", use_container_width=True):
                 if sub:
                     st.session_state["is_studying"]=True; st.session_state["start_time"]=time.time(); st.session_state["current_subject"]=sub
+                    st.session_state["timer_paused"]=False; st.session_state["timer_accumulated"]=0
                     st.rerun()
         with c2:
             st.subheader("✏️ 記録")
@@ -557,7 +563,7 @@ def main():
 
     with t3: 
         k1, k2 = st.columns(2)
-        k1.metric("総勉強時間", f"{logs_df['duration_minutes'].sum()//60}時間")
+        k1.metric("総勉強時間", f"{logs_df['duration_minutes'].sum()//60}時間" if not logs_df.empty else "0時間")
         k2.metric("今日", f"{today_mins}分")
         if not logs_df.empty:
             logs_df['dt'] = pd.to_datetime(logs_df['study_date'])
@@ -593,7 +599,7 @@ def main():
                                     new_bgms = current_bgms + "," + b
                                     supabase.table("users").update({"coins": user['coins'] - p, "unlocked_bgms": new_bgms}).eq("username", user['username']).execute()
                                     st.balloons(); st.rerun()
-                                except: st.error("購入に失敗しました。DBを確認してください")
+                                except: st.error("購入に失敗しました")
                             else: st.error("不足")
                     else: bc2.write("✅ 済")
 
@@ -613,7 +619,6 @@ def main():
                     else: fc2.write("✅ 済")
             
             st.divider()
-            
             st.markdown("#### 🖼️ 壁紙")
             for w, p in [("真っ黒",500),("夕焼け",800),("夜空",1000),("草原",1200)]:
                 with st.container(border=True):

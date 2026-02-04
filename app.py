@@ -33,6 +33,12 @@ supabase = init_supabase()
 # --- Cookieマネージャー ---
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
+# --- 画像処理 ---
+def image_to_base64(img):
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode()
+
 # --- デザイン適用 ---
 def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
@@ -131,7 +137,15 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
-        data = {"username": username, "password": make_hashes(password), "nickname": nickname, "xp": 0, "coins": 0, "unlocked_themes": "標準", "current_theme": "標準", "current_title": "見習い", "unlocked_titles": "見習い", "current_wallpaper": "真っ白", "unlocked_wallpapers": "真っ白", "daily_goal": 60, "main_text_color": "#000000", "accent_color": "#FFD700", "unlocked_bgms": "Lofi", "current_bgm": "なし"}
+        data = {
+            "username": username, "password": make_hashes(password), "nickname": nickname, 
+            "xp": 0, "coins": 0, 
+            "unlocked_themes": "標準", "current_theme": "標準", 
+            "current_title": "見習い", "unlocked_titles": "見習い", 
+            "current_wallpaper": "真っ白", "unlocked_wallpapers": "真っ白",
+            "unlocked_bgms": "Lofi", "current_bgm": "なし", 
+            "daily_goal": 60, "main_text_color": "#000000", "accent_color": "#FFD700"
+        }
         supabase.table("users").insert(data).execute()
         return True, "登録成功"
     except: return False, "エラー"
@@ -289,18 +303,24 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # データ補正
+    # データ補正 (BGMカラム欠損時のエラー回避)
     if 'unlocked_bgms' not in user:
-        supabase.table("users").update({"unlocked_bgms": "Lofi"}).eq("username", user['username']).execute()
+        try:
+            # カラムがあれば更新
+            supabase.table("users").update({"unlocked_bgms": "Lofi"}).eq("username", user['username']).execute()
+        except:
+            # カラムがなければ無視してメモリ上だけで処理 (アプリは落ちない)
+            pass
         user['unlocked_bgms'] = "Lofi"
-        st.rerun()
 
     if not user.get('current_wallpaper'):
-        supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
-        st.rerun()
+        try:
+            supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
+        except: pass
 
     today_str = str(date.today())
     if user.get('last_login_date') != today_str:
+        # ★ログインボーナス 100コイン
         new_coins = user['coins'] + 100
         supabase.table("users").update({
             "coins": new_coins,
@@ -521,7 +541,6 @@ def main():
             if st.button("スタート", type="primary", use_container_width=True):
                 if sub:
                     st.session_state["is_studying"]=True; st.session_state["start_time"]=time.time(); st.session_state["current_subject"]=sub
-                    st.session_state["timer_paused"]=False; st.session_state["timer_accumulated"]=0
                     st.rerun()
         with c2:
             st.subheader("✏️ 記録")
@@ -569,10 +588,12 @@ def main():
                     if b not in user.get('unlocked_bgms', 'Lofi'):
                         if bc2.button("購入", key=f"buy_bgm_{b}"):
                             if user['coins'] >= p:
-                                current_bgms = user.get('unlocked_bgms', 'Lofi')
-                                new_bgms = current_bgms + "," + b
-                                supabase.table("users").update({"coins": user['coins'] - p, "unlocked_bgms": new_bgms}).eq("username", user['username']).execute()
-                                st.balloons(); st.rerun()
+                                try:
+                                    current_bgms = user.get('unlocked_bgms', 'Lofi')
+                                    new_bgms = current_bgms + "," + b
+                                    supabase.table("users").update({"coins": user['coins'] - p, "unlocked_bgms": new_bgms}).eq("username", user['username']).execute()
+                                    st.balloons(); st.rerun()
+                                except: st.error("購入に失敗しました。DBを確認してください")
                             else: st.error("不足")
                     else: bc2.write("✅ 済")
 

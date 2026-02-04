@@ -33,22 +33,16 @@ supabase = init_supabase()
 # --- Cookieマネージャー ---
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
-# --- 画像処理 ---
-def image_to_base64(img):
-    buffered = io.BytesIO()
-    img.save(buffered, format="PNG")
-    return base64.b64encode(buffered.getvalue()).decode()
-
 # --- イベント詳細ダイアログ ---
 @st.dialog("📝 イベント詳細")
 def show_event_info(title, start, color):
-    display_start = start.split("T")[0] if start else ""
+    display_start = str(start).split("T")[0] if start else ""
     st.markdown(f"### {title}")
     st.divider()
     st.write(f"📅 **日付:** {display_start}")
     st.markdown(f"🎨 **ラベル色:** <span style='color:{color}; font-size:1.5em;'>■</span>", unsafe_allow_html=True)
 
-# --- デザイン適用（カレンダーへの干渉を完全に排除） ---
+# --- デザイン適用 ---
 def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
@@ -67,7 +61,7 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
     [data-testid="stAppViewContainer"], .stApp {{ background-color: #ffffff !important; }}
     [data-testid="stHeader"] {{ background-color: rgba(255,255,255,0.9); }}
-
+    
     /* サイドバー */
     [data-testid="stSidebar"] {{ background-color: #f8f9fa !important; border-right: 1px solid #ddd; }}
     [data-testid="stSidebar"] * {{ color: #000000 !important; }}
@@ -90,6 +84,13 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
         border-radius: 12px; 
         padding: 20px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }}
+    
+    /* カレンダー強制表示 (重要) */
+    .fc {{
+        background-color: white !important;
+        min-height: 600px !important;
+        height: auto !important;
     }}
     
     /* ボタン */
@@ -263,7 +264,7 @@ def main():
                 st.rerun()
         st.divider()
         
-        # フォント設定（安全策）
+        # フォント設定
         VALID = ["標準", "ピクセル風", "手書き風", "ポップ", "明朝体", "筆文字"]
         my_fonts = [t for t in user.get('unlocked_themes', '').split(',') if t in VALID]
         if not my_fonts: my_fonts = ["標準"]
@@ -310,50 +311,47 @@ def main():
     t1, t2, t3, t4, t5, t6 = st.tabs(["📝 ToDo", "⏱️ タイマー", "📊 分析", "🏆 ランキング", "🛒 ショップ", "📚 科目"])
 
     with t1: # カレンダー & タスク
-        # ★ここが変更点: 表示モード切替スイッチ
-        view_mode = st.radio("表示モード", ["📅 カレンダー", "📋 リスト"], horizontal=True, label_visibility="collapsed")
-        
         c1, c2 = st.columns([0.65, 0.35])
         
         events = []
         if not tasks.empty:
             for _, r in tasks.iterrows():
-                if r['due_date']:
+                # ★修正: データ型強制変換 (str)
+                d_str = str(r['due_date']).split("T")[0]
+                if d_str:
                     color = "#FF4B4B" if r['status'] == '未完了' else "#888"
-                    events.append({"title": f"📝 {r['task_name']}", "start": r['due_date'], "color": color})
+                    events.append({"title": f"📝 {r['task_name']}", "start": d_str, "color": color})
         if not logs_df.empty:
             logs_df['day_str'] = logs_df['study_date'].astype(str).str.split("T").str[0]
             agg = logs_df.groupby(['day_str', 'subject'])['duration_minutes'].sum().reset_index()
             for _, r in agg.iterrows():
-                events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": r['day_str'], "color": "#00CC00"})
+                events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": str(r['day_str']), "color": "#00CC00"})
 
         with c1:
-            if view_mode == "📅 カレンダー":
-                with st.container(border=True):
-                    # シンプルなカレンダー設定
-                    calendar_options = {
-                        "editable": True,
-                        "navLinks": True,
-                        "initialDate": str(date.today()),
-                        "headerToolbar": {
-                            "left": "today prev,next",
-                            "center": "title",
-                            "right": "dayGridMonth"
-                        },
-                        "height": 650,
-                    }
-                    try:
-                        cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='main_cal')
-                        if cal.get('dateClick'): st.session_state["selected_date"] = cal['dateClick']['dateStr']
-                        if cal.get('eventClick'):
-                            e = cal['eventClick']['event']
-                            show_event_info(e['title'], e['start'], e.get('backgroundColor', '#888'))
-                    except Exception as e:
-                        st.error("カレンダーの読み込みに失敗しました。リストモードをご利用ください。")
-            else:
-                st.info("タスク一覧 (リスト表示)")
-                if not tasks.empty: st.dataframe(tasks[['due_date', 'task_name', 'status', 'priority']], use_container_width=True)
-                else: st.write("タスクはありません")
+            with st.container(border=True):
+                # ★修正: カレンダー設定の最適化
+                calendar_options = {
+                    "editable": True,
+                    "navLinks": True,
+                    "initialDate": str(date.today()),
+                    "headerToolbar": {
+                        "left": "today prev,next",
+                        "center": "title",
+                        "right": "dayGridMonth,timeGridWeek,timeGridDay"
+                    },
+                    "initialView": "dayGridMonth",
+                    "contentHeight": "auto", # ★自動高さ調整
+                    "aspectRatio": 1.5
+                }
+                
+                try:
+                    cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar_final_fix')
+                    if cal.get('dateClick'): st.session_state["selected_date"] = cal['dateClick']['dateStr']
+                    if cal.get('eventClick'):
+                        e = cal['eventClick']['event']
+                        show_event_info(e['title'], e['start'], e.get('backgroundColor', '#888'))
+                except:
+                    st.error("カレンダーの読み込みに失敗しました。")
 
         with c2:
             with st.container(border=True):
@@ -369,7 +367,7 @@ def main():
 
                 # 選択日のタスク
                 if not tasks.empty:
-                    dt = tasks[tasks['due_date'] == display_date]
+                    dt = tasks[tasks['due_date'].astype(str) == display_date]
                     if not dt.empty:
                         for _, task in dt.iterrows():
                             if task['status'] == "未完了":

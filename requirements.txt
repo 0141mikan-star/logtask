@@ -1,6 +1,6 @@
-streamlit
+streamlit>=1.35.0
 supabase
 pandas
-
-streamlit-calendar
+streamlit-calendar>=0.5.0
 extra-streamlit-components
+altair

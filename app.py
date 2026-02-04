@@ -35,10 +35,10 @@ def init_supabase():
 supabase = init_supabase()
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
-# --- BGMリスト (安定版) ---
+# --- BGMリスト (ピアノを削除し、森を追加) ---
 BGM_DATA = {
     "☕ Lofi Girl (Study)": {"url": "https://www.youtube.com/watch?v=n61ULEU7CO0", "price": 0},
-    "🎹 癒やしのピアノ (Piano)": {"url": "https://www.youtube.com/watch?v=CNFjC8V4W6E", "price": 300},
+    "🌲 森の音 (Forest)": {"url": "https://www.youtube.com/watch?v=xNN7iTA57jM", "price": 300}, # 新規追加
     "🌧️ 静かな雨 (Rain)": {"url": "https://www.youtube.com/watch?v=M3hV2Pec6ys", "price": 300},
     "📚 図書館の音 (Library)": {"url": "https://www.youtube.com/watch?v=4vIQON2fDWM", "price": 300},
     "🔥 焚き火 (Bonfire)": {"url": "https://www.youtube.com/watch?v=c0_ejQQcrwI", "price": 500}
@@ -516,13 +516,10 @@ def main():
     if st.session_state["is_studying"]:
         st.empty()
         
-        # BGM再生 (自動再生オフ & 画面サイズ調整)
         if "current_bgm_url" in st.session_state and st.session_state["current_bgm_url"]:
-            # スライダーで動画のサイズ比率を調整
             with st.expander("📺 画面サイズ", expanded=False):
                 video_width_pct = st.slider("サイズ調整", 10, 100, 50, key="video_width")
             
-            # 中央寄せのための列計算
             if video_width_pct == 100:
                 st.video(st.session_state["current_bgm_url"])
             else:

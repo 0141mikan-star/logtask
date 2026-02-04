@@ -35,14 +35,16 @@ def init_supabase():
 supabase = init_supabase()
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
-# --- BGMリスト (動画IDで管理) ---
-# ※ URLではなく「v=」の後ろのIDを指定することで安定性を向上
+# --- BGMリスト (再生可能な安定動画に変更) ---
 BGM_DATA = {
-    "☕ Lofi Girl (Study)": {"id": "jfKfPfyJRdk", "price": 0},      # 定番Lofiライブ
-    "🎹 癒やしのピアノ": {"id": "WjXR-2t2g7s", "price": 300},       # 静かなピアノ
-    "🌧️ 雨の音 (Rain)": {"id": "mPZkdNFkNps", "price": 300},       # 雨音
-    "🌊 波の音 (Ocean)": {"id": "nepQX5k752I", "price": 300},       # 波音
-    "🔥 焚き火 (Bonfire)": {"id": "L_LUpnjgPso", "price": 500}      # 焚き火
+    # Lofi Girl (ライブ配信は不安定なため、公式の長時間動画に変更)
+    "☕ Lofi Girl (Study)": {"url": "https://www.youtube.com/watch?v=n61ULEU7CO0", "price": 0},
+    # 著作権フリー系の安定したピアノ曲
+    "🎹 癒やしのピアノ (Piano)": {"url": "https://www.youtube.com/watch?v=CNFjC8V4W6E", "price": 300},
+    # 環境音系
+    "🌧️ 静かな雨 (Rain)": {"url": "https://www.youtube.com/watch?v=M3hV2Pec6ys", "price": 300},
+    "☕ カフェの音 (Cafe)": {"url": "https://www.youtube.com/watch?v=h2VpbL2v-7Y", "price": 300},
+    "🔥 焚き火 (Bonfire)": {"url": "https://www.youtube.com/watch?v=c0_ejQQcrwI", "price": 500}
 }
 
 # --- 認証・DB操作 ---
@@ -198,7 +200,7 @@ def show_daily_detail(date_str, username):
     if st.button("閉じる"):
         st.rerun()
 
-# --- 自作カレンダー描画関数 ---
+# --- カレンダー描画関数 ---
 def render_custom_calendar(year, month, logs_df, tasks_df, username):
     c_prev, c_title, c_next = st.columns([1, 5, 1])
     with c_prev:
@@ -358,7 +360,7 @@ def show_timer_fragment(user_name):
             st.session_state["is_studying"] = False
             st.session_state["timer_running"] = False
             st.session_state["timer_accumulated"] = 0
-            if "current_bgm_id" in st.session_state: del st.session_state["current_bgm_id"]
+            if "current_bgm_url" in st.session_state: del st.session_state["current_bgm_url"]
             st.session_state["celebrate"] = True
             st.session_state["toast_msg"] = f"{duration}分 記録しました！"
             if reached: st.session_state["goal_reached_msg"] = "🎉 目標達成！ +100コイン！"
@@ -516,16 +518,9 @@ def main():
 
     if st.session_state["is_studying"]:
         st.empty()
-        # ★BGMプレーヤーの表示（iframe埋め込み）
-        if "current_bgm_id" in st.session_state and st.session_state["current_bgm_id"]:
-            vid = st.session_state["current_bgm_id"]
-            # HTML埋め込み (自動再生なし)
-            st.markdown(f"""
-            <div style="display: flex; justify-content: center; margin-bottom: 20px;">
-                <iframe width="300" height="200" src="https://www.youtube.com/embed/{vid}" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-            </div>
-            """, unsafe_allow_html=True)
-            
+        # BGM再生 (自動再生オフ)
+        if "current_bgm_url" in st.session_state and st.session_state["current_bgm_url"]:
+            st.video(st.session_state["current_bgm_url"])
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
         return
@@ -594,9 +589,9 @@ def main():
                 if st.button("スタート", type="primary", use_container_width=True):
                     if s_name:
                         st.session_state.update({"is_studying": True, "timer_running": True, "timer_start_time": time.time(), "timer_accumulated": 0, "current_subject": s_name})
-                        if bgm_choice != "なし": st.session_state["current_bgm_id"] = BGM_DATA[bgm_choice]["id"]
+                        if bgm_choice != "なし": st.session_state["current_bgm_url"] = BGM_DATA[bgm_choice]["url"]
                         else:
-                            if "current_bgm_id" in st.session_state: del st.session_state["current_bgm_id"]
+                            if "current_bgm_url" in st.session_state: del st.session_state["current_bgm_url"]
                         st.rerun()
         with c2:
             with st.container(border=True):

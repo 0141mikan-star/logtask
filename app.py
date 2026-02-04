@@ -35,14 +35,13 @@ def init_supabase():
 supabase = init_supabase()
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
-# --- BGMリスト (URL修正済み) ---
+# --- BGMリスト (安定板) ---
 BGM_DATA = {
     "☕ Lofi Girl (Hip Hop)": {"url": "https://www.youtube.com/watch?v=jfKfPfyJRdk", "price": 0},
-    # 変更: より安定して再生できるピアノBGM (Classical Piano for Studying)
-    "🎹 癒やしのピアノ (Piano)": {"url": "https://www.youtube.com/watch?v=9pQM5Zt3_FY", "price": 300},
-    "🌧️ 雨の音 (Rain)": {"url": "https://www.youtube.com/watch?v=mPZkdNFkNps", "price": 300},
-    "☕ カフェの雑音 (Cafe)": {"url": "https://www.youtube.com/watch?v=gaGrHUekGrc", "price": 300},
-    "🔥 焚き火の音 (Fireplace)": {"url": "https://www.youtube.com/watch?v=L_LUpnjgPso", "price": 500}
+    "🎹 静かなピアノ (Relax)": {"url": "https://www.youtube.com/watch?v=WjXR-2t2g7s", "price": 300},
+    "🌧️ 優しい雨音 (Rain)": {"url": "https://www.youtube.com/watch?v=q76bMs-NwRk", "price": 300},
+    "📚 図書館の音 (Library)": {"url": "https://www.youtube.com/watch?v=4vIQON2fDWM", "price": 300},
+    "🔥 焚き火 (Bonfire)": {"url": "https://www.youtube.com/watch?v=L_LUpnjgPso", "price": 500}
 }
 
 # --- 認証・DB操作 ---
@@ -141,7 +140,7 @@ def complete_task(tid, u):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": ud['xp']+10, "coins": ud['coins']+10}).eq("username", u).execute()
 
-# --- コールバック関数 (状態更新用) ---
+# --- コールバック関数 ---
 def update_selected_date(new_date):
     st.session_state['selected_date'] = new_date
 
@@ -517,7 +516,7 @@ def main():
     if st.session_state["is_studying"]:
         st.empty()
         if "current_bgm_url" in st.session_state and st.session_state["current_bgm_url"]:
-            st.video(st.session_state["current_bgm_url"], autoplay=True)
+            st.video(st.session_state["current_bgm_url"])
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
         return

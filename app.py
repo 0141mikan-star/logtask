@@ -115,6 +115,46 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
     button[kind="primary"] {{
         background: {accent_color} !important; border: none !important; color: #000 !important; font-weight: bold !important;
     }}
+
+    /* --- ランキングデザイン強化 --- */
+    .ranking-card {{
+        padding: 15px; margin-bottom: 12px; border-radius: 15px; 
+        display: flex; align-items: center; 
+        background: {container_bg};
+        border: 1px solid rgba(128,128,128,0.1);
+        transition: transform 0.2s;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }}
+    .ranking-card:hover {{ transform: scale(1.02); }}
+
+    /* 1位: 金 */
+    .rank-1 {{
+        background: linear-gradient(135deg, #FFF8E1 0%, #FFD700 100%) !important;
+        border: 2px solid #FFD700 !important;
+        box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4) !important;
+    }}
+    .rank-1 .rank-name, .rank-1 .rank-score {{ color: #5c4d00 !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
+    
+    /* 2位: 銀 */
+    .rank-2 {{
+        background: linear-gradient(135deg, #F5F5F5 0%, #C0C0C0 100%) !important;
+        border: 2px solid #C0C0C0 !important;
+    }}
+    .rank-2 .rank-name, .rank-2 .rank-score {{ color: #2b2b2b !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
+
+    /* 3位: 銅 */
+    .rank-3 {{
+        background: linear-gradient(135deg, #FFF0E0 0%, #CD7F32 100%) !important;
+        border: 2px solid #CD7F32 !important;
+    }}
+    .rank-3 .rank-name, .rank-3 .rank-score {{ color: #5c3a1e !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
+
+    .rank-medal {{ font-size: 2.5rem; width: 60px; text-align: center; margin-right: 10px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2)); }}
+    .rank-info {{ flex-grow: 1; }}
+    .rank-name {{ font-size: 1.3em; font-weight: 800; line-height: 1.2; }}
+    .rank-title {{ font-size: 0.8em; opacity: 0.8; font-weight: normal; margin-top:2px; }}
+    .rank-score {{ font-size: 1.5em; font-weight: 900; text-align: right; margin-right: 10px; }}
+    .rank-unit {{ font-size: 0.5em; font-weight: normal; opacity: 0.7; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -165,26 +205,22 @@ def add_study_log(u, s, m, d):
     if not ud: return m, 0, 0, False
     
     today_str = str(date.today())
-    # ユーザーの最終報酬日を取得
     last_reward = ud.get('last_goal_reward_date')
     goal = ud.get('daily_goal', 60)
     
-    # 今日の合計時間を再計算
     logs = supabase.table("study_logs").select("duration_minutes").eq("username", u).eq("study_date", today_str).execute()
     total = sum([l['duration_minutes'] for l in logs.data]) if logs.data else m
     
     goal_reached = False
     
-    # 目標達成判定 (今日まだ達成していない場合)
     if last_reward != today_str and total >= goal:
         new_xp = ud['xp'] + m
-        new_coins = ud['coins'] + m + 100 # ボーナス
+        new_coins = ud['coins'] + m + 100
         supabase.table("users").update({
             "xp": new_xp, "coins": new_coins, "last_goal_reward_date": today_str
         }).eq("username", u).execute()
         goal_reached = True
     else:
-        # 通常加算
         new_xp = ud['xp'] + m
         new_coins = ud['coins'] + m
         supabase.table("users").update({"xp": new_xp, "coins": new_coins}).eq("username", u).execute()
@@ -196,26 +232,19 @@ def delete_study_log(lid, u, m):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": max(0, ud['xp']-m), "coins": max(0, ud['coins']-m)}).eq("username", u).execute()
 
-# ★KeyError対策済み: 空データでもDataFrameを返す
 def get_study_logs(u):
     try:
         res = supabase.table("study_logs").select("*").eq("username", u).order("created_at", desc=True).execute()
-        if res.data:
-            return pd.DataFrame(res.data)
-        else:
-            return pd.DataFrame(columns=['id', 'username', 'subject', 'duration_minutes', 'study_date'])
-    except:
-        return pd.DataFrame(columns=['id', 'username', 'subject', 'duration_minutes', 'study_date'])
+        if res.data: return pd.DataFrame(res.data)
+        else: return pd.DataFrame(columns=['id', 'username', 'subject', 'duration_minutes', 'study_date'])
+    except: return pd.DataFrame(columns=['id', 'username', 'subject', 'duration_minutes', 'study_date'])
 
 def get_tasks(u):
     try:
         res = supabase.table("tasks").select("*").eq("username", u).order("due_date").execute()
-        if res.data:
-            return pd.DataFrame(res.data)
-        else:
-            return pd.DataFrame(columns=['id', 'username', 'task_name', 'status', 'due_date', 'priority'])
-    except:
-        return pd.DataFrame(columns=['id', 'username', 'task_name', 'status', 'due_date', 'priority'])
+        if res.data: return pd.DataFrame(res.data)
+        else: return pd.DataFrame(columns=['id', 'username', 'task_name', 'status', 'due_date', 'priority'])
+    except: return pd.DataFrame(columns=['id', 'username', 'task_name', 'status', 'due_date', 'priority'])
 
 def add_task(u, n, d, p): supabase.table("tasks").insert({"username": u, "task_name": n, "status": "未完了", "due_date": str(d), "priority": p}).execute()
 def delete_task(tid): supabase.table("tasks").delete().eq("id", tid).execute()
@@ -323,11 +352,11 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # --- データの自動補正（重要：エラー回避） ---
+    # データ補正
     if 'unlocked_bgms' not in user:
         try:
             supabase.table("users").update({"unlocked_bgms": "Lofi"}).eq("username", user['username']).execute()
-        except: pass # カラムがない場合は無視してメモリ上で動作
+        except: pass
         user['unlocked_bgms'] = "Lofi"
 
     if not user.get('current_wallpaper'):
@@ -357,15 +386,11 @@ def main():
     with st.sidebar:
         st.subheader("⚙️ 設定")
         
-        st.markdown("##### 🎵 集中時のBGM")
+        st.markdown("##### 🎵 集中時のBGM (YouTube)")
         my_bgms = ["なし"] + user.get('unlocked_bgms', 'Lofi').split(',')
         if "Lofi" not in my_bgms: my_bgms.append("Lofi")
         
-        # 状態保持のためにsession_stateを使用
-        if "selected_bgm_key" not in st.session_state:
-            st.session_state["selected_bgm_key"] = "なし"
-            
-        selected_bgm = st.selectbox("再生する音", my_bgms, index=0, key="bgm_selector")
+        selected_bgm = st.selectbox("再生する音", my_bgms, index=0, key="bgm_select")
         st.session_state["selected_bgm"] = selected_bgm
 
         with st.expander("👑 称号装備"):
@@ -414,19 +439,18 @@ def main():
             cookie_manager.delete('logtask_auth')
             st.session_state["logged_in"] = False; st.rerun()
 
-    # ★ 集中モード (ここでBGM再生 - YouTube)
+    # ★ 集中モード (BGM再生)
     if st.session_state["is_studying"]:
         st.empty()
         
-        # BGM再生ロジック (一時停止中は再生しない)
         if not st.session_state.get("timer_paused", False):
             s_bgm = st.session_state.get("selected_bgm", "なし")
             bgm_map = {
-                "Lofi": "https://www.youtube.com/watch?v=jfKfPfyJRdk", # Lofi Girl
-                "雨音": "https://www.youtube.com/watch?v=BSmYxnvUDHw", # Rain
-                "カフェ": "https://www.youtube.com/watch?v=rVUv_j9AiVM", # Cafe
-                "森": "https://www.youtube.com/watch?v=eNUpTV9BGac", # Forest
-                "ホワイトノイズ": "https://www.youtube.com/watch?v=E1bbH03JhKA" # White Noise
+                "Lofi": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
+                "雨音": "https://www.youtube.com/watch?v=BSmYxnvUDHw",
+                "カフェ": "https://www.youtube.com/watch?v=rVUv_j9AiVM",
+                "森": "https://www.youtube.com/watch?v=eNUpTV9BGac",
+                "ホワイトノイズ": "https://www.youtube.com/watch?v=E1bbH03JhKA"
             }
             if s_bgm in bgm_map:
                 st.video(bgm_map[s_bgm], autoplay=True)
@@ -441,7 +465,7 @@ def main():
     logs_df = get_study_logs(user['username'])
     tasks = get_tasks(user['username'])
     today_mins = 0
-    if not logs_df.empty:
+    if not logs_df.empty and 'duration_minutes' in logs_df.columns:
         today_mins = logs_df[logs_df['study_date'].astype(str).str.contains(str(date.today()))]['duration_minutes'].sum()
 
     st.markdown(f"""
@@ -463,7 +487,6 @@ def main():
         c1, c2 = st.columns([0.65, 0.35])
         with c1:
             with st.container(border=True):
-                # 月移動
                 mc1, mc2, mc3 = st.columns([0.2, 0.6, 0.2])
                 with mc1:
                     if st.button("◀ 前月"):
@@ -561,6 +584,7 @@ def main():
             if st.button("スタート", type="primary", use_container_width=True):
                 if sub:
                     st.session_state["is_studying"]=True; st.session_state["start_time"]=time.time(); st.session_state["current_subject"]=sub
+                    st.session_state["timer_paused"]=False; st.session_state["timer_accumulated"]=0
                     st.rerun()
         with c2:
             st.subheader("✏️ 記録")
@@ -589,9 +613,46 @@ def main():
         st.subheader("🏆 週間ランキング")
         rk = get_weekly_ranking()
         if not rk.empty:
+            # 1位のスコアを取得（プログレスバー計算用）
+            top_score = rk.iloc[0]['duration_minutes']
+            
             for i, r in rk.iterrows():
-                medal = "🥇" if i==0 else "🥈" if i==1 else "🥉" if i==2 else f"{i+1}位"
-                st.markdown(f"<div class='ranking-card'><div class='rank-medal'>{medal}</div><div class='rank-info'><div class='rank-name'>{r['nickname']}</div><div class='rank-title'>{r['current_title']}</div></div><div class='rank-score'>{int(r['duration_minutes'])} min</div></div>", unsafe_allow_html=True)
+                rank = i + 1
+                
+                # メダルとデザインクラスの振り分け
+                if rank == 1:
+                    medal = "🥇"
+                    css_class = "rank-1"
+                elif rank == 2:
+                    medal = "🥈"
+                    css_class = "rank-2"
+                elif rank == 3:
+                    medal = "🥉"
+                    css_class = "rank-3"
+                else:
+                    medal = f"<span style='font-size:1.5rem; font-weight:bold; color:#888;'>{rank}</span>"
+                    css_class = "rank-other"
+                
+                # スコアバーの長さ計算
+                bar_width = (r['duration_minutes'] / top_score) * 100 if top_score > 0 else 0
+                
+                st.markdown(f"""
+                <div class="ranking-card {css_class}">
+                    <div class="rank-medal">{medal}</div>
+                    <div class="rank-info">
+                        <div class="rank-name">{r['nickname']}</div>
+                        <div class="rank-title">👑 {r['current_title']}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div class="rank-score">{int(r['duration_minutes'])} <span class="rank-unit">min</span></div>
+                        <div style="width:100px; height:6px; background:rgba(0,0,0,0.1); border-radius:3px; margin-left:auto;">
+                            <div style="width:{bar_width}%; height:100%; background:{user.get('accent_color')}; border-radius:3px;"></div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("データが集計されていません")
 
     with t5: 
         st.subheader("🛒 ショップ")

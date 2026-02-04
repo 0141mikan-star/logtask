@@ -137,7 +137,15 @@ def login_user(username, password):
 
 def add_user(username, password, nickname):
     try:
-        data = {"username": username, "password": make_hashes(password), "nickname": nickname, "xp": 0, "coins": 0, "unlocked_themes": "標準", "current_theme": "標準", "current_title": "見習い", "unlocked_titles": "見習い", "current_wallpaper": "真っ白", "unlocked_wallpapers": "真っ白", "daily_goal": 60, "main_text_color": "#000000", "accent_color": "#FFD700"}
+        data = {
+            "username": username, "password": make_hashes(password), "nickname": nickname, 
+            "xp": 0, "coins": 0, 
+            "unlocked_themes": "標準", "current_theme": "標準", 
+            "current_title": "見習い", "unlocked_titles": "見習い", 
+            "current_wallpaper": "真っ白", "unlocked_wallpapers": "真っ白",
+            "unlocked_bgms": "Lofi", "current_bgm": "なし", # ★BGM初期設定
+            "daily_goal": 60, "main_text_color": "#000000", "accent_color": "#FFD700"
+        }
         supabase.table("users").insert(data).execute()
         return True, "登録成功"
     except: return False, "エラー"
@@ -177,6 +185,7 @@ def add_study_log(u, s, m, d):
     total = sum([l['duration_minutes'] for l in logs.data]) if logs.data else m
     goal_reached = False
     if ud.get('last_goal_reward_date') != today_str and total >= ud.get('daily_goal', 60):
+        # 目標達成ボーナス
         supabase.table("users").update({"xp": ud['xp']+m, "coins": ud['coins']+m+100, "last_goal_reward_date": today_str}).eq("username", u).execute()
         goal_reached = True
     else:
@@ -203,30 +212,23 @@ def complete_task(tid, u):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": ud['xp']+10, "coins": ud['coins']+10}).eq("username", u).execute()
 
-# --- タイマー (※BGMはここではなくメイン処理側で再生) ---
+# --- タイマー ---
 @st.fragment(run_every=1)
 def show_timer_fragment(user_name):
     now = time.time()
     start = st.session_state.get("start_time", now)
     elapsed = int(now - start)
     h, m, s = elapsed // 3600, (elapsed % 3600) // 60, elapsed % 60
-    
-    st.markdown(f"""
-    <div style="text-align: center; font-size: 6em; font-weight: bold; margin-bottom: 20px;">
-        {h:02}:{m:02}:{s:02}
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
+    st.markdown(f"<div style='text-align:center; font-size:6em; font-weight:bold; color:#000;'>{h:02}:{m:02}:{s:02}</div>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
         if st.button("⏹️ 終了して記録", use_container_width=True, type="primary"):
             duration = max(1, elapsed // 60)
             _, _, _, reached = add_study_log(user_name, st.session_state.get("current_subject", "自習"), duration, date.today())
             st.session_state["is_studying"] = False
             st.session_state["celebrate"] = True
             st.session_state["toast_msg"] = f"{duration}分 記録しました！"
-            if reached:
-                st.session_state["goal_reached_msg"] = "🎉 目標達成！"
+            if reached: st.session_state["goal_reached_msg"] = "🎉 目標達成！"
             st.rerun()
 
 # --- メイン処理 ---
@@ -237,7 +239,7 @@ def main():
             "start_time": None, "celebrate": False, "toast_msg": None, 
             "selected_date": str(date.today()),
             "cal_year": date.today().year, "cal_month": date.today().month,
-            "selected_bgm": "なし" # BGM状態保存用
+            "selected_bgm": "なし"
         })
 
     if not st.session_state["logged_in"]:
@@ -272,6 +274,12 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
+    # --- データの自動補正 (既存ユーザーへのBGMカラム追加対応) ---
+    if 'unlocked_bgms' not in user:
+        supabase.table("users").update({"unlocked_bgms": "Lofi"}).eq("username", user['username']).execute()
+        user['unlocked_bgms'] = "Lofi"
+        st.rerun()
+
     # 壁紙初期化
     if not user.get('current_wallpaper'):
         supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
@@ -300,10 +308,13 @@ def main():
     with st.sidebar:
         st.subheader("⚙️ 設定")
         
-        # ★BGM設定 (集中モード時に再生)
+        # ★BGM選択 (購入済みのみ表示)
         st.markdown("##### 🎵 集中時のBGM")
-        bgm_options = ["なし", "雨音 (Rain)", "カフェ (Jazz)", "森 (Nature)", "ホワイトノイズ"]
-        st.session_state["selected_bgm"] = st.selectbox("再生する音", bgm_options, index=0)
+        my_bgms = ["なし"] + user.get('unlocked_bgms', 'Lofi').split(',')
+        if "Lofi" not in my_bgms: my_bgms.append("Lofi") # 念のため
+        
+        selected_bgm = st.selectbox("再生する音", my_bgms, index=0)
+        st.session_state["selected_bgm"] = selected_bgm
 
         with st.expander("👑 称号装備"):
             my_titles = user.get('unlocked_titles', '見習い').split(',')
@@ -337,6 +348,7 @@ def main():
         
         st.divider()
         
+        # フォント設定
         VALID = ["標準", "ピクセル風", "手書き風", "ポップ", "明朝体", "筆文字"]
         my_fonts = [t for t in user.get('unlocked_themes', '').split(',') if t in VALID]
         if not my_fonts: my_fonts = ["標準"]
@@ -355,21 +367,22 @@ def main():
     if st.session_state["is_studying"]:
         st.empty()
         
-        # BGM再生ロジック
-        bgm_file = None
-        sel_bgm = st.session_state.get("selected_bgm", "なし")
-        if sel_bgm == "雨音 (Rain)":
-            bgm_file = "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3"
-        elif sel_bgm == "カフェ (Jazz)":
-            bgm_file = "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3"
-        elif sel_bgm == "森 (Nature)":
-            bgm_file = "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3"
-        elif sel_bgm == "ホワイトノイズ":
-            bgm_file = "https://cdn.pixabay.com/download/audio/2021/08/09/audio_2736e248b5.mp3" # 代用
-            
-        if bgm_file:
-            st.audio(bgm_file, format="audio/mp3", loop=True, autoplay=True)
-            st.caption(f"🎵 再生中: {sel_bgm}")
+        # BGM再生ロジック (Pixabayなどのフリー素材URL)
+        bgm_url = None
+        s_bgm = st.session_state.get("selected_bgm", "なし")
+        
+        # URLマップ
+        bgm_map = {
+            "Lofi": "https://cdn.pixabay.com/download/audio/2022/11/22/audio_febc508520.mp3", # Empty Mind
+            "雨音": "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3",
+            "カフェ": "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3",
+            "森": "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3",
+            "ホワイトノイズ": "https://cdn.pixabay.com/download/audio/2021/08/09/audio_2736e248b5.mp3"
+        }
+        
+        if s_bgm in bgm_map:
+            st.audio(bgm_map[s_bgm], format="audio/mp3", loop=True, autoplay=True)
+            st.caption(f"🎵 再生中: {s_bgm}")
 
         st.markdown(f"<h1 style='text-align:center;'>🔥 {st.session_state.get('current_subject','')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
@@ -532,10 +545,29 @@ def main():
     with t5: 
         st.subheader("🛒 ショップ")
         
-        c_font, c_other = st.columns(2)
+        c_bgm, c_other = st.columns(2)
         
-        with c_font:
-            st.markdown("#### 🅰️ フォント購入")
+        with c_bgm:
+            st.markdown("#### 🎵 BGM購入")
+            # BGM販売リスト
+            for b, p in [("雨音", 500), ("カフェ", 800), ("森", 800), ("ホワイトノイズ", 300)]:
+                with st.container(border=True):
+                    bc1, bc2 = st.columns([0.6, 0.4])
+                    bc1.write(f"**{b}**")
+                    bc1.caption(f"{p} G")
+                    
+                    if b not in user.get('unlocked_bgms', 'Lofi'):
+                        if bc2.button("購入", key=f"buy_bgm_{b}"):
+                            if user['coins'] >= p:
+                                current_bgms = user.get('unlocked_bgms', 'Lofi')
+                                new_bgms = current_bgms + "," + b
+                                supabase.table("users").update({"coins": user['coins'] - p, "unlocked_bgms": new_bgms}).eq("username", user['username']).execute()
+                                st.balloons(); st.rerun()
+                            else: st.error("不足")
+                    else: bc2.write("✅ 済")
+
+        with c_other:
+            st.markdown("#### 🅰️ フォント")
             for f, p in [("ピクセル風",500),("手書き風",800),("ポップ",1000),("明朝体",1200),("筆文字",1500)]:
                 with st.container(border=True):
                     fc1, fc2 = st.columns([0.6,0.4])
@@ -548,9 +580,10 @@ def main():
                                 st.balloons(); st.rerun()
                             else: st.error("不足")
                     else: fc2.write("✅ 済")
-
-        with c_other:
-            st.markdown("#### 🖼️ 壁紙購入")
+            
+            st.divider()
+            
+            st.markdown("#### 🖼️ 壁紙")
             for w, p in [("真っ黒",500),("夕焼け",800),("夜空",1000),("草原",1200)]:
                 with st.container(border=True):
                     wc1, wc2 = st.columns([0.6,0.4])
@@ -564,6 +597,7 @@ def main():
                             else: st.error("不足")
                     else: wc2.write("✅ 済")
             
+            st.divider()
             st.markdown("#### 🎲 称号ガチャ")
             with st.container(border=True):
                 st.write("**ランダム称号ガチャ (1回 100 G)**")

@@ -65,7 +65,6 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
     # 背景CSS設定
     bg_style = ""
     
-    # 「真っ白」のときは透明度計算をせず、完全に不透明な白にする（バグ回避）
     if wallpaper == "真っ白":
         bg_style = "background-color: #ffffff !important;"
         card_bg_color = "#ffffff"
@@ -101,7 +100,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", custom_data=None,
             img_id = wallpapers.get(wallpaper, "1472214103451-9374bd1c798e")
             bg_url = f"https://images.unsplash.com/photo-{img_id}?auto=format&fit=crop&w=1920&q=80"
             bg_style = f"""
-                background-image: linear-gradient(rgba(0,0,0,{bg_opacity}), rgba(0,0,0,{bg_opacity})), url("{bg_url}") !important;
+                background-image: linear-gradient(rgba(255,255,255,{bg_opacity}), rgba(255,255,255,{bg_opacity})), url("{bg_url}") !important;
                 background-attachment: fixed !important;
                 background-size: cover !important;
             """
@@ -422,12 +421,9 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # 自動移行（初期化）
-    if "真っ白" not in user.get('unlocked_wallpapers', ''):
-        supabase.table("users").update({
-            "unlocked_wallpapers": user.get('unlocked_wallpapers', '') + ",真っ白",
-            "current_wallpaper": "真っ白"
-        }).eq("username", user['username']).execute()
+    # 自動移行（既存ユーザーのデータを修正）
+    if user.get('current_wallpaper') != "真っ白":
+        supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
         st.rerun()
 
     today_str = str(date.today())
@@ -440,10 +436,6 @@ def main():
         st.toast("🎁 ログインボーナス！ +50コイン GET！", icon="🎁")
         time.sleep(1)
         user['coins'] = new_coins
-
-    # 変数初期化
-    bg_darkness = 0.5
-    container_opacity = 0.9
 
     # サイドバー (設定)
     with st.sidebar:
@@ -463,13 +455,6 @@ def main():
                 }).eq("username", user['username']).execute()
                 st.rerun()
 
-        st.markdown("##### 🎚️ 表示調整")
-        if user.get('current_wallpaper') == "真っ白":
-            st.info("※「真っ白」テーマでは表示調整は無効です")
-        else:
-            bg_darkness = st.slider("背景の暗さ (画像時)", 0.0, 1.0, 0.5, 0.1, help="0: 明るい, 1: 暗い")
-            container_opacity = st.slider("ウィンドウ不透明度", 0.0, 1.0, 0.9, 0.1, help="0: 透明, 1: 濃い")
-        
         st.divider()
 
         # 目標設定
@@ -481,52 +466,20 @@ def main():
                 st.success("保存しました"); time.sleep(0.5); st.rerun()
         
         st.divider()
-
-        # 壁紙設定
-        walls = user['unlocked_wallpapers'].split(',')
-        if "真っ白" not in walls: walls.insert(0, "真っ白")
         
-        if user.get('custom_wallpaper_unlocked'):
-            bg_mode = st.radio("壁紙モード", ["プリセット", "カスタム画像"], horizontal=True, label_visibility="collapsed")
-            if bg_mode == "カスタム画像":
-                st.caption("画像をアップロードして壁紙に設定")
-                uploaded_file = st.file_uploader("画像を選択", type=['jpg', 'png', 'jpeg'])
-                if uploaded_file:
-                    if st.button("この画像を適用"):
-                        img = Image.open(uploaded_file)
-                        img.thumbnail((1920, 1080))
-                        b64_str = image_to_base64(img)
-                        supabase.table("users").update({"current_wallpaper": "カスタム", "custom_bg_data": b64_str}).eq("username", user['username']).execute()
-                        st.success("更新しました！"); time.sleep(1); st.rerun()
-                elif user.get('current_wallpaper') == 'カスタム': st.success("カスタム画像適用中")
-            else:
-                current_w = user.get('current_wallpaper', '真っ白')
-                if current_w == 'カスタム': current_w = "真っ白"
-                new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
-                if new_w != user.get('current_wallpaper'):
-                    supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
-                    st.rerun()
-        else:
-            current_w = user.get('current_wallpaper', '真っ白')
-            if current_w not in walls: current_w = "真っ白"
-            new_w = st.selectbox("壁紙", walls, index=walls.index(current_w) if current_w in walls else 0)
-            if new_w != user.get('current_wallpaper'):
-                supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
-                st.rerun()
-        
-        # ★ここが重要：フォント選択肢の修正（BGMを除外）
+        # フォント設定
+        # ★修正箇所：DBに古いデータがあっても、リストにあるものだけを表示する
         VALID_FONTS = ["標準", "ピクセル風", "手書き風", "ポップ", "明朝体", "筆文字"]
         
-        # DBのデータをそのまま使わず、有効なフォントだけを抽出
         raw_themes = user.get('unlocked_themes', '標準').split(',')
+        # 有効なフォントのみ抽出
         my_fonts = [t for t in raw_themes if t in VALID_FONTS]
-        if not my_fonts: my_fonts = ["標準"] # 万が一空なら標準を入れる
+        if not my_fonts: my_fonts = ["標準"]
         
         current_theme = user.get('current_theme', '標準')
         if current_theme not in my_fonts: current_theme = "標準"
 
         new_t = st.selectbox("フォント", my_fonts, index=my_fonts.index(current_theme))
-        
         if new_t != user.get('current_theme'):
             supabase.table("users").update({"current_theme": new_t}).eq("username", user['username']).execute()
             st.rerun()
@@ -563,10 +516,6 @@ def main():
     # デザイン適用
     apply_design(
         user.get('current_theme', '標準'), 
-        user.get('current_wallpaper', '真っ白'), 
-        user.get('custom_bg_data'),
-        bg_opacity=bg_darkness,
-        container_opacity=container_opacity,
         main_text_color=user.get('main_text_color', '#000000'),
         accent_color=user.get('accent_color', '#FFD700')
     )
@@ -593,14 +542,6 @@ def main():
     goal = user.get('daily_goal', 60)
     goal_progress = min(1.0, today_mins / goal) if goal > 0 else 0
     
-    # HUD
-    if user.get('current_wallpaper') == "真っ白":
-        card_bg_rgba = "#ffffff"
-        border_style = "1px solid #e0e0e0"
-    else:
-        card_bg_rgba = f"rgba(255, 255, 255, {container_opacity})" if user.get('main_text_color', '#000000').lower() != "#ffffff" else f"rgba(30, 30, 30, {container_opacity})"
-        border_style = "1px solid rgba(128,128,128,0.2)"
-
     acc = user.get('accent_color', '#FFD700')
     main_txt = user.get('main_text_color', '#000000')
     
@@ -643,9 +584,17 @@ def main():
                     color = "#FF4B4B" if r['status'] == '未完了' else "#888"
                     events.append({"title": f"📝 {r['task_name']}", "start": r['due_date'], "color": color})
         if not logs_df.empty:
-            for _, r in logs_df.iterrows():
-                d_str = str(r['study_date']).split("T")[0]
-                events.append({"title": f"📖 {r['subject']} ({r['duration_minutes']}分)", "start": d_str, "color": "#00CC00"})
+            # ★修正: 勉強時間を科目ごとに合算してイベント作成
+            logs_df['day_str'] = logs_df['study_date'].astype(str).str.split("T").str[0]
+            # 日付と科目で集計
+            agg_logs = logs_df.groupby(['day_str', 'subject'])['duration_minutes'].sum().reset_index()
+            
+            for _, r in agg_logs.iterrows():
+                events.append({
+                    "title": f"📖 {r['subject']} ({r['duration_minutes']}分)", 
+                    "start": r['day_str'], 
+                    "color": "#00CC00"
+                })
 
         with c1:
             with st.container(border=True):
@@ -661,6 +610,7 @@ def main():
                     "initialView": "dayGridMonth",
                     "height": 600,
                 }
+                # key='calendar' で初期描画を安定化
                 cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar')
                 
                 if cal.get('dateClick'):
@@ -827,6 +777,7 @@ def main():
                             else: st.error("コイン不足")
 
         st.markdown("### 🖼️ 壁紙")
+        # 壁紙機能は実質無効だが、購入済みのものは一応表示
         items = [("真っ黒", 500), ("草原", 500), ("夕焼け", 500), ("夜空", 800), ("ダンジョン", 1200), ("王宮", 2000)]
         cols = st.columns(2)
         for i, (n, p) in enumerate(items):
@@ -835,7 +786,7 @@ def main():
                     st.markdown(f"<div class='shop-title'>{n}</div>", unsafe_allow_html=True)
                     if n in user['unlocked_wallpapers']:
                         st.markdown(f"<span class='shop-owned'>所有済み</span>", unsafe_allow_html=True)
-                        st.button("設定へ", disabled=True, key=f"d_{n}")
+                        st.button("設定へ", disabled=True, key=f"d_{n}") # ボタンは機能しない
                     else:
                         st.markdown(f"<div class='shop-price'>{p} G</div>", unsafe_allow_html=True)
                         if st.button("購入", key=f"buy_w_{n}", use_container_width=True):

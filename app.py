@@ -12,7 +12,7 @@ from PIL import Image
 import hashlib
 import extra_streamlit_components as stx
 
-# ページ設定
+# ページ設定 (サイドバーは最初から開いておく)
 st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide", initial_sidebar_state="expanded")
 
 # --- 日本時間 (JST) の定義 ---
@@ -48,7 +48,7 @@ def show_event_info(title, start, color):
     st.write(f"📅 **日付:** {display_start}")
     st.markdown(f"🎨 **ラベル色:** <span style='color:{color}; font-size:1.5em;'>■</span>", unsafe_allow_html=True)
 
-# --- デザイン適用関数 (カレンダーへの干渉を排除) ---
+# --- デザイン適用関数 (カレンダー以外を担当) ---
 def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
@@ -98,7 +98,7 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
     div[data-baseweb="base-input"] {{ background-color: #ffffff !important; }}
 
-    /* カードデザイン（影付きの白い箱） */
+    /* カードデザイン */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: #ffffff !important;
         border: 1px solid #e0e0e0;
@@ -133,13 +133,6 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; }}
-    
-    /* ★カレンダーのCSS強制指定（これがないと消える場合がある） */
-    .fc {{
-        min-height: 600px !important;
-        height: auto !important;
-        background-color: white !important;
-    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -319,6 +312,11 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
+    # 自動移行（既存ユーザーのデータを修正）
+    if user.get('current_wallpaper') != "真っ白":
+        supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
+        st.rerun()
+
     today_str = str(date.today())
     if user.get('last_login_date') != today_str:
         new_coins = user['coins'] + 50
@@ -410,7 +408,7 @@ def main():
             st.session_state["logged_in"] = False
             st.rerun()
 
-    # ★ 集中モード (BGM無し)
+    # ★ 集中モード
     if st.session_state["is_studying"]:
         st.empty()
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)
@@ -474,7 +472,6 @@ def main():
                     color = "#FF4B4B" if r['status'] == '未完了' else "#888"
                     events.append({"title": f"📝 {r['task_name']}", "start": r['due_date'], "color": color})
         if not logs_df.empty:
-            # 勉強時間の合算処理
             logs_df['day_str'] = logs_df['study_date'].astype(str).str.split("T").str[0]
             agg_logs = logs_df.groupby(['day_str', 'subject'])['duration_minutes'].sum().reset_index()
             for _, r in agg_logs.iterrows():
@@ -487,21 +484,34 @@ def main():
         with c1:
             with st.container(border=True):
                 st.subheader("📅 カレンダー")
+                
+                # ★修正ポイント：CSSをここに直接渡して、カレンダーのキーを動的にする
+                custom_css = {
+                    ".fc-event-past": {"opacity": "0.8"},
+                    ".fc-event-time": {"font-style": "italic"},
+                    ".fc-event-title": {"font-weight": "700"},
+                    ".fc-toolbar-title": {"font-size": "2rem", "color": "#333"},
+                    ".fc-button": {"background": "#FFD700", "border": "none", "color": "#000"},
+                    ".fc": {"background": "white", "min-height": "600px"}
+                }
+                
                 calendar_options = {
                     "editable": True,
                     "navLinks": True,
-                    "initialDate": str(date.today()), # 初期表示日をセット
+                    "initialDate": str(date.today()),
                     "headerToolbar": {
                         "left": "today prev,next",
                         "center": "title",
                         "right": "dayGridMonth,timeGridWeek,timeGridDay"
                     },
                     "initialView": "dayGridMonth",
-                    "height": 650, # 高さを明確に指定
                 }
                 
-                # ★ここがポイント: keyを固定にして、再描画の迷子を防ぐ
-                cal = calendar(events=events, options=calendar_options, callbacks=['dateClick', 'eventClick'], key='calendar_final')
+                # keyにイベント数を含めることで、データ更新時（タスク追加時）だけでなく、
+                # 初回ロード時もユニークなキーとして認識させ、描画を強制する
+                cal_key = f"cal_{user['username']}_{len(events)}"
+                
+                cal = calendar(events=events, options=calendar_options, custom_css=custom_css, callbacks=['dateClick', 'eventClick'], key=cal_key)
                 
                 if cal.get('dateClick'):
                     st.session_state["selected_date"] = cal['dateClick']['dateStr']

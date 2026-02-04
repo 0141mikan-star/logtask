@@ -33,8 +33,14 @@ supabase = init_supabase()
 # --- Cookieマネージャー ---
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
-# --- デザイン適用 ---
-def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#FFD700"):
+# --- 画像処理 ---
+def image_to_base64(img):
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode()
+
+# --- デザイン適用 (壁紙・BGM対応) ---
+def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -45,22 +51,66 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
+    # 壁紙設定
+    bg_css = "background-color: #ffffff;" # デフォルト白
+    sidebar_bg = "#f8f9fa"
+    container_bg = "#ffffff"
+    text_color = main_text_color
+    
+    if wallpaper == "真っ黒":
+        bg_css = "background-color: #121212;"
+        sidebar_bg = "#1e1e1e"
+        container_bg = "#2d2d2d"
+        text_color = "#ffffff"
+    elif wallpaper == "夕焼け":
+        bg_css = "background-image: linear-gradient(120deg, #f6d365 0%, #fda085 100%);"
+        container_bg = "rgba(255, 255, 255, 0.8)"
+    elif wallpaper == "夜空":
+        bg_css = "background-image: linear-gradient(to top, #30cfd0 0%, #330867 100%);"
+        sidebar_bg = "rgba(0, 0, 0, 0.5)"
+        container_bg = "rgba(255, 255, 255, 0.9)"
+    elif wallpaper == "草原":
+        bg_css = "background-image: linear-gradient(120deg, #d4fc79 0%, #96e6a1 100%);"
+        container_bg = "rgba(255, 255, 255, 0.8)"
+
     st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
-    [data-testid="stAppViewContainer"], .stApp {{ background-color: #ffffff !important; }}
+    
+    /* 背景適用 */
+    [data-testid="stAppViewContainer"], .stApp {{ {bg_css} }}
     
     /* サイドバー */
-    [data-testid="stSidebar"] {{ background-color: #f8f9fa !important; border-right: 1px solid #ddd; }}
-    [data-testid="stSidebar"] * {{ color: #000000 !important; }}
+    [data-testid="stSidebar"] {{ 
+        background-color: {sidebar_bg} !important; 
+        border-right: 1px solid rgba(128,128,128,0.2); 
+    }}
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] span {{
+        color: {main_text_color} !important;
+    }}
     
-    /* 文字色 */
+    /* メイン文字色 */
     .main h1, .main h2, .main h3, .main p, .main span, .main label, .main div {{ 
-        color: {main_text_color} !important; 
+        color: {text_color} !important; 
     }}
 
+    /* 入力フォーム */
+    input, textarea, select {{
+        background-color: #ffffff !important; color: #000000 !important; border: 1px solid #ccc !important;
+    }}
+    div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
+
+    /* コンテナ */
+    div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
+        background-color: {container_bg} !important;
+        border: 1px solid rgba(128,128,128,0.2);
+        border-radius: 12px; 
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }}
+    
     /* カレンダーの日付ボタン */
     .stButton button {{
         width: 100%;
@@ -69,14 +119,14 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
         line-height: 1.1;
         padding: 2px;
         border: 1px solid #eee;
-        background-color: white;
+        background-color: rgba(255,255,255,0.9);
         color: #333;
         transition: all 0.2s;
         border-radius: 8px;
     }}
     .stButton button:hover {{
         border-color: {accent_color};
-        background-color: #fffdf0;
+        background-color: #fff;
         transform: translateY(-2px);
         z-index: 10;
         position: relative;
@@ -89,32 +139,31 @@ def apply_design(user_theme="標準", main_text_color="#000000", accent_color="#
         font-weight: bold;
         border-width: 2px;
     }}
-
-    /* コンテナ */
-    div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
-        background-color: #ffffff !important;
-        border: 1px solid #e0e0e0;
-        border-radius: 12px; 
-        padding: 20px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }}
     
     /* ステータスバー */
     .status-bar {{
-        background: #ffffff; border: 1px solid #e0e0e0; padding: 15px; border-radius: 12px; 
+        background: {container_bg}; 
+        border: 1px solid rgba(128,128,128,0.2); 
+        padding: 15px; border-radius: 12px; 
         display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; }}
     
+    /* ボタン */
+    button[kind="primary"] {{
+        background: {accent_color} !important;
+        border: none !important; color: #000 !important; font-weight: bold !important;
+    }}
+    
     /* ランキングカード */
     .ranking-card {{
-        background: #ffffff;
-        border: 1px solid #e0e0e0;
+        background: {container_bg};
+        border: 1px solid rgba(128,128,128,0.2);
         border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
     }}
     .rank-medal {{ font-size: 28px; width: 50px; text-align: center; }}
-    .rank-name {{ font-size: 1.1em; font-weight: bold; color: {main_text_color}; }}
+    .rank-name {{ font-size: 1.1em; font-weight: bold; color: {text_color}; }}
     .rank-title {{ font-size: 0.8em; color: {accent_color}; margin-left: 10px; }}
     .rank-score {{ font-size: 1.3em; font-weight: bold; color: {accent_color}; margin-left: auto; }}
     </style>
@@ -261,8 +310,8 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # 自動移行
-    if user.get('current_wallpaper') != "真っ白":
+    # 壁紙初期化
+    if not user.get('current_wallpaper'):
         supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
         st.rerun()
 
@@ -280,21 +329,39 @@ def main():
 
     apply_design(
         user.get('current_theme', '標準'), 
-        main_text_color=user.get('main_text_color', '#000000'),
-        accent_color=user.get('accent_color', '#FFD700')
+        user.get('current_wallpaper', '真っ白'),
+        user.get('main_text_color', '#000000'),
+        user.get('accent_color', '#FFD700')
     )
 
     # サイドバー
     with st.sidebar:
         st.subheader("⚙️ 設定")
         
-        # 称号装備
+        # BGM機能
+        st.markdown("##### 🎵 BGM")
+        bgm = st.selectbox("音楽を選択", ["なし", "集中 (Nature)", "カフェ (Jazz)", "雨音 (Rain)"])
+        if bgm == "集中 (Nature)":
+            st.audio("https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3", loop=True)
+        elif bgm == "カフェ (Jazz)":
+            st.audio("https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3", loop=True)
+        elif bgm == "雨音 (Rain)":
+            st.audio("https://cdn.pixabay.com/download/audio/2021/08/09/audio_2736e248b5.mp3", loop=True)
+
         with st.expander("👑 称号装備"):
             my_titles = user.get('unlocked_titles', '見習い').split(',')
             cur_t = user.get('current_title', '見習い')
             new_title = st.selectbox("現在の称号", my_titles, index=my_titles.index(cur_t) if cur_t in my_titles else 0)
             if new_title != cur_t:
                 supabase.table("users").update({"current_title": new_title}).eq("username", user['username']).execute()
+                st.rerun()
+
+        with st.expander("🖼️ 壁紙"):
+            my_walls = user.get('unlocked_wallpapers', '真っ白').split(',')
+            cur_w = user.get('current_wallpaper', '真っ白')
+            new_w = st.selectbox("背景テーマ", my_walls, index=my_walls.index(cur_w) if cur_w in my_walls else 0)
+            if new_w != cur_w:
+                supabase.table("users").update({"current_wallpaper": new_w}).eq("username", user['username']).execute()
                 st.rerun()
 
         with st.expander("🎨 文字色"):
@@ -319,7 +386,6 @@ def main():
         if not my_fonts: my_fonts = ["標準"]
         cur_font = user.get('current_theme', '標準')
         if cur_font not in my_fonts: cur_font = "標準"
-        
         nt = st.selectbox("フォント", my_fonts, index=my_fonts.index(cur_font))
         if nt != cur_font:
             supabase.table("users").update({"current_theme": nt}).eq("username", user['username']).execute()
@@ -360,6 +426,7 @@ def main():
         
         with c1:
             with st.container(border=True):
+                # 月移動
                 mc1, mc2, mc3 = st.columns([0.2, 0.6, 0.2])
                 with mc1:
                     if st.button("◀ 前月"):
@@ -367,7 +434,7 @@ def main():
                         if st.session_state.cal_month == 0: st.session_state.cal_month = 12; st.session_state.cal_year -= 1
                         st.rerun()
                 with mc2:
-                    st.markdown(f"<h3 style='text-align:center; margin:0;'>{st.session_state.cal_year}年 {st.session_state.cal_month}月</h3>", unsafe_allow_html=True)
+                    st.markdown(f"<h3 style='text-align:center; margin:0; color:{user.get('main_text_color')};'>{st.session_state.cal_year}年 {st.session_state.cal_month}月</h3>", unsafe_allow_html=True)
                 with mc3:
                     if st.button("次月 ▶"):
                         st.session_state.cal_month += 1
@@ -488,12 +555,12 @@ def main():
         if not rk.empty:
             for i, r in rk.iterrows():
                 medal = "🥇" if i==0 else "🥈" if i==1 else "🥉" if i==2 else f"{i+1}位"
-                st.markdown(f"<div class='ranking-card'><div class='rank-medal'>{medal}</div><div class='rank-info'><div class='rank-name'>{r['nickname']}</div><div class='rank-title'>👑 {r['current_title']}</div></div><div class='rank-score'>{int(r['duration_minutes'])} min</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='ranking-card'><div class='rank-medal'>{medal}</div><div class='rank-info'><div class='rank-name'>{r['nickname']}</div><div class='rank-title'>{r['current_title']}</div></div><div class='rank-score'>{int(r['duration_minutes'])} min</div></div>", unsafe_allow_html=True)
 
     with t5: 
         st.subheader("🛒 ショップ")
         
-        c_font, c_title = st.columns(2)
+        c_font, c_other = st.columns(2)
         
         with c_font:
             st.markdown("#### 🅰️ フォント購入")
@@ -510,16 +577,28 @@ def main():
                             else: st.error("不足")
                     else: fc2.write("✅ 済")
 
-        with c_title:
+        with c_other:
+            st.markdown("#### 🖼️ 壁紙購入")
+            for w, p in [("真っ黒",500),("夕焼け",800),("夜空",1000),("草原",1200)]:
+                with st.container(border=True):
+                    wc1, wc2 = st.columns([0.6,0.4])
+                    wc1.write(f"**{w}**")
+                    wc1.caption(f"{p} G")
+                    if w not in user['unlocked_wallpapers']:
+                        if wc2.button("購入", key=f"buy_w_{w}"):
+                            if user['coins']>=p:
+                                supabase.table("users").update({"coins":user['coins']-p, "unlocked_wallpapers":user['unlocked_wallpapers']+","+w}).eq("username", user['username']).execute()
+                                st.balloons(); st.rerun()
+                            else: st.error("不足")
+                    else: wc2.write("✅ 済")
+            
             st.markdown("#### 🎲 称号ガチャ")
             with st.container(border=True):
-                st.write("**ランダム称号ガチャ**")
-                st.write("1回 100 G")
+                st.write("**ランダム称号ガチャ (1回 100 G)**")
                 if st.button("ガチャを回す", type="primary"):
                     if user['coins'] >= 100:
                         titles = ["駆け出し", "努力家", "集中王", "夜更かし", "天才", "覚醒者", "大賢者", "神童", "マスター", "レジェンド"]
                         got = random.choice(titles)
-                        
                         current_list = user['unlocked_titles'].split(',')
                         if got not in current_list:
                             new_list = user['unlocked_titles'] + "," + got
@@ -528,11 +607,8 @@ def main():
                         else:
                             supabase.table("users").update({"coins":user['coins']-100}).eq("username", user['username']).execute()
                             st.toast(f"かぶり！「{got}」だった...")
-                        st.balloons()
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error("コインが足りません")
+                        st.balloons(); time.sleep(1); st.rerun()
+                    else: st.error("コイン不足")
 
     with t6: 
         ns = st.text_input("新規科目")

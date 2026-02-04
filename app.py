@@ -35,13 +35,16 @@ def init_supabase():
 supabase = init_supabase()
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
-# --- BGMリスト (安定板) ---
+# --- BGMリスト (再生可能な安定動画に変更) ---
 BGM_DATA = {
-    "☕ Lofi Girl (Hip Hop)": {"url": "https://www.youtube.com/watch?v=jfKfPfyJRdk", "price": 0},
-    "🎹 静かなピアノ (Relax)": {"url": "https://www.youtube.com/watch?v=WjXR-2t2g7s", "price": 300},
-    "🌧️ 優しい雨音 (Rain)": {"url": "https://www.youtube.com/watch?v=q76bMs-NwRk", "price": 300},
-    "📚 図書館の音 (Library)": {"url": "https://www.youtube.com/watch?v=4vIQON2fDWM", "price": 300},
-    "🔥 焚き火 (Bonfire)": {"url": "https://www.youtube.com/watch?v=L_LUpnjgPso", "price": 500}
+    # Lofi Girl (ライブ配信は不安定なため、公式の長時間動画に変更)
+    "☕ Lofi Girl (Study)": {"url": "https://www.youtube.com/watch?v=n61ULEU7CO0", "price": 0},
+    # 著作権フリー系の安定したピアノ曲
+    "🎹 癒やしのピアノ (Piano)": {"url": "https://www.youtube.com/watch?v=CNFjC8V4W6E", "price": 300},
+    # 環境音系
+    "🌧️ 静かな雨 (Rain)": {"url": "https://www.youtube.com/watch?v=M3hV2Pec6ys", "price": 300},
+    "☕ カフェの音 (Cafe)": {"url": "https://www.youtube.com/watch?v=h2VpbL2v-7Y", "price": 300},
+    "🔥 焚き火 (Bonfire)": {"url": "https://www.youtube.com/watch?v=c0_ejQQcrwI", "price": 500}
 }
 
 # --- 認証・DB操作 ---
@@ -197,7 +200,7 @@ def show_daily_detail(date_str, username):
     if st.button("閉じる"):
         st.rerun()
 
-# --- 自作カレンダー描画関数 ---
+# --- カレンダー描画関数 ---
 def render_custom_calendar(year, month, logs_df, tasks_df, username):
     c_prev, c_title, c_next = st.columns([1, 5, 1])
     with c_prev:
@@ -515,6 +518,7 @@ def main():
 
     if st.session_state["is_studying"]:
         st.empty()
+        # BGM再生 (自動再生オフ)
         if "current_bgm_url" in st.session_state and st.session_state["current_bgm_url"]:
             st.video(st.session_state["current_bgm_url"])
         st.markdown(f"<h1 style='text-align: center; font-size: 3em;'>🔥 {st.session_state.get('current_subject', '勉強')} 中...</h1>", unsafe_allow_html=True)

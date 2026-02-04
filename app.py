@@ -39,7 +39,7 @@ def image_to_base64(img):
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# --- デザイン適用 (壁紙・BGM対応) ---
+# --- デザイン適用 ---
 def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
@@ -52,7 +52,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
     font_family = fonts.get(user_theme, "sans-serif")
     
     # 壁紙設定
-    bg_css = "background-color: #ffffff;" # デフォルト白
+    bg_css = "background-color: #ffffff;"
     sidebar_bg = "#f8f9fa"
     container_bg = "#ffffff"
     text_color = main_text_color
@@ -78,94 +78,49 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
     html, body, [class*="css"] {{ font-family: {font_family} !important; }}
-    
-    /* 背景適用 */
     [data-testid="stAppViewContainer"], .stApp {{ {bg_css} }}
     
     /* サイドバー */
-    [data-testid="stSidebar"] {{ 
-        background-color: {sidebar_bg} !important; 
-        border-right: 1px solid rgba(128,128,128,0.2); 
-    }}
-    [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] span {{
-        color: {main_text_color} !important;
-    }}
+    [data-testid="stSidebar"] {{ background-color: {sidebar_bg} !important; border-right: 1px solid rgba(128,128,128,0.2); }}
+    [data-testid="stSidebar"] * {{ color: {main_text_color} !important; }}
     
     /* メイン文字色 */
     .main h1, .main h2, .main h3, .main p, .main span, .main label, .main div {{ 
         color: {text_color} !important; 
     }}
 
-    /* 入力フォーム */
-    input, textarea, select {{
-        background-color: #ffffff !important; color: #000000 !important; border: 1px solid #ccc !important;
+    /* カレンダーの日付ボタン */
+    .stButton button {{
+        width: 100%; height: 70px; white-space: pre-wrap; line-height: 1.1; padding: 2px;
+        border: 1px solid #eee; background-color: rgba(255,255,255,0.95); color: #333;
+        transition: all 0.2s; border-radius: 8px;
     }}
-    div[data-baseweb="select"] > div {{ background-color: #ffffff !important; color: #000000 !important; }}
+    .stButton button:hover {{
+        border-color: {accent_color}; background-color: #fff; transform: translateY(-2px); z-index: 10; position: relative;
+    }}
+    div[data-testid="stVerticalBlock"] .stButton button[kind="primary"] {{
+        background-color: {accent_color} !important; border-color: #000 !important; color: #000 !important; font-weight: bold; border-width: 2px;
+    }}
 
     /* コンテナ */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: {container_bg} !important;
-        border: 1px solid rgba(128,128,128,0.2);
-        border-radius: 12px; 
-        padding: 20px;
+        border: 1px solid rgba(128,128,128,0.2); border-radius: 12px; padding: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }}
-    
-    /* カレンダーの日付ボタン */
-    .stButton button {{
-        width: 100%;
-        height: 70px;
-        white-space: pre-wrap;
-        line-height: 1.1;
-        padding: 2px;
-        border: 1px solid #eee;
-        background-color: rgba(255,255,255,0.9);
-        color: #333;
-        transition: all 0.2s;
-        border-radius: 8px;
-    }}
-    .stButton button:hover {{
-        border-color: {accent_color};
-        background-color: #fff;
-        transform: translateY(-2px);
-        z-index: 10;
-        position: relative;
-    }}
-    /* 選択中の日付 */
-    div[data-testid="stVerticalBlock"] .stButton button[kind="primary"] {{
-        background-color: {accent_color} !important;
-        border-color: #000 !important;
-        color: #000 !important;
-        font-weight: bold;
-        border-width: 2px;
     }}
     
     /* ステータスバー */
     .status-bar {{
-        background: {container_bg}; 
-        border: 1px solid rgba(128,128,128,0.2); 
-        padding: 15px; border-radius: 12px; 
-        display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
+        background: {container_bg}; border: 1px solid rgba(128,128,128,0.2); 
+        padding: 15px; border-radius: 12px; display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; }}
     
     /* ボタン */
     button[kind="primary"] {{
-        background: {accent_color} !important;
-        border: none !important; color: #000 !important; font-weight: bold !important;
+        background: {accent_color} !important; border: none !important; color: #000 !important; font-weight: bold !important;
     }}
-    
-    /* ランキングカード */
-    .ranking-card {{
-        background: {container_bg};
-        border: 1px solid rgba(128,128,128,0.2);
-        border-radius: 12px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center;
-    }}
-    .rank-medal {{ font-size: 28px; width: 50px; text-align: center; }}
-    .rank-name {{ font-size: 1.1em; font-weight: bold; color: {text_color}; }}
-    .rank-title {{ font-size: 0.8em; color: {accent_color}; margin-left: 10px; }}
-    .rank-score {{ font-size: 1.3em; font-weight: bold; color: {accent_color}; margin-left: auto; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -222,7 +177,6 @@ def add_study_log(u, s, m, d):
     total = sum([l['duration_minutes'] for l in logs.data]) if logs.data else m
     goal_reached = False
     if ud.get('last_goal_reward_date') != today_str and total >= ud.get('daily_goal', 60):
-        # 目標達成ボーナス
         supabase.table("users").update({"xp": ud['xp']+m, "coins": ud['coins']+m+100, "last_goal_reward_date": today_str}).eq("username", u).execute()
         goal_reached = True
     else:
@@ -249,23 +203,30 @@ def complete_task(tid, u):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": ud['xp']+10, "coins": ud['coins']+10}).eq("username", u).execute()
 
-# --- タイマー ---
+# --- タイマー (※BGMはここではなくメイン処理側で再生) ---
 @st.fragment(run_every=1)
 def show_timer_fragment(user_name):
     now = time.time()
     start = st.session_state.get("start_time", now)
     elapsed = int(now - start)
     h, m, s = elapsed // 3600, (elapsed % 3600) // 60, elapsed % 60
-    st.markdown(f"<div style='text-align:center; font-size:6em; font-weight:bold; color:#000;'>{h:02}:{m:02}:{s:02}</div>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c2:
+    
+    st.markdown(f"""
+    <div style="text-align: center; font-size: 6em; font-weight: bold; margin-bottom: 20px;">
+        {h:02}:{m:02}:{s:02}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
         if st.button("⏹️ 終了して記録", use_container_width=True, type="primary"):
             duration = max(1, elapsed // 60)
             _, _, _, reached = add_study_log(user_name, st.session_state.get("current_subject", "自習"), duration, date.today())
             st.session_state["is_studying"] = False
             st.session_state["celebrate"] = True
             st.session_state["toast_msg"] = f"{duration}分 記録しました！"
-            if reached: st.session_state["goal_reached_msg"] = "🎉 目標達成！"
+            if reached:
+                st.session_state["goal_reached_msg"] = "🎉 目標達成！"
             st.rerun()
 
 # --- メイン処理 ---
@@ -275,7 +236,8 @@ def main():
             "logged_in": False, "username": "", "is_studying": False, 
             "start_time": None, "celebrate": False, "toast_msg": None, 
             "selected_date": str(date.today()),
-            "cal_year": date.today().year, "cal_month": date.today().month
+            "cal_year": date.today().year, "cal_month": date.today().month,
+            "selected_bgm": "なし" # BGM状態保存用
         })
 
     if not st.session_state["logged_in"]:
@@ -338,15 +300,10 @@ def main():
     with st.sidebar:
         st.subheader("⚙️ 設定")
         
-        # ★BGM機能
-        st.markdown("##### 🎵 BGM")
-        bgm = st.selectbox("音楽を選択", ["なし", "集中 (Nature)", "カフェ (Jazz)", "雨音 (Rain)"])
-        if bgm == "集中 (Nature)":
-            st.audio("https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3", loop=True)
-        elif bgm == "カフェ (Jazz)":
-            st.audio("https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3", loop=True)
-        elif bgm == "雨音 (Rain)":
-            st.audio("https://cdn.pixabay.com/download/audio/2021/08/09/audio_2736e248b5.mp3", loop=True)
+        # ★BGM設定 (集中モード時に再生)
+        st.markdown("##### 🎵 集中時のBGM")
+        bgm_options = ["なし", "雨音 (Rain)", "カフェ (Jazz)", "森 (Nature)", "ホワイトノイズ"]
+        st.session_state["selected_bgm"] = st.selectbox("再生する音", bgm_options, index=0)
 
         with st.expander("👑 称号装備"):
             my_titles = user.get('unlocked_titles', '見習い').split(',')
@@ -380,7 +337,6 @@ def main():
         
         st.divider()
         
-        # フォント設定
         VALID = ["標準", "ピクセル風", "手書き風", "ポップ", "明朝体", "筆文字"]
         my_fonts = [t for t in user.get('unlocked_themes', '').split(',') if t in VALID]
         if not my_fonts: my_fonts = ["標準"]
@@ -395,8 +351,27 @@ def main():
             cookie_manager.delete('logtask_auth')
             st.session_state["logged_in"] = False; st.rerun()
 
+    # ★ 集中モード (ここでBGM再生)
     if st.session_state["is_studying"]:
-        st.empty(); st.markdown(f"<h1 style='text-align:center;'>🔥 {st.session_state.get('current_subject','')} 中...</h1>", unsafe_allow_html=True)
+        st.empty()
+        
+        # BGM再生ロジック
+        bgm_file = None
+        sel_bgm = st.session_state.get("selected_bgm", "なし")
+        if sel_bgm == "雨音 (Rain)":
+            bgm_file = "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3"
+        elif sel_bgm == "カフェ (Jazz)":
+            bgm_file = "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3"
+        elif sel_bgm == "森 (Nature)":
+            bgm_file = "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3"
+        elif sel_bgm == "ホワイトノイズ":
+            bgm_file = "https://cdn.pixabay.com/download/audio/2021/08/09/audio_2736e248b5.mp3" # 代用
+            
+        if bgm_file:
+            st.audio(bgm_file, format="audio/mp3", loop=True, autoplay=True)
+            st.caption(f"🎵 再生中: {sel_bgm}")
+
+        st.markdown(f"<h1 style='text-align:center;'>🔥 {st.session_state.get('current_subject','')} 中...</h1>", unsafe_allow_html=True)
         show_timer_fragment(user['username'])
         return
 
@@ -423,10 +398,8 @@ def main():
 
     with t1: 
         c1, c2 = st.columns([0.65, 0.35])
-        
         with c1:
             with st.container(border=True):
-                # 月移動
                 mc1, mc2, mc3 = st.columns([0.2, 0.6, 0.2])
                 with mc1:
                     if st.button("◀ 前月"):
@@ -491,7 +464,6 @@ def main():
                 else: st.caption("記録なし")
                 
                 st.divider()
-                
                 st.write("📝 **タスク**")
                 if not tasks.empty:
                     dt = tasks[tasks['due_date'].astype(str) == display_date]
@@ -555,7 +527,7 @@ def main():
         if not rk.empty:
             for i, r in rk.iterrows():
                 medal = "🥇" if i==0 else "🥈" if i==1 else "🥉" if i==2 else f"{i+1}位"
-                st.markdown(f"<div class='ranking-card'><div class='rank-medal'>{medal}</div><div class='rank-info'><div class='rank-name'>{r['nickname']}</div><div class='rank-title'>👑 {r['current_title']}</div></div><div class='rank-score'>{int(r['duration_minutes'])} min</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='ranking-card'><div class='rank-medal'>{medal}</div><div class='rank-info'><div class='rank-name'>{r['nickname']}</div><div class='rank-title'>{r['current_title']}</div></div><div class='rank-score'>{int(r['duration_minutes'])} min</div></div>", unsafe_allow_html=True)
 
     with t5: 
         st.subheader("🛒 ショップ")

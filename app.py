@@ -33,8 +33,9 @@ supabase = init_supabase()
 # --- Cookieマネージャー ---
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
-# --- デザイン適用関数 ---
+# --- デザイン適用関数 (強力版) ---
 def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#000000", accent_color="#FFD700"):
+    # フォント定義
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -45,43 +46,79 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
-    # 壁紙CSS
+    # 壁紙CSS設定
     bg_css = "background-color: #ffffff;"
     sidebar_bg = "#f8f9fa"
     container_bg = "#ffffff"
-    text_color = main_text_color
     
+    # 背景テーマのロジック
     if wallpaper == "真っ黒":
         bg_css = "background-color: #121212;"
         sidebar_bg = "#1e1e1e"
         container_bg = "#2d2d2d"
-        text_color = "#ffffff"
     elif wallpaper == "夕焼け":
         bg_css = "background-image: linear-gradient(120deg, #f6d365 0%, #fda085 100%);"
-        container_bg = "rgba(255, 255, 255, 0.8)"
+        container_bg = "rgba(255, 255, 255, 0.9)"
     elif wallpaper == "夜空":
         bg_css = "background-image: linear-gradient(to top, #30cfd0 0%, #330867 100%);"
-        sidebar_bg = "rgba(0, 0, 0, 0.5)"
-        container_bg = "rgba(255, 255, 255, 0.9)"
+        sidebar_bg = "rgba(0, 0, 0, 0.6)"
+        container_bg = "rgba(255, 255, 255, 0.95)"
     elif wallpaper == "草原":
         bg_css = "background-image: linear-gradient(120deg, #d4fc79 0%, #96e6a1 100%);"
-        container_bg = "rgba(255, 255, 255, 0.8)"
+        container_bg = "rgba(255, 255, 255, 0.9)"
 
     st.markdown(f"""
     <style>
+    /* フォント読み込み */
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    html, body, [class*="css"] {{ font-family: {font_family} !important; }}
-    [data-testid="stAppViewContainer"], .stApp {{ {bg_css} }}
-    
-    /* サイドバー */
-    [data-testid="stSidebar"] {{ background-color: {sidebar_bg} !important; border-right: 1px solid rgba(128,128,128,0.2); }}
-    [data-testid="stSidebar"] * {{ color: {main_text_color} !important; }}
-    
-    /* メイン文字色 */
-    .main h1, .main h2, .main h3, .main p, .main span, .main label, .main div {{ 
-        color: {text_color} !important; 
+    /* 1. フォントの強制適用 (全要素) */
+    html, body, [class*="css"], font, div, span, p, h1, h2, h3, h4, h5, h6, button, input, select, textarea, label {{
+        font-family: {font_family} !important;
     }}
+
+    /* 2. 背景設定 */
+    [data-testid="stAppViewContainer"] {{
+        {bg_css}
+    }}
+    
+    /* 3. サイドバーの背景 */
+    [data-testid="stSidebar"] {{ 
+        background-color: {sidebar_bg} !important; 
+        border-right: 1px solid rgba(128,128,128,0.2); 
+    }}
+
+    /* 4. メインエリアの文字色 (詳細度を上げて適用) */
+    [data-testid="stAppViewContainer"] .block-container h1,
+    [data-testid="stAppViewContainer"] .block-container h2,
+    [data-testid="stAppViewContainer"] .block-container h3,
+    [data-testid="stAppViewContainer"] .block-container p,
+    [data-testid="stAppViewContainer"] .block-container span,
+    [data-testid="stAppViewContainer"] .block-container div,
+    [data-testid="stAppViewContainer"] .block-container label,
+    [data-testid="stAppViewContainer"] .block-container li {{
+        color: {main_text_color} !important;
+    }}
+
+    /* 5. サイドバーの文字色 */
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] div,
+    [data-testid="stSidebar"] label {{
+        color: {main_text_color} !important;
+    }}
+
+    /* 6. 入力フォームは見やすく白背景・黒文字固定 */
+    input, textarea, select, div[data-baseweb="select"] > div {{
+        background-color: #ffffff !important; 
+        color: #000000 !important; 
+        border: 1px solid #ccc !important;
+    }}
+
+    /* --- 以下、パーツごとの個別デザイン --- */
 
     /* カレンダーの日付ボタン */
     .stButton button {{
@@ -92,11 +129,12 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
     .stButton button:hover {{
         border-color: {accent_color}; background-color: #fff; transform: translateY(-2px); z-index: 10; position: relative;
     }}
+    /* 選択中の日付 */
     div[data-testid="stVerticalBlock"] .stButton button[kind="primary"] {{
         background-color: {accent_color} !important; border-color: #000 !important; color: #000 !important; font-weight: bold; border-width: 2px;
     }}
 
-    /* コンテナ */
+    /* コンテナ (カード) */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: {container_bg} !important;
         border: 1px solid rgba(128,128,128,0.2); border-radius: 12px; padding: 20px;
@@ -109,14 +147,14 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         padding: 15px; border-radius: 12px; display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }}
-    .stat-val {{ font-size: 1.6em; font-weight: bold; }}
+    .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_color} !important; }}
     
-    /* ボタン */
+    /* アクションボタン */
     button[kind="primary"] {{
         background: {accent_color} !important; border: none !important; color: #000 !important; font-weight: bold !important;
     }}
 
-    /* --- ランキングデザイン強化 --- */
+    /* ランキングカード */
     .ranking-card {{
         padding: 15px; margin-bottom: 12px; border-radius: 15px; 
         display: flex; align-items: center; 
@@ -127,34 +165,21 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
     }}
     .ranking-card:hover {{ transform: scale(1.02); }}
 
-    /* 1位: 金 */
-    .rank-1 {{
-        background: linear-gradient(135deg, #FFF8E1 0%, #FFD700 100%) !important;
-        border: 2px solid #FFD700 !important;
-        box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4) !important;
-    }}
+    /* 順位演出 */
+    .rank-1 {{ background: linear-gradient(135deg, #FFF8E1 0%, #FFD700 100%) !important; border: 2px solid #FFD700 !important; }}
     .rank-1 .rank-name, .rank-1 .rank-score {{ color: #5c4d00 !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
     
-    /* 2位: 銀 */
-    .rank-2 {{
-        background: linear-gradient(135deg, #F5F5F5 0%, #C0C0C0 100%) !important;
-        border: 2px solid #C0C0C0 !important;
-    }}
+    .rank-2 {{ background: linear-gradient(135deg, #F5F5F5 0%, #C0C0C0 100%) !important; border: 2px solid #C0C0C0 !important; }}
     .rank-2 .rank-name, .rank-2 .rank-score {{ color: #2b2b2b !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
 
-    /* 3位: 銅 */
-    .rank-3 {{
-        background: linear-gradient(135deg, #FFF0E0 0%, #CD7F32 100%) !important;
-        border: 2px solid #CD7F32 !important;
-    }}
+    .rank-3 {{ background: linear-gradient(135deg, #FFF0E0 0%, #CD7F32 100%) !important; border: 2px solid #CD7F32 !important; }}
     .rank-3 .rank-name, .rank-3 .rank-score {{ color: #5c3a1e !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
 
-    .rank-medal {{ font-size: 2.5rem; width: 60px; text-align: center; margin-right: 10px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2)); }}
+    .rank-medal {{ font-size: 2.5rem; width: 60px; text-align: center; margin-right: 10px; }}
     .rank-info {{ flex-grow: 1; }}
-    .rank-name {{ font-size: 1.3em; font-weight: 800; line-height: 1.2; }}
-    .rank-title {{ font-size: 0.8em; opacity: 0.8; font-weight: normal; margin-top:2px; }}
-    .rank-score {{ font-size: 1.5em; font-weight: 900; text-align: right; margin-right: 10px; }}
-    .rank-unit {{ font-size: 0.5em; font-weight: normal; opacity: 0.7; }}
+    .rank-name {{ font-size: 1.3em; font-weight: 800; color: {main_text_color}; }}
+    .rank-title {{ font-size: 0.8em; opacity: 0.8; color: {main_text_color}; }}
+    .rank-score {{ font-size: 1.5em; font-weight: 900; text-align: right; margin-right: 10px; color: {accent_color}; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -354,14 +379,12 @@ def main():
 
     # データ補正
     if 'unlocked_bgms' not in user:
-        try:
-            supabase.table("users").update({"unlocked_bgms": "Lofi"}).eq("username", user['username']).execute()
+        try: supabase.table("users").update({"unlocked_bgms": "Lofi"}).eq("username", user['username']).execute()
         except: pass
         user['unlocked_bgms'] = "Lofi"
 
     if not user.get('current_wallpaper'):
-        try:
-            supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
+        try: supabase.table("users").update({"current_wallpaper": "真っ白"}).eq("username", user['username']).execute()
         except: pass
 
     today_str = str(date.today())
@@ -487,6 +510,7 @@ def main():
         c1, c2 = st.columns([0.65, 0.35])
         with c1:
             with st.container(border=True):
+                # 月移動
                 mc1, mc2, mc3 = st.columns([0.2, 0.6, 0.2])
                 with mc1:
                     if st.button("◀ 前月"):
@@ -613,29 +637,15 @@ def main():
         st.subheader("🏆 週間ランキング")
         rk = get_weekly_ranking()
         if not rk.empty:
-            # 1位のスコアを取得（プログレスバー計算用）
             top_score = rk.iloc[0]['duration_minutes']
-            
             for i, r in rk.iterrows():
                 rank = i + 1
+                if rank == 1: css_class, medal = "rank-1", "🥇"
+                elif rank == 2: css_class, medal = "rank-2", "🥈"
+                elif rank == 3: css_class, medal = "rank-3", "🥉"
+                else: css_class, medal = "", f"<span style='font-size:1.5rem; font-weight:bold; color:#888;'>{rank}</span>"
                 
-                # メダルとデザインクラスの振り分け
-                if rank == 1:
-                    medal = "🥇"
-                    css_class = "rank-1"
-                elif rank == 2:
-                    medal = "🥈"
-                    css_class = "rank-2"
-                elif rank == 3:
-                    medal = "🥉"
-                    css_class = "rank-3"
-                else:
-                    medal = f"<span style='font-size:1.5rem; font-weight:bold; color:#888;'>{rank}</span>"
-                    css_class = "rank-other"
-                
-                # スコアバーの長さ計算
                 bar_width = (r['duration_minutes'] / top_score) * 100 if top_score > 0 else 0
-                
                 st.markdown(f"""
                 <div class="ranking-card {css_class}">
                     <div class="rank-medal">{medal}</div>
@@ -651,8 +661,7 @@ def main():
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-        else:
-            st.info("データが集計されていません")
+        else: st.info("データが集計されていません")
 
     with t5: 
         st.subheader("🛒 ショップ")

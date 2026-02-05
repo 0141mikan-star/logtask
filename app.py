@@ -33,7 +33,7 @@ supabase = init_supabase()
 # --- Cookieマネージャー ---
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
-# --- デザイン適用関数 (文字化け対策 & 色変更対応済) ---
+# --- デザイン適用関数 ---
 def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
@@ -77,7 +77,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         {bg_css}
     }}
     
-    /* 2. テキスト要素への適用 (アイコン文字化け回避のためセレクタ指定) */
+    /* 2. テキスト要素への適用 */
     h1, h2, h3, h4, h5, h6, p, label, li, a, .stMarkdown, .stText {{
         font-family: {font_family}, sans-serif !important;
         color: {text_color} !important;
@@ -117,6 +117,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
     .stButton button:hover {{
         border-color: {accent_color}; background-color: #fff; transform: translateY(-2px); z-index: 10; position: relative;
     }}
+    /* 選択中の日付 */
     div[data-testid="stVerticalBlock"] .stButton button[kind="primary"] {{
         background-color: {accent_color} !important; border-color: #000 !important; color: #000 !important; font-weight: bold; border-width: 2px;
     }}
@@ -134,8 +135,15 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         padding: 15px; border-radius: 12px; display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }}
-    /* ★修正: Gやminの色をアクセントカラーにするため !important を削除し、color指定をHTML側に委ねる */
     .stat-val {{ font-size: 1.6em; font-weight: bold; }}
+    
+    /* ★追加: 単位用のスタイル（少し小さく、メインカラーで表示） */
+    .stat-unit {{
+        font-size: 0.6em;
+        font-weight: normal;
+        margin-left: 3px;
+        color: {main_text_color} !important;
+    }}
     
     /* ボタン */
     button[kind="primary"] {{
@@ -151,6 +159,8 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         transition: transform 0.2s;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }}
+    .ranking-card:hover {{ transform: scale(1.02); }}
+
     .rank-1 {{ background: linear-gradient(135deg, #FFF8E1 0%, #FFD700 100%) !important; border: 2px solid #FFD700 !important; }}
     .rank-1 .rank-name, .rank-1 .rank-score {{ color: #5c4d00 !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
     .rank-2 {{ background: linear-gradient(135deg, #F5F5F5 0%, #C0C0C0 100%) !important; border: 2px solid #C0C0C0 !important; }}
@@ -327,6 +337,16 @@ def main():
         })
 
     if not st.session_state["logged_in"]:
+        try:
+            auth = cookie_manager.get('logtask_auth')
+            if auth:
+                u, h = auth.split(":", 1)
+                res = supabase.table("users").select("password").eq("username", u).execute()
+                if res.data and res.data[0]["password"] == h:
+                    st.session_state["logged_in"] = True; st.session_state["username"] = u; st.rerun()
+        except: pass
+
+    if not st.session_state["logged_in"]:
         st.title("🛡️ ログイン")
         mode = st.selectbox("モード", ["ログイン", "新規登録"])
         u = st.text_input("ユーザーID"); p = st.text_input("パスワード", type="password")
@@ -340,6 +360,7 @@ def main():
             if st.button("ログイン"):
                 res, msg = login_user(u, p)
                 if res:
+                    cookie_manager.set('logtask_auth', f"{u}:{make_hashes(p)}", expires_at=datetime.now() + timedelta(days=7))
                     st.session_state["logged_in"] = True; st.session_state["username"] = u; st.rerun()
                 else: st.error(msg)
         return
@@ -429,9 +450,10 @@ def main():
             st.rerun()
 
         if st.button("ログアウト"):
+            cookie_manager.delete('logtask_auth')
             st.session_state["logged_in"] = False; st.rerun()
 
-    # ★ 集中モード (BGM再生)
+    # ★ 集中モード
     if st.session_state["is_studying"]:
         st.empty()
         
@@ -460,13 +482,13 @@ def main():
     if not logs_df.empty and 'duration_minutes' in logs_df.columns:
         today_mins = logs_df[logs_df['study_date'].astype(str).str.contains(str(date.today()))]['duration_minutes'].sum()
 
-    # ★修正: 数値と単位にアクセントカラーを適用 (HTML構造で分離)
+    # ★変更: 単位部分(G, min)をspanで分離してメイン文字色を適用
     st.markdown(f"""
     <div class="status-bar">
         <div class="stat-item"><div class="stat-label">PLAYER</div><div class="stat-val" style="font-size:1.2em;">{user['nickname']}</div><div style="font-size:0.7em;">{user.get('current_title', '見習い')}</div></div>
         <div class="stat-item"><div class="stat-label">XP</div><div class="stat-val" style="color:{user.get('accent_color')};">{user['xp']}</div></div>
-        <div class="stat-item"><div class="stat-label">COIN</div><div class="stat-val" style="color:{user.get('accent_color')};">{user['coins']} G</div></div>
-        <div class="stat-item"><div class="stat-label">TODAY</div><div class="stat-val" style="color:{user.get('accent_color')};">{today_mins} / {user.get('daily_goal')} min</div></div>
+        <div class="stat-item"><div class="stat-label">COIN</div><div class="stat-val" style="color:{user.get('accent_color')};">{user['coins']} <span class="stat-unit">G</span></div></div>
+        <div class="stat-item"><div class="stat-label">TODAY</div><div class="stat-val" style="color:{user.get('accent_color')};">{today_mins} <span class="stat-unit">/ {user.get('daily_goal')} min</span></div></div>
     </div>
     """, unsafe_allow_html=True)
     st.progress(min(1.0, today_mins / max(1, user.get('daily_goal', 60))))

@@ -10,6 +10,7 @@ import base64
 from PIL import Image
 import hashlib
 import random
+import extra_streamlit_components as stx
 
 # --- ページ設定 ---
 st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide", initial_sidebar_state="expanded")
@@ -29,7 +30,10 @@ def init_supabase():
 
 supabase = init_supabase()
 
-# --- デザイン適用関数 ---
+# --- Cookieマネージャー ---
+cookie_manager = stx.CookieManager(key="cookie_manager")
+
+# --- デザイン適用関数 (文字化け対策 & 色変更対応済) ---
 def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
@@ -54,35 +58,60 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         text_color = "#ffffff"
     elif wallpaper == "夕焼け":
         bg_css = "background-image: linear-gradient(120deg, #f6d365 0%, #fda085 100%);"
-        container_bg = "rgba(255, 255, 255, 0.8)"
+        container_bg = "rgba(255, 255, 255, 0.9)"
     elif wallpaper == "夜空":
         bg_css = "background-image: linear-gradient(to top, #30cfd0 0%, #330867 100%);"
-        sidebar_bg = "rgba(0, 0, 0, 0.5)"
-        container_bg = "rgba(255, 255, 255, 0.9)"
+        sidebar_bg = "rgba(0, 0, 0, 0.6)"
+        container_bg = "rgba(255, 255, 255, 0.95)"
     elif wallpaper == "草原":
         bg_css = "background-image: linear-gradient(120deg, #d4fc79 0%, #96e6a1 100%);"
-        container_bg = "rgba(255, 255, 255, 0.8)"
+        container_bg = "rgba(255, 255, 255, 0.9)"
 
     st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    html, body, [class*="css"] {{ font-family: {font_family} !important; }}
-    [data-testid="stAppViewContainer"], .stApp {{ {bg_css} }}
+    /* 1. ベースフォント設定 */
+    html, body, [data-testid="stAppViewContainer"] {{
+        font-family: {font_family}, sans-serif;
+        {bg_css}
+    }}
     
+    /* 2. テキスト要素への適用 (アイコン文字化け回避のためセレクタ指定) */
+    h1, h2, h3, h4, h5, h6, p, label, li, a, .stMarkdown, .stText {{
+        font-family: {font_family}, sans-serif !important;
+        color: {text_color} !important;
+    }}
+    
+    /* 3. 入力フォームとボタン */
+    input, textarea, select, button, .stButton button, .stSelectbox div {{
+        font-family: {font_family}, sans-serif !important;
+    }}
+
     /* サイドバー */
-    [data-testid="stSidebar"] {{ background-color: {sidebar_bg} !important; border-right: 1px solid rgba(128,128,128,0.2); }}
-    [data-testid="stSidebar"] * {{ color: {main_text_color} !important; }}
-    
-    /* メイン文字色 */
-    .main h1, .main h2, .main h3, .main p, .main span, .main label, .main div {{ 
-        color: {text_color} !important; 
+    [data-testid="stSidebar"] {{ 
+        background-color: {sidebar_bg} !important; 
+        border-right: 1px solid rgba(128,128,128,0.2); 
+    }}
+    [data-testid="stSidebar"] * {{ 
+        color: {main_text_color} !important; 
+    }}
+
+    /* 入力フォームの背景色固定 */
+    input, textarea, select {{
+        background-color: #ffffff !important; 
+        color: #000000 !important; 
+        border: 1px solid #ccc !important;
+    }}
+    div[data-baseweb="select"] > div {{ 
+        background-color: #ffffff !important; 
+        color: #000000 !important; 
     }}
 
     /* カレンダーの日付ボタン */
     .stButton button {{
         width: 100%; height: 70px; white-space: pre-wrap; line-height: 1.1; padding: 2px;
-        border: 1px solid #eee; background-color: rgba(255,255,255,0.95); color: #333;
+        border: 1px solid #eee; background-color: rgba(255,255,255,0.95); color: #333 !important;
         transition: all 0.2s; border-radius: 8px;
     }}
     .stButton button:hover {{
@@ -105,6 +134,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         padding: 15px; border-radius: 12px; display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }}
+    /* ★修正: Gやminの色をアクセントカラーにするため !important を削除し、color指定をHTML側に委ねる */
     .stat-val {{ font-size: 1.6em; font-weight: bold; }}
     
     /* ボタン */
@@ -112,7 +142,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         background: {accent_color} !important; border: none !important; color: #000 !important; font-weight: bold !important;
     }}
 
-    /* ランキングカード */
+    /* ランキングデザイン */
     .ranking-card {{
         padding: 15px; margin-bottom: 12px; border-radius: 15px; 
         display: flex; align-items: center; 
@@ -121,36 +151,16 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         transition: transform 0.2s;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }}
-    .ranking-card:hover {{ transform: scale(1.02); }}
-
-    /* 1位: 金 */
-    .rank-1 {{
-        background: linear-gradient(135deg, #FFF8E1 0%, #FFD700 100%) !important;
-        border: 2px solid #FFD700 !important;
-        box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4) !important;
-    }}
+    .rank-1 {{ background: linear-gradient(135deg, #FFF8E1 0%, #FFD700 100%) !important; border: 2px solid #FFD700 !important; }}
     .rank-1 .rank-name, .rank-1 .rank-score {{ color: #5c4d00 !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
+    .rank-2 {{ background: linear-gradient(135deg, #F5F5F5 0%, #C0C0C0 100%) !important; border: 2px solid #C0C0C0 !important; }}
+    .rank-3 {{ background: linear-gradient(135deg, #FFF0E0 0%, #CD7F32 100%) !important; border: 2px solid #CD7F32 !important; }}
     
-    /* 2位: 銀 */
-    .rank-2 {{
-        background: linear-gradient(135deg, #F5F5F5 0%, #C0C0C0 100%) !important;
-        border: 2px solid #C0C0C0 !important;
-    }}
-    .rank-2 .rank-name, .rank-2 .rank-score {{ color: #2b2b2b !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
-
-    /* 3位: 銅 */
-    .rank-3 {{
-        background: linear-gradient(135deg, #FFF0E0 0%, #CD7F32 100%) !important;
-        border: 2px solid #CD7F32 !important;
-    }}
-    .rank-3 .rank-name, .rank-3 .rank-score {{ color: #5c3a1e !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
-
-    .rank-medal {{ font-size: 2.5rem; width: 60px; text-align: center; margin-right: 10px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2)); }}
+    .rank-medal {{ font-size: 2.5rem; width: 60px; text-align: center; margin-right: 10px; }}
     .rank-info {{ flex-grow: 1; }}
-    .rank-name {{ font-size: 1.3em; font-weight: 800; line-height: 1.2; }}
-    .rank-title {{ font-size: 0.8em; opacity: 0.8; font-weight: normal; margin-top:2px; }}
-    .rank-score {{ font-size: 1.5em; font-weight: 900; text-align: right; margin-right: 10px; }}
-    .rank-unit {{ font-size: 0.5em; font-weight: normal; opacity: 0.7; }}
+    .rank-name {{ font-size: 1.3em; font-weight: 800; color: {text_color}; }}
+    .rank-title {{ font-size: 0.8em; opacity: 0.8; color: {text_color}; }}
+    .rank-score {{ font-size: 1.5em; font-weight: 900; text-align: right; margin-right: 10px; color: {accent_color}; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -421,7 +431,7 @@ def main():
         if st.button("ログアウト"):
             st.session_state["logged_in"] = False; st.rerun()
 
-    # ★ 集中モード
+    # ★ 集中モード (BGM再生)
     if st.session_state["is_studying"]:
         st.empty()
         
@@ -450,12 +460,13 @@ def main():
     if not logs_df.empty and 'duration_minutes' in logs_df.columns:
         today_mins = logs_df[logs_df['study_date'].astype(str).str.contains(str(date.today()))]['duration_minutes'].sum()
 
+    # ★修正: 数値と単位にアクセントカラーを適用 (HTML構造で分離)
     st.markdown(f"""
     <div class="status-bar">
         <div class="stat-item"><div class="stat-label">PLAYER</div><div class="stat-val" style="font-size:1.2em;">{user['nickname']}</div><div style="font-size:0.7em;">{user.get('current_title', '見習い')}</div></div>
-        <div class="stat-item"><div class="stat-label">XP</div><div class="stat-val">{user['xp']}</div></div>
+        <div class="stat-item"><div class="stat-label">XP</div><div class="stat-val" style="color:{user.get('accent_color')};">{user['xp']}</div></div>
         <div class="stat-item"><div class="stat-label">COIN</div><div class="stat-val" style="color:{user.get('accent_color')};">{user['coins']} G</div></div>
-        <div class="stat-item"><div class="stat-label">TODAY</div><div class="stat-val">{today_mins} / {user.get('daily_goal')} min</div></div>
+        <div class="stat-item"><div class="stat-label">TODAY</div><div class="stat-val" style="color:{user.get('accent_color')};">{today_mins} / {user.get('daily_goal')} min</div></div>
     </div>
     """, unsafe_allow_html=True)
     st.progress(min(1.0, today_mins / max(1, user.get('daily_goal', 60))))

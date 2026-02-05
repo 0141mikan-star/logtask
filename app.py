@@ -33,7 +33,7 @@ supabase = init_supabase()
 # --- Cookieマネージャー ---
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
-# --- デザイン適用関数 ---
+# --- デザイン適用関数 (カレンダー色固定版) ---
 def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
@@ -67,6 +67,13 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         bg_css = "background-image: linear-gradient(120deg, #d4fc79 0%, #96e6a1 100%);"
         container_bg = "rgba(255, 255, 255, 0.9)"
 
+    # ★カレンダー・ボタン用の固定色定義
+    fixed_cal_bg = "#ffffff"       # ボタン背景：白固定
+    fixed_cal_text = "#333333"     # ボタン文字：黒固定
+    fixed_cal_border = "#e0e0e0"   # ボタン枠線：グレー固定
+    fixed_cal_select = "#FFD700"   # 選択時：ゴールド固定（アクセントカラーに依存しない）
+    fixed_cal_hover = "#fffdf0"    # ホバー時：薄いクリーム色固定
+
     st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
@@ -83,7 +90,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         color: {text_color} !important;
     }}
     
-    /* 3. 入力フォームとボタン */
+    /* 3. 入力フォームとボタンのフォント */
     input, textarea, select, button, .stButton button, .stSelectbox div {{
         font-family: {font_family}, sans-serif !important;
     }}
@@ -97,7 +104,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         color: {main_text_color} !important; 
     }}
 
-    /* 入力フォームの背景色固定 */
+    /* 入力フォームの背景色固定 (白) */
     input, textarea, select {{
         background-color: #ffffff !important; 
         color: #000000 !important; 
@@ -108,18 +115,34 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         color: #000000 !important; 
     }}
 
-    /* カレンダーの日付ボタン */
+    /* ★カレンダーの日付ボタン (色を完全固定) */
     .stButton button {{
-        width: 100%; height: 70px; white-space: pre-wrap; line-height: 1.1; padding: 2px;
-        border: 1px solid #eee; background-color: rgba(255,255,255,0.95); color: #333 !important;
-        transition: all 0.2s; border-radius: 8px;
+        width: 100%; 
+        height: 70px; 
+        white-space: pre-wrap; 
+        line-height: 1.1; 
+        padding: 2px;
+        border: 1px solid {fixed_cal_border} !important; 
+        background-color: {fixed_cal_bg} !important; 
+        color: {fixed_cal_text} !important;
+        transition: all 0.2s; 
+        border-radius: 8px;
     }}
     .stButton button:hover {{
-        border-color: {accent_color}; background-color: #fff; transform: translateY(-2px); z-index: 10; position: relative;
+        border-color: {fixed_cal_select} !important; 
+        background-color: {fixed_cal_hover} !important; 
+        transform: translateY(-2px); 
+        z-index: 10; 
+        position: relative;
     }}
-    /* 選択中の日付 */
+    
+    /* ★選択中の日付ボタン (色を完全固定・primary上書き) */
     div[data-testid="stVerticalBlock"] .stButton button[kind="primary"] {{
-        background-color: {accent_color} !important; border-color: #000 !important; color: #000 !important; font-weight: bold; border-width: 2px;
+        background-color: {fixed_cal_select} !important; 
+        border-color: #e6c200 !important; 
+        color: #000000 !important; /* 文字色は黒固定 */
+        font-weight: bold; 
+        border-width: 2px;
     }}
 
     /* コンテナ */
@@ -137,7 +160,7 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
     }}
     .stat-val {{ font-size: 1.6em; font-weight: bold; }}
     
-    /* ★追加: 単位用のスタイル（少し小さく、メインカラーで表示） */
+    /* 単位表示 (メイン文字色) */
     .stat-unit {{
         font-size: 0.6em;
         font-weight: normal;
@@ -145,9 +168,12 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         color: {main_text_color} !important;
     }}
     
-    /* ボタン */
+    /* アクションボタンも固定色（ゴールド）にする */
     button[kind="primary"] {{
-        background: {accent_color} !important; border: none !important; color: #000 !important; font-weight: bold !important;
+        background: {fixed_cal_select} !important; 
+        border: none !important; 
+        color: #000 !important; 
+        font-weight: bold !important;
     }}
 
     /* ランキングデザイン */
@@ -337,16 +363,6 @@ def main():
         })
 
     if not st.session_state["logged_in"]:
-        try:
-            auth = cookie_manager.get('logtask_auth')
-            if auth:
-                u, h = auth.split(":", 1)
-                res = supabase.table("users").select("password").eq("username", u).execute()
-                if res.data and res.data[0]["password"] == h:
-                    st.session_state["logged_in"] = True; st.session_state["username"] = u; st.rerun()
-        except: pass
-
-    if not st.session_state["logged_in"]:
         st.title("🛡️ ログイン")
         mode = st.selectbox("モード", ["ログイン", "新規登録"])
         u = st.text_input("ユーザーID"); p = st.text_input("パスワード", type="password")
@@ -368,7 +384,6 @@ def main():
     user = get_user_data(st.session_state["username"])
     if not user: st.session_state["logged_in"] = False; st.rerun()
 
-    # データ補正
     if 'unlocked_bgms' not in user:
         try: supabase.table("users").update({"unlocked_bgms": "Lofi"}).eq("username", user['username']).execute()
         except: pass
@@ -453,7 +468,7 @@ def main():
             cookie_manager.delete('logtask_auth')
             st.session_state["logged_in"] = False; st.rerun()
 
-    # ★ 集中モード
+    # ★ 集中モード (BGM再生)
     if st.session_state["is_studying"]:
         st.empty()
         
@@ -482,7 +497,6 @@ def main():
     if not logs_df.empty and 'duration_minutes' in logs_df.columns:
         today_mins = logs_df[logs_df['study_date'].astype(str).str.contains(str(date.today()))]['duration_minutes'].sum()
 
-    # ★変更: 単位部分(G, min)をspanで分離してメイン文字色を適用
     st.markdown(f"""
     <div class="status-bar">
         <div class="stat-item"><div class="stat-label">PLAYER</div><div class="stat-val" style="font-size:1.2em;">{user['nickname']}</div><div style="font-size:0.7em;">{user.get('current_title', '見習い')}</div></div>

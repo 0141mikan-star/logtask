@@ -33,9 +33,8 @@ supabase = init_supabase()
 # --- Cookieマネージャー ---
 cookie_manager = stx.CookieManager(key="cookie_manager")
 
-# --- デザイン適用関数 (強力版) ---
+# --- デザイン適用関数 (修正版) ---
 def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#000000", accent_color="#FFD700"):
-    # フォント定義
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
         "手書き風": "'Yomogi', cursive",
@@ -46,95 +45,83 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
     }
     font_family = fonts.get(user_theme, "sans-serif")
     
-    # 壁紙CSS設定
+    # 壁紙CSS
     bg_css = "background-color: #ffffff;"
     sidebar_bg = "#f8f9fa"
     container_bg = "#ffffff"
+    text_color = main_text_color
     
-    # 背景テーマのロジック
     if wallpaper == "真っ黒":
         bg_css = "background-color: #121212;"
         sidebar_bg = "#1e1e1e"
         container_bg = "#2d2d2d"
+        text_color = "#ffffff"
     elif wallpaper == "夕焼け":
         bg_css = "background-image: linear-gradient(120deg, #f6d365 0%, #fda085 100%);"
-        container_bg = "rgba(255, 255, 255, 0.9)"
+        container_bg = "rgba(255, 255, 255, 0.8)"
     elif wallpaper == "夜空":
         bg_css = "background-image: linear-gradient(to top, #30cfd0 0%, #330867 100%);"
-        sidebar_bg = "rgba(0, 0, 0, 0.6)"
-        container_bg = "rgba(255, 255, 255, 0.95)"
+        sidebar_bg = "rgba(0, 0, 0, 0.5)"
+        container_bg = "rgba(255, 255, 255, 0.9)"
     elif wallpaper == "草原":
         bg_css = "background-image: linear-gradient(120deg, #d4fc79 0%, #96e6a1 100%);"
-        container_bg = "rgba(255, 255, 255, 0.9)"
+        container_bg = "rgba(255, 255, 255, 0.8)"
 
     st.markdown(f"""
     <style>
-    /* フォント読み込み */
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    /* 1. フォントの強制適用 (全要素) */
-    html, body, [class*="css"], font, div, span, p, h1, h2, h3, h4, h5, h6, button, input, select, textarea, label {{
-        font-family: {font_family} !important;
-    }}
-
-    /* 2. 背景設定 */
-    [data-testid="stAppViewContainer"] {{
+    /* 1. ベースフォント設定 (全体に適用するが優先度は低く) */
+    html, body, [data-testid="stAppViewContainer"] {{
+        font-family: {font_family}, sans-serif;
         {bg_css}
     }}
     
-    /* 3. サイドバーの背景 */
+    /* 2. テキスト要素への厳密な適用 (divやspanへの無差別適用を廃止) */
+    h1, h2, h3, h4, h5, h6, p, label, li, a, .stMarkdown, .stText {{
+        font-family: {font_family}, sans-serif !important;
+        color: {text_color} !important;
+    }}
+    
+    /* 3. 入力フォームとボタン */
+    input, textarea, select, button, .stButton button, .stSelectbox div {{
+        font-family: {font_family}, sans-serif !important;
+    }}
+
+    /* サイドバー */
     [data-testid="stSidebar"] {{ 
         background-color: {sidebar_bg} !important; 
         border-right: 1px solid rgba(128,128,128,0.2); 
     }}
-
-    /* 4. メインエリアの文字色 (詳細度を上げて適用) */
-    [data-testid="stAppViewContainer"] .block-container h1,
-    [data-testid="stAppViewContainer"] .block-container h2,
-    [data-testid="stAppViewContainer"] .block-container h3,
-    [data-testid="stAppViewContainer"] .block-container p,
-    [data-testid="stAppViewContainer"] .block-container span,
-    [data-testid="stAppViewContainer"] .block-container div,
-    [data-testid="stAppViewContainer"] .block-container label,
-    [data-testid="stAppViewContainer"] .block-container li {{
-        color: {main_text_color} !important;
+    [data-testid="stSidebar"] * {{ 
+        color: {main_text_color} !important; 
     }}
 
-    /* 5. サイドバーの文字色 */
-    [data-testid="stSidebar"] h1,
-    [data-testid="stSidebar"] h2,
-    [data-testid="stSidebar"] h3,
-    [data-testid="stSidebar"] p,
-    [data-testid="stSidebar"] span,
-    [data-testid="stSidebar"] div,
-    [data-testid="stSidebar"] label {{
-        color: {main_text_color} !important;
-    }}
-
-    /* 6. 入力フォームは見やすく白背景・黒文字固定 */
-    input, textarea, select, div[data-baseweb="select"] > div {{
+    /* 入力フォームの背景色固定 */
+    input, textarea, select {{
         background-color: #ffffff !important; 
         color: #000000 !important; 
         border: 1px solid #ccc !important;
     }}
-
-    /* --- 以下、パーツごとの個別デザイン --- */
+    div[data-baseweb="select"] > div {{ 
+        background-color: #ffffff !important; 
+        color: #000000 !important; 
+    }}
 
     /* カレンダーの日付ボタン */
     .stButton button {{
         width: 100%; height: 70px; white-space: pre-wrap; line-height: 1.1; padding: 2px;
-        border: 1px solid #eee; background-color: rgba(255,255,255,0.95); color: #333;
+        border: 1px solid #eee; background-color: rgba(255,255,255,0.95); color: #333 !important;
         transition: all 0.2s; border-radius: 8px;
     }}
     .stButton button:hover {{
         border-color: {accent_color}; background-color: #fff; transform: translateY(-2px); z-index: 10; position: relative;
     }}
-    /* 選択中の日付 */
     div[data-testid="stVerticalBlock"] .stButton button[kind="primary"] {{
         background-color: {accent_color} !important; border-color: #000 !important; color: #000 !important; font-weight: bold; border-width: 2px;
     }}
 
-    /* コンテナ (カード) */
+    /* コンテナ */
     div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"], div[data-testid="stForm"] {{
         background-color: {container_bg} !important;
         border: 1px solid rgba(128,128,128,0.2); border-radius: 12px; padding: 20px;
@@ -147,14 +134,14 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         padding: 15px; border-radius: 12px; display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }}
-    .stat-val {{ font-size: 1.6em; font-weight: bold; color: {main_text_color} !important; }}
+    .stat-val {{ font-size: 1.6em; font-weight: bold; color: {text_color} !important; }}
     
-    /* アクションボタン */
+    /* ショップやランキングのボタン */
     button[kind="primary"] {{
         background: {accent_color} !important; border: none !important; color: #000 !important; font-weight: bold !important;
     }}
 
-    /* ランキングカード */
+    /* ランキングデザイン */
     .ranking-card {{
         padding: 15px; margin-bottom: 12px; border-radius: 15px; 
         display: flex; align-items: center; 
@@ -163,22 +150,15 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         transition: transform 0.2s;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }}
-    .ranking-card:hover {{ transform: scale(1.02); }}
-
-    /* 順位演出 */
     .rank-1 {{ background: linear-gradient(135deg, #FFF8E1 0%, #FFD700 100%) !important; border: 2px solid #FFD700 !important; }}
     .rank-1 .rank-name, .rank-1 .rank-score {{ color: #5c4d00 !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
-    
     .rank-2 {{ background: linear-gradient(135deg, #F5F5F5 0%, #C0C0C0 100%) !important; border: 2px solid #C0C0C0 !important; }}
-    .rank-2 .rank-name, .rank-2 .rank-score {{ color: #2b2b2b !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
-
     .rank-3 {{ background: linear-gradient(135deg, #FFF0E0 0%, #CD7F32 100%) !important; border: 2px solid #CD7F32 !important; }}
-    .rank-3 .rank-name, .rank-3 .rank-score {{ color: #5c3a1e !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
-
+    
     .rank-medal {{ font-size: 2.5rem; width: 60px; text-align: center; margin-right: 10px; }}
     .rank-info {{ flex-grow: 1; }}
-    .rank-name {{ font-size: 1.3em; font-weight: 800; color: {main_text_color}; }}
-    .rank-title {{ font-size: 0.8em; opacity: 0.8; color: {main_text_color}; }}
+    .rank-name {{ font-size: 1.3em; font-weight: 800; color: {text_color}; }}
+    .rank-title {{ font-size: 0.8em; opacity: 0.8; color: {text_color}; }}
     .rank-score {{ font-size: 1.5em; font-weight: 900; text-align: right; margin-right: 10px; color: {accent_color}; }}
     </style>
     """, unsafe_allow_html=True)
@@ -257,6 +237,7 @@ def delete_study_log(lid, u, m):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": max(0, ud['xp']-m), "coins": max(0, ud['coins']-m)}).eq("username", u).execute()
 
+# ★データなし時の安全策
 def get_study_logs(u):
     try:
         res = supabase.table("study_logs").select("*").eq("username", u).order("created_at", desc=True).execute()

@@ -10,7 +10,6 @@ import base64
 from PIL import Image
 import hashlib
 import random
-import extra_streamlit_components as stx
 
 # --- ページ設定 ---
 st.set_page_config(page_title="褒めてくれる勉強時間・タスク管理アプリ", layout="wide", initial_sidebar_state="expanded")
@@ -30,10 +29,7 @@ def init_supabase():
 
 supabase = init_supabase()
 
-# --- Cookieマネージャー ---
-cookie_manager = stx.CookieManager(key="cookie_manager")
-
-# --- デザイン適用関数 (修正版) ---
+# --- デザイン適用関数 ---
 def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#000000", accent_color="#FFD700"):
     fonts = {
         "ピクセル風": "'DotGothic16', sans-serif",
@@ -71,47 +67,22 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Yomogi&family=Hachi+Maru+Pop&family=Shippori+Mincho&family=Yuji+Syuku&display=swap');
     
-    /* 1. ベースフォント設定 (全体に適用するが優先度は低く) */
-    html, body, [data-testid="stAppViewContainer"] {{
-        font-family: {font_family}, sans-serif;
-        {bg_css}
-    }}
+    html, body, [class*="css"] {{ font-family: {font_family} !important; }}
+    [data-testid="stAppViewContainer"], .stApp {{ {bg_css} }}
     
-    /* 2. テキスト要素への厳密な適用 (divやspanへの無差別適用を廃止) */
-    h1, h2, h3, h4, h5, h6, p, label, li, a, .stMarkdown, .stText {{
-        font-family: {font_family}, sans-serif !important;
-        color: {text_color} !important;
-    }}
-    
-    /* 3. 入力フォームとボタン */
-    input, textarea, select, button, .stButton button, .stSelectbox div {{
-        font-family: {font_family}, sans-serif !important;
-    }}
-
     /* サイドバー */
-    [data-testid="stSidebar"] {{ 
-        background-color: {sidebar_bg} !important; 
-        border-right: 1px solid rgba(128,128,128,0.2); 
-    }}
-    [data-testid="stSidebar"] * {{ 
-        color: {main_text_color} !important; 
-    }}
-
-    /* 入力フォームの背景色固定 */
-    input, textarea, select {{
-        background-color: #ffffff !important; 
-        color: #000000 !important; 
-        border: 1px solid #ccc !important;
-    }}
-    div[data-baseweb="select"] > div {{ 
-        background-color: #ffffff !important; 
-        color: #000000 !important; 
+    [data-testid="stSidebar"] {{ background-color: {sidebar_bg} !important; border-right: 1px solid rgba(128,128,128,0.2); }}
+    [data-testid="stSidebar"] * {{ color: {main_text_color} !important; }}
+    
+    /* メイン文字色 */
+    .main h1, .main h2, .main h3, .main p, .main span, .main label, .main div {{ 
+        color: {text_color} !important; 
     }}
 
     /* カレンダーの日付ボタン */
     .stButton button {{
         width: 100%; height: 70px; white-space: pre-wrap; line-height: 1.1; padding: 2px;
-        border: 1px solid #eee; background-color: rgba(255,255,255,0.95); color: #333 !important;
+        border: 1px solid #eee; background-color: rgba(255,255,255,0.95); color: #333;
         transition: all 0.2s; border-radius: 8px;
     }}
     .stButton button:hover {{
@@ -134,14 +105,14 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         padding: 15px; border-radius: 12px; display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }}
-    .stat-val {{ font-size: 1.6em; font-weight: bold; color: {text_color} !important; }}
+    .stat-val {{ font-size: 1.6em; font-weight: bold; }}
     
-    /* ショップやランキングのボタン */
+    /* ボタン */
     button[kind="primary"] {{
         background: {accent_color} !important; border: none !important; color: #000 !important; font-weight: bold !important;
     }}
 
-    /* ランキングデザイン */
+    /* ランキングカード */
     .ranking-card {{
         padding: 15px; margin-bottom: 12px; border-radius: 15px; 
         display: flex; align-items: center; 
@@ -150,16 +121,36 @@ def apply_design(user_theme="標準", wallpaper="真っ白", main_text_color="#0
         transition: transform 0.2s;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }}
-    .rank-1 {{ background: linear-gradient(135deg, #FFF8E1 0%, #FFD700 100%) !important; border: 2px solid #FFD700 !important; }}
+    .ranking-card:hover {{ transform: scale(1.02); }}
+
+    /* 1位: 金 */
+    .rank-1 {{
+        background: linear-gradient(135deg, #FFF8E1 0%, #FFD700 100%) !important;
+        border: 2px solid #FFD700 !important;
+        box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4) !important;
+    }}
     .rank-1 .rank-name, .rank-1 .rank-score {{ color: #5c4d00 !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
-    .rank-2 {{ background: linear-gradient(135deg, #F5F5F5 0%, #C0C0C0 100%) !important; border: 2px solid #C0C0C0 !important; }}
-    .rank-3 {{ background: linear-gradient(135deg, #FFF0E0 0%, #CD7F32 100%) !important; border: 2px solid #CD7F32 !important; }}
     
-    .rank-medal {{ font-size: 2.5rem; width: 60px; text-align: center; margin-right: 10px; }}
+    /* 2位: 銀 */
+    .rank-2 {{
+        background: linear-gradient(135deg, #F5F5F5 0%, #C0C0C0 100%) !important;
+        border: 2px solid #C0C0C0 !important;
+    }}
+    .rank-2 .rank-name, .rank-2 .rank-score {{ color: #2b2b2b !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
+
+    /* 3位: 銅 */
+    .rank-3 {{
+        background: linear-gradient(135deg, #FFF0E0 0%, #CD7F32 100%) !important;
+        border: 2px solid #CD7F32 !important;
+    }}
+    .rank-3 .rank-name, .rank-3 .rank-score {{ color: #5c3a1e !important; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }}
+
+    .rank-medal {{ font-size: 2.5rem; width: 60px; text-align: center; margin-right: 10px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2)); }}
     .rank-info {{ flex-grow: 1; }}
-    .rank-name {{ font-size: 1.3em; font-weight: 800; color: {text_color}; }}
-    .rank-title {{ font-size: 0.8em; opacity: 0.8; color: {text_color}; }}
-    .rank-score {{ font-size: 1.5em; font-weight: 900; text-align: right; margin-right: 10px; color: {accent_color}; }}
+    .rank-name {{ font-size: 1.3em; font-weight: 800; line-height: 1.2; }}
+    .rank-title {{ font-size: 0.8em; opacity: 0.8; font-weight: normal; margin-top:2px; }}
+    .rank-score {{ font-size: 1.5em; font-weight: 900; text-align: right; margin-right: 10px; }}
+    .rank-unit {{ font-size: 0.5em; font-weight: normal; opacity: 0.7; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -237,7 +228,6 @@ def delete_study_log(lid, u, m):
     ud = get_user_data(u)
     if ud: supabase.table("users").update({"xp": max(0, ud['xp']-m), "coins": max(0, ud['coins']-m)}).eq("username", u).execute()
 
-# ★データなし時の安全策
 def get_study_logs(u):
     try:
         res = supabase.table("study_logs").select("*").eq("username", u).order("created_at", desc=True).execute()
@@ -327,16 +317,6 @@ def main():
         })
 
     if not st.session_state["logged_in"]:
-        try:
-            auth = cookie_manager.get('logtask_auth')
-            if auth:
-                u, h = auth.split(":", 1)
-                res = supabase.table("users").select("password").eq("username", u).execute()
-                if res.data and res.data[0]["password"] == h:
-                    st.session_state["logged_in"] = True; st.session_state["username"] = u; st.rerun()
-        except: pass
-
-    if not st.session_state["logged_in"]:
         st.title("🛡️ ログイン")
         mode = st.selectbox("モード", ["ログイン", "新規登録"])
         u = st.text_input("ユーザーID"); p = st.text_input("パスワード", type="password")
@@ -350,7 +330,6 @@ def main():
             if st.button("ログイン"):
                 res, msg = login_user(u, p)
                 if res:
-                    cookie_manager.set('logtask_auth', f"{u}:{make_hashes(p)}", expires_at=datetime.now() + timedelta(days=7))
                     st.session_state["logged_in"] = True; st.session_state["username"] = u; st.rerun()
                 else: st.error(msg)
         return
@@ -440,10 +419,9 @@ def main():
             st.rerun()
 
         if st.button("ログアウト"):
-            cookie_manager.delete('logtask_auth')
             st.session_state["logged_in"] = False; st.rerun()
 
-    # ★ 集中モード (BGM再生)
+    # ★ 集中モード
     if st.session_state["is_studying"]:
         st.empty()
         
